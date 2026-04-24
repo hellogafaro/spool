@@ -12,6 +12,8 @@ import {
   RiArrowUpDownLine,
   RiArrowUpLine,
   RiArrowUpSLine,
+  RiBardLine,
+  RiBrainLine,
   RiBugLine,
   RiCheckLine,
   RiCheckboxCircleLine,
@@ -56,6 +58,7 @@ import {
   RiSidebarFoldLine,
   RiSidebarUnfoldLine,
   RiSparklingLine,
+  RiSpeedUpLine,
   RiSplitCellsHorizontal,
   RiStarLine,
   RiStopFill,
@@ -114,7 +117,9 @@ export const ArrowLeftIcon = createIcon(RiArrowLeftSLine);
 export const ArrowUpLineIcon = createIcon(RiArrowUpLine);
 export const ArrowUpDownIcon = createIcon(RiArrowUpDownLine);
 export const ArrowUpIcon = createIcon(RiArrowUpSLine);
+export const BardIcon = createIcon(RiBardLine);
 export const BotIcon = createIcon(RiRobot2Line);
+export const BrainIcon = createIcon(RiBrainLine);
 export const BugIcon = createIcon(RiBugLine);
 export const CheckIcon = createIcon(RiCheckLine);
 export const ChevronDownIcon = createIcon(RiArrowDownSLine);
@@ -173,6 +178,7 @@ export const SearchIcon = createIcon(RiSearchLine);
 export const Settings2Icon = createIcon(RiSettings4Line);
 export const SettingsIcon = createIcon(RiSettings3Line);
 export const SparklesIcon = createIcon(RiSparklingLine);
+export const SpeedIcon = createIcon(RiSpeedUpLine);
 export const SquarePenIcon = createIcon(RiEditBoxLine);
 export const SquareSplitHorizontal = createIcon(RiSplitCellsHorizontal);
 export const StarIcon = createIcon(RiStarLine);

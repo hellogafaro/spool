@@ -13,9 +13,20 @@ import {
   getProviderOptionDescriptors,
 } from "@t3tools/shared/model";
 import { memo, useMemo } from "react";
-import { ChevronDownIcon, FlashlightIcon } from "~/components/ui/icons";
+import {
+  BardIcon,
+  BrainIcon,
+  ChevronDownIcon,
+  FlashlightIcon,
+  SpeedIcon,
+} from "~/components/ui/icons";
 
-import { getProviderModelCapabilities } from "../../providerModels";
+import {
+  formatProviderKindLabel,
+  getProviderDisplayName,
+  getProviderModelCapabilities,
+  isProviderEnabled,
+} from "../../providerModels";
 import { Button } from "../ui/button";
 import {
   Menu,
@@ -25,6 +36,9 @@ import {
   MenuRadioGroup,
   MenuRadioItem,
   MenuSeparator as MenuDivider,
+  MenuSub,
+  MenuSubPopup,
+  MenuSubTrigger,
   MenuTrigger,
 } from "../ui/menu";
 import { cn } from "~/lib/utils";
@@ -99,6 +113,49 @@ function replaceDescriptorCurrentValue(
   );
 }
 
+const MODEL_PROVIDER_ORDER: readonly ProviderKind[] = [
+  "codex",
+  "claudeAgent",
+  "cursor",
+  "opencode",
+];
+
+function getModelValue(provider: ProviderKind, model: string): string {
+  return `${provider}:${model}`;
+}
+
+function parseModelValue(value: string): { provider: ProviderKind; model: string } | null {
+  const separatorIndex = value.indexOf(":");
+  if (separatorIndex <= 0) return null;
+
+  const provider = value.slice(0, separatorIndex);
+  if (
+    provider !== "codex" &&
+    provider !== "claudeAgent" &&
+    provider !== "cursor" &&
+    provider !== "opencode"
+  ) {
+    return null;
+  }
+
+  const model = value.slice(separatorIndex + 1);
+  return model ? { provider, model } : null;
+}
+
+function sortProviderModels(
+  provider: ProviderKind,
+  models: ReadonlyArray<ServerProvider["models"][number]>,
+): ReadonlyArray<ServerProvider["models"][number]> {
+  return models.toSorted((a, b) => {
+    const aIsDefault = provider === "codex" && a.slug === DEFAULT_MODEL_BY_PROVIDER.codex;
+    const bIsDefault = provider === "codex" && b.slug === DEFAULT_MODEL_BY_PROVIDER.codex;
+    if (aIsDefault !== bIsDefault) {
+      return aIsDefault ? -1 : 1;
+    }
+    return 0;
+  });
+}
+
 export const ComposerCombinedControlsMenu = memo(function ComposerCombinedControlsMenu(props: {
   compact?: boolean;
   provider: ProviderKind;
@@ -106,6 +163,8 @@ export const ComposerCombinedControlsMenu = memo(function ComposerCombinedContro
   models: ReadonlyArray<ServerProvider["models"][number]>;
   modelOptions: ReadonlyArray<ProviderOptionSelection> | null | undefined;
   modelOptionsByProvider: ProviderModelsByProvider;
+  providerStatuses: ReadonlyArray<ServerProvider>;
+  lockedProvider: ProviderKind | null;
   interactionMode: ProviderInteractionMode;
   showInteractionModeToggle: boolean;
   open: boolean;
@@ -123,17 +182,18 @@ export const ComposerCombinedControlsMenu = memo(function ComposerCombinedContro
       }),
     [props.model, props.modelOptionsByProvider, props.provider],
   );
-  const providerModels = useMemo(
+  const modelGroups = useMemo(
     () =>
-      props.modelOptionsByProvider[props.provider].toSorted((a, b) => {
-        const aIsDefault = props.provider === "codex" && a.slug === DEFAULT_MODEL_BY_PROVIDER.codex;
-        const bIsDefault = props.provider === "codex" && b.slug === DEFAULT_MODEL_BY_PROVIDER.codex;
-        if (aIsDefault !== bIsDefault) {
-          return aIsDefault ? -1 : 1;
-        }
-        return 0;
+      MODEL_PROVIDER_ORDER.map((provider) => ({
+        provider,
+        label: getProviderDisplayName(props.providerStatuses, provider),
+        models: sortProviderModels(provider, props.modelOptionsByProvider[provider]),
+      })).filter((group) => {
+        if (group.models.length === 0) return false;
+        if (props.lockedProvider !== null) return group.provider === props.lockedProvider;
+        return isProviderEnabled(props.providerStatuses, group.provider);
       }),
-    [props.modelOptionsByProvider, props.provider],
+    [props.lockedProvider, props.modelOptionsByProvider, props.providerStatuses],
   );
   const traitsSummary = useMemo(
     () =>
@@ -172,6 +232,8 @@ export const ComposerCombinedControlsMenu = memo(function ComposerCombinedContro
   const triggerLabel = [getTriggerDisplayModelName(currentModel), traitsSummary]
     .filter(Boolean)
     .join(" · ");
+  const currentModelValue = getModelValue(props.provider, props.model);
+  const speedLabel = fastModeDescriptor?.currentValue === true ? "Fast" : "Standard";
 
   return (
     <Menu open={props.open} onOpenChange={props.onOpenChange}>
@@ -195,78 +257,135 @@ export const ComposerCombinedControlsMenu = memo(function ComposerCombinedContro
           <ChevronDownIcon aria-hidden className="size-3 shrink-0 opacity-60" />
         </span>
       </MenuTrigger>
-      <MenuPopup align="start" className="min-w-64">
-        {selectDescriptors.map((descriptor, index) => (
-          <MenuGroup key={descriptor.id}>
-            {index > 0 ? <MenuDivider /> : null}
-            <MenuGroupLabel>{getCombinedControlsLabel(descriptor)}</MenuGroupLabel>
+      <MenuPopup align="start" className="min-w-72">
+        {props.showInteractionModeToggle ? (
+          <MenuGroup>
+            <MenuGroupLabel>Mode</MenuGroupLabel>
             <MenuRadioGroup
-              value={(getProviderOptionCurrentValue(descriptor) as string | undefined) ?? ""}
+              value={props.interactionMode}
               onValueChange={(value) => {
-                if (!value) return;
-                updateDescriptor(descriptor.id, value);
+                if (!value || value === props.interactionMode) return;
+                props.onInteractionModeChange(value as ProviderInteractionMode);
               }}
             >
-              {descriptor.options.map((option) => (
-                <MenuRadioItem key={option.id} value={option.id}>
-                  {option.label}
-                  {option.isDefault ? " (default)" : ""}
-                </MenuRadioItem>
-              ))}
+              <MenuRadioItem value="default">Build</MenuRadioItem>
+              <MenuRadioItem value="plan">Plan</MenuRadioItem>
             </MenuRadioGroup>
+          </MenuGroup>
+        ) : null}
+
+        {props.showInteractionModeToggle &&
+        (selectDescriptors.length > 0 || modelGroups.length > 0 || fastModeDescriptor) ? (
+          <MenuDivider />
+        ) : null}
+
+        {selectDescriptors.map((descriptor) => (
+          <MenuGroup key={descriptor.id}>
+            <MenuSub>
+              <MenuSubTrigger>
+                <BrainIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+                <span className="min-w-0 flex-1 truncate">
+                  {getCombinedControlsLabel(descriptor)}
+                </span>
+                <span className="text-muted-foreground">
+                  {getProviderOptionCurrentLabel(descriptor)}
+                </span>
+              </MenuSubTrigger>
+              <MenuSubPopup className="min-w-72">
+                <MenuRadioGroup
+                  value={(getProviderOptionCurrentValue(descriptor) as string | undefined) ?? ""}
+                  onValueChange={(value) => {
+                    if (!value) return;
+                    updateDescriptor(descriptor.id, value);
+                  }}
+                >
+                  {descriptor.options.map((option) => (
+                    <MenuRadioItem key={option.id} value={option.id}>
+                      {option.label}
+                      {option.isDefault ? " (default)" : ""}
+                    </MenuRadioItem>
+                  ))}
+                </MenuRadioGroup>
+              </MenuSubPopup>
+            </MenuSub>
           </MenuGroup>
         ))}
 
-        {selectDescriptors.length > 0 ? <MenuDivider /> : null}
-
-        <MenuGroup>
-          <MenuGroupLabel>Model</MenuGroupLabel>
-          <MenuRadioGroup
-            value={props.model}
-            onValueChange={(value) => {
-              if (!value || value === props.model) return;
-              props.onProviderModelChange(props.provider, value);
-            }}
-          >
-            {providerModels.map((model) => (
-              <MenuRadioItem key={model.slug} value={model.slug}>
-                <span className={cn("truncate", model.isCustom && "font-mono")}>
-                  {getTriggerDisplayModelName(model)}
-                </span>
-              </MenuRadioItem>
-            ))}
-          </MenuRadioGroup>
-        </MenuGroup>
+        <MenuSub>
+          <MenuSubTrigger>
+            <BardIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+            <span className="min-w-0 flex-1 truncate">Model</span>
+            <span className="max-w-36 truncate text-muted-foreground">
+              {getTriggerDisplayModelName(currentModel)}
+            </span>
+          </MenuSubTrigger>
+          <MenuSubPopup className="min-w-72">
+            <MenuRadioGroup
+              value={currentModelValue}
+              onValueChange={(value) => {
+                const next = parseModelValue(value);
+                if (!next || value === currentModelValue) return;
+                props.onProviderModelChange(next.provider, next.model);
+              }}
+            >
+              {modelGroups.map((group, groupIndex) => (
+                <MenuGroup key={group.provider}>
+                  {groupIndex > 0 ? <MenuDivider /> : null}
+                  {props.lockedProvider === null ? (
+                    <MenuGroupLabel>
+                      {group.label || formatProviderKindLabel(group.provider)}
+                    </MenuGroupLabel>
+                  ) : null}
+                  {group.models.map((model) => (
+                    <MenuRadioItem
+                      key={`${group.provider}:${model.slug}`}
+                      value={getModelValue(group.provider, model.slug)}
+                    >
+                      <span className={cn("truncate", model.isCustom && "font-mono")}>
+                        {getTriggerDisplayModelName(model)}
+                      </span>
+                    </MenuRadioItem>
+                  ))}
+                </MenuGroup>
+              ))}
+            </MenuRadioGroup>
+          </MenuSubPopup>
+        </MenuSub>
 
         {fastModeDescriptor ? (
           <>
-            <MenuDivider />
-            <MenuGroup>
-              <MenuGroupLabel>Speed</MenuGroupLabel>
-              <MenuRadioGroup
-                value={fastModeDescriptor.currentValue === true ? "fast" : "standard"}
-                onValueChange={(value) => {
-                  updateDescriptor(fastModeDescriptor.id, value === "fast");
-                }}
-              >
-                <MenuRadioItem value="standard" className="items-start">
-                  <span className="grid gap-0.5">
-                    <span>Standard</span>
-                    <span className="text-muted-foreground text-xs">
-                      Default speed with normal credit usage
+            <MenuSub>
+              <MenuSubTrigger>
+                <SpeedIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+                <span className="min-w-0 flex-1 truncate">Speed</span>
+                <span className="text-muted-foreground">{speedLabel}</span>
+              </MenuSubTrigger>
+              <MenuSubPopup className="min-w-72">
+                <MenuRadioGroup
+                  value={fastModeDescriptor.currentValue === true ? "fast" : "standard"}
+                  onValueChange={(value) => {
+                    updateDescriptor(fastModeDescriptor.id, value === "fast");
+                  }}
+                >
+                  <MenuRadioItem value="standard" className="items-start">
+                    <span className="grid gap-0.5">
+                      <span>Standard</span>
+                      <span className="text-muted-foreground text-xs">
+                        Default speed with normal credit usage
+                      </span>
                     </span>
-                  </span>
-                </MenuRadioItem>
-                <MenuRadioItem value="fast" className="items-start">
-                  <span className="grid gap-0.5">
-                    <span>Fast</span>
-                    <span className="text-muted-foreground text-xs">
-                      Faster responses with increased usage
+                  </MenuRadioItem>
+                  <MenuRadioItem value="fast" className="items-start">
+                    <span className="grid gap-0.5">
+                      <span>Fast</span>
+                      <span className="text-muted-foreground text-xs">
+                        Faster responses with increased usage
+                      </span>
                     </span>
-                  </span>
-                </MenuRadioItem>
-              </MenuRadioGroup>
-            </MenuGroup>
+                  </MenuRadioItem>
+                </MenuRadioGroup>
+              </MenuSubPopup>
+            </MenuSub>
           </>
         ) : null}
 
@@ -285,25 +404,6 @@ export const ComposerCombinedControlsMenu = memo(function ComposerCombinedContro
             </MenuRadioGroup>
           </MenuGroup>
         ))}
-
-        {props.showInteractionModeToggle ? (
-          <>
-            <MenuDivider />
-            <MenuGroup>
-              <MenuGroupLabel>Mode</MenuGroupLabel>
-              <MenuRadioGroup
-                value={props.interactionMode}
-                onValueChange={(value) => {
-                  if (!value || value === props.interactionMode) return;
-                  props.onInteractionModeChange(value as ProviderInteractionMode);
-                }}
-              >
-                <MenuRadioItem value="default">Build</MenuRadioItem>
-                <MenuRadioItem value="plan">Plan</MenuRadioItem>
-              </MenuRadioGroup>
-            </MenuGroup>
-          </>
-        ) : null}
       </MenuPopup>
     </Menu>
   );
