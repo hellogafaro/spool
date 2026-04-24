@@ -3479,7 +3479,6 @@ export default function ChatView(props: ChatViewProps) {
             workspaceRoot={activeWorkspaceRoot}
             timestampFormat={timestampFormat}
             mode="sidebar"
-            onClose={closePlanSidebar}
           />
         ) : null}
       </div>
@@ -3513,7 +3512,6 @@ export default function ChatView(props: ChatViewProps) {
             workspaceRoot={activeWorkspaceRoot}
             timestampFormat={timestampFormat}
             mode="sheet"
-            onClose={closePlanSidebar}
           />
         </RightPanelSheet>
       ) : null}
