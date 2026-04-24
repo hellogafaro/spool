@@ -157,6 +157,7 @@ const terminalContextIdListsEqual = (
   contexts.length === ids.length && contexts.every((context, index) => context.id === ids[index]);
 
 const ComposerFooterModeControls = memo(function ComposerFooterModeControls(props: {
+  compact: boolean;
   showInteractionModeToggle: boolean;
   interactionMode: ProviderInteractionMode;
   runtimeMode: RuntimeMode;
@@ -171,7 +172,10 @@ const ComposerFooterModeControls = memo(function ComposerFooterModeControls(prop
       {props.showInteractionModeToggle ? (
         <Button
           variant="ghost"
-          className="shrink-0 whitespace-nowrap px-2 text-muted-foreground/70 hover:text-foreground/80 sm:px-3"
+          className={cn(
+            "shrink-0 whitespace-nowrap px-2 text-muted-foreground/70 hover:text-foreground/80",
+            props.compact ? "" : "sm:px-3",
+          )}
           size="sm"
           type="button"
           onClick={props.onToggleInteractionMode}
@@ -195,12 +199,12 @@ const ComposerFooterModeControls = memo(function ComposerFooterModeControls(prop
         <SelectTrigger
           variant="ghost"
           size="sm"
-          className="font-medium"
+          className={cn("font-medium", props.compact && "px-2 [&_[data-slot=select-icon]]:hidden")}
           aria-label="Runtime mode"
           title={runtimeModeOption.description}
         >
           <RuntimeModeIcon className="size-4" />
-          <SelectValue>{runtimeModeOption.label}</SelectValue>
+          {props.compact ? null : <SelectValue>{runtimeModeOption.label}</SelectValue>}
         </SelectTrigger>
         <SelectPopup alignItemWithTrigger={false}>
           {runtimeModeOptions.map((mode) => {
@@ -1817,6 +1821,7 @@ export const ChatComposer = memo(
                     onInteractionModeChange={handleInteractionModeChange}
                   />
                   <ComposerFooterModeControls
+                    compact={isComposerFooterCompact}
                     showInteractionModeToggle={false}
                     interactionMode={interactionMode}
                     runtimeMode={runtimeMode}
