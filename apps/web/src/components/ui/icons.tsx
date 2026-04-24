@@ -9,6 +9,7 @@ import {
   RiArrowLeftSLine,
   RiArrowRightSLine,
   RiArrowUpDownLine,
+  RiArrowUpLine,
   RiArrowUpSLine,
   RiBugLine,
   RiCheckLine,
@@ -55,6 +56,7 @@ import {
   RiSparklingLine,
   RiSplitCellsHorizontal,
   RiStarLine,
+  RiStopFill,
   RiTaskLine,
   RiTerminalBoxLine,
   RiTerminalLine,
@@ -107,6 +109,7 @@ export const ArchiveIcon = createIcon(RiArchiveLine);
 export const ArchiveX = createIcon(RiArchive2Line);
 export const ArrowDownIcon = createIcon(RiArrowDownSLine);
 export const ArrowLeftIcon = createIcon(RiArrowLeftSLine);
+export const ArrowUpLineIcon = createIcon(RiArrowUpLine);
 export const ArrowUpDownIcon = createIcon(RiArrowUpDownLine);
 export const ArrowUpIcon = createIcon(RiArrowUpSLine);
 export const BotIcon = createIcon(RiRobot2Line);
@@ -170,6 +173,7 @@ export const SparklesIcon = createIcon(RiSparklingLine);
 export const SquarePenIcon = createIcon(RiEditBoxLine);
 export const SquareSplitHorizontal = createIcon(RiSplitCellsHorizontal);
 export const StarIcon = createIcon(RiStarLine);
+export const StopIcon = createIcon(RiStopFill);
 export const TerminalIcon = createIcon(RiTerminalLine);
 export const TerminalSquare = createIcon(RiTerminalBoxLine);
 export const TerminalSquareIcon = createIcon(RiTerminalBoxLine);

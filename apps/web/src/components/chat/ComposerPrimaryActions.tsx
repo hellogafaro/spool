@@ -1,5 +1,11 @@
 import { memo } from "react";
-import { ChevronDownIcon, ChevronLeftIcon } from "~/components/ui/icons";
+import {
+  ArrowUpLineIcon,
+  ChevronDownIcon,
+  ChevronLeftIcon,
+  Loader2Icon,
+  StopIcon,
+} from "~/components/ui/icons";
 import { cn } from "~/lib/utils";
 import { Button } from "../ui/button";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
@@ -114,9 +120,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
         onClick={onInterrupt}
         aria-label="Stop generation"
       >
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
-          <rect x="2" y="2" width="8" height="8" rx="1.5" />
-        </svg>
+        <StopIcon className="size-4" aria-hidden="true" />
       </button>
     );
   }
@@ -188,34 +192,9 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
       }
     >
       {isConnecting || isSendBusy ? (
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 14 14"
-          fill="none"
-          className="animate-spin"
-          aria-hidden="true"
-        >
-          <circle
-            cx="7"
-            cy="7"
-            r="5.5"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeDasharray="20 12"
-          />
-        </svg>
+        <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
       ) : (
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-          <path
-            d="M7 11.5V2.5M7 2.5L3 6.5M7 2.5L11 6.5"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <ArrowUpLineIcon className="size-4" aria-hidden="true" />
       )}
     </button>
   );
