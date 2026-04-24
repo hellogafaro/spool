@@ -1,7 +1,7 @@
 import { memo } from "react";
 import {
+  ArrowDownIcon,
   ArrowUpLineIcon,
-  ChevronDownIcon,
   ChevronLeftIcon,
   Loader2Icon,
   StopIcon,
@@ -161,7 +161,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
               />
             }
           >
-            <ChevronDownIcon className="size-3.5" />
+            <ArrowDownIcon className="size-3.5" />
           </MenuTrigger>
           <MenuPopup align="end" side="top">
             <MenuItem

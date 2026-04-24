@@ -30,10 +30,10 @@ export function NoActiveThreadState() {
           )}
         </header>
 
-        <Empty className="flex-1 p-0 md:p-0">
-          <SpoolLogo className="size-9 text-white opacity-5" />
+        <Empty className="flex-1 p-0 text-muted-foreground/78 md:p-0">
+          <SpoolLogo className="size-9 opacity-30" />
           <EmptyHeader className="max-w-none">
-            <EmptyDescription className="text-sm text-muted-foreground/78">
+            <EmptyDescription className="text-base text-inherit">
               Select an existing thread or create a new one to get started.
             </EmptyDescription>
           </EmptyHeader>

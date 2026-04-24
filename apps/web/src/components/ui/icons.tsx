@@ -4,6 +4,7 @@ import {
   RiAlertLine,
   RiArchive2Line,
   RiArchiveLine,
+  RiArrowDownLine,
   RiArrowDownSLine,
   RiArrowGoBackLine,
   RiArrowLeftSLine,
@@ -108,7 +109,7 @@ function createIcon(Component: RemixiconComponentType): LucideIcon {
 
 export const ArchiveIcon = createIcon(RiArchiveLine);
 export const ArchiveX = createIcon(RiArchive2Line);
-export const ArrowDownIcon = createIcon(RiArrowDownSLine);
+export const ArrowDownIcon = createIcon(RiArrowDownLine);
 export const ArrowLeftIcon = createIcon(RiArrowLeftSLine);
 export const ArrowUpLineIcon = createIcon(RiArrowUpLine);
 export const ArrowUpDownIcon = createIcon(RiArrowUpDownLine);

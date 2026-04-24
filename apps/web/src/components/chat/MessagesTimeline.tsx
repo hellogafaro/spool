@@ -54,6 +54,7 @@ import { cn } from "~/lib/utils";
 import { useUiStateStore } from "~/uiStateStore";
 import { type TimestampFormat } from "@t3tools/contracts/settings";
 import { formatTimestamp } from "../../timestampFormat";
+import { SpoolLogo } from "../ui/spool-logo";
 
 import {
   buildInlineTerminalContextText,
@@ -230,7 +231,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   // from TimelineRowCtx, which propagates through LegendList's memo.
   const renderItem = useCallback(
     ({ item }: { item: MessagesTimelineRow }) => (
-      <div className="mx-auto w-full min-w-0 max-w-3xl overflow-x-hidden" data-timeline-root="true">
+      <div className="mx-auto w-full min-w-0 max-w-208 overflow-x-hidden" data-timeline-root="true">
         <TimelineRowContent row={item} />
       </div>
     ),
@@ -239,10 +240,9 @@ export const MessagesTimeline = memo(function MessagesTimeline({
 
   if (rows.length === 0 && !isWorking) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <p className="text-sm text-muted-foreground/30">
-          Send a message to start the conversation.
-        </p>
+      <div className="flex h-full flex-col items-center justify-center gap-6 text-center text-muted-foreground/78">
+        <SpoolLogo className="size-9 opacity-30" />
+        <p className="text-base text-inherit">Send a message to start the conversation.</p>
       </div>
     );
   }
