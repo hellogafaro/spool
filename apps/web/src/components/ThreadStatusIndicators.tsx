@@ -1,6 +1,6 @@
 import { scopeProjectRef, scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime";
 import type { GitStatusResult } from "@t3tools/contracts";
-import { CloudIcon, GitPullRequestIcon, TerminalIcon } from "lucide-react";
+import { CloudIcon, GitPullRequestIcon, TerminalIcon } from "~/components/ui/icons";
 import { useMemo } from "react";
 import { usePrimaryEnvironmentId } from "../environments/primary";
 import {
@@ -117,7 +117,7 @@ export function ThreadStatusLabel({
           status.pulse ? "animate-pulse" : ""
         }`}
       />
-      <span className="hidden md:inline">{status.label}</span>
+      <span className="hidden">{status.label}</span>
     </span>
   );
 }

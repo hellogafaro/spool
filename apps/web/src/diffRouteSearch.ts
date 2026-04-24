@@ -4,7 +4,7 @@ export interface DiffRouteSearch {
   diff?: "1" | undefined;
   diffTurnId?: TurnId | undefined;
   diffFilePath?: string | undefined;
-  tasks?: "1" | undefined;
+  plan?: "1" | undefined;
 }
 
 function isDiffOpenValue(value: unknown): boolean {
@@ -28,7 +28,7 @@ export function stripDiffSearchParams<T extends Record<string, unknown>>(
 
 export function parseDiffRouteSearch(search: Record<string, unknown>): DiffRouteSearch {
   const diff = isDiffOpenValue(search.diff) ? "1" : undefined;
-  const tasks = isDiffOpenValue(search.tasks) ? "1" : undefined;
+  const plan = isDiffOpenValue(search.plan) || isDiffOpenValue(search.tasks) ? "1" : undefined;
   const diffTurnIdRaw = diff ? normalizeSearchString(search.diffTurnId) : undefined;
   const diffTurnId = diffTurnIdRaw ? TurnId.make(diffTurnIdRaw) : undefined;
   const diffFilePath = diff && diffTurnId ? normalizeSearchString(search.diffFilePath) : undefined;
@@ -37,6 +37,6 @@ export function parseDiffRouteSearch(search: Record<string, unknown>): DiffRoute
     ...(diff ? { diff } : {}),
     ...(diffTurnId ? { diffTurnId } : {}),
     ...(diffFilePath ? { diffFilePath } : {}),
-    ...(tasks ? { tasks } : {}),
+    ...(plan ? { plan } : {}),
   };
 }

@@ -33,6 +33,7 @@ interface ChatHeaderProps {
   terminalOpen: boolean;
   terminalToggleShortcutLabel: string | null;
   diffToggleShortcutLabel: string | null;
+  planToggleShortcutLabel: string | null;
   gitCwd: string | null;
   diffOpen: boolean;
   tasksLabel: string;
@@ -62,6 +63,7 @@ export const ChatHeader = memo(function ChatHeader({
   terminalOpen,
   terminalToggleShortcutLabel,
   diffToggleShortcutLabel,
+  planToggleShortcutLabel,
   gitCwd,
   diffOpen,
   tasksLabel,
@@ -138,8 +140,12 @@ export const ChatHeader = memo(function ChatHeader({
           />
           <TooltipPopup side="bottom">
             {tasksOpen
-              ? `Hide ${tasksLabel.toLowerCase()} panel`
-              : `Show ${tasksLabel.toLowerCase()} panel`}
+              ? planToggleShortcutLabel
+                ? `Hide ${tasksLabel.toLowerCase()} panel (${planToggleShortcutLabel})`
+                : `Hide ${tasksLabel.toLowerCase()} panel`
+              : planToggleShortcutLabel
+                ? `Show ${tasksLabel.toLowerCase()} panel (${planToggleShortcutLabel})`
+                : `Show ${tasksLabel.toLowerCase()} panel`}
           </TooltipPopup>
         </Tooltip>
         <Tooltip>

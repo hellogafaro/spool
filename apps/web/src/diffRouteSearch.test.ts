@@ -39,9 +39,11 @@ describe("parseDiffRouteSearch", () => {
     });
   });
 
-  it("parses tasks panel search values", () => {
-    expect(parseDiffRouteSearch({ tasks: "1" })).toEqual({ tasks: "1" });
-    expect(parseDiffRouteSearch({ tasks: true })).toEqual({ tasks: "1" });
+  it("parses plan panel search values", () => {
+    expect(parseDiffRouteSearch({ plan: "1" })).toEqual({ plan: "1" });
+    expect(parseDiffRouteSearch({ plan: true })).toEqual({ plan: "1" });
+    expect(parseDiffRouteSearch({ tasks: "1" })).toEqual({ plan: "1" });
+    expect(parseDiffRouteSearch({ tasks: true })).toEqual({ plan: "1" });
     expect(parseDiffRouteSearch({ tasks: "0" })).toEqual({});
   });
 

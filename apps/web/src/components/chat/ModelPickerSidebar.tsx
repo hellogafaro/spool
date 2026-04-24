@@ -1,6 +1,6 @@
 import { type ProviderKind, type ServerProvider } from "@t3tools/contracts";
 import { memo } from "react";
-import { Clock3Icon, SparklesIcon, StarIcon } from "lucide-react";
+import { Clock3Icon, SparklesIcon, StarIcon } from "~/components/ui/icons";
 import { Gemini, GithubCopilotIcon } from "../Icons";
 import { AVAILABLE_PROVIDER_OPTIONS, PROVIDER_ICON_BY_PROVIDER } from "./providerIconUtils";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";

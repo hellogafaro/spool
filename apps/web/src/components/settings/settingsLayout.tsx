@@ -1,4 +1,4 @@
-import { Undo2Icon } from "lucide-react";
+import { Undo2Icon } from "~/components/ui/icons";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { cn } from "../../lib/utils";

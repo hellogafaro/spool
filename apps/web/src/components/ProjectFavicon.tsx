@@ -1,5 +1,5 @@
 import type { EnvironmentId } from "@t3tools/contracts";
-import { FolderIcon } from "lucide-react";
+import { FolderIcon } from "~/components/ui/icons";
 import { useState } from "react";
 import { resolveEnvironmentHttpUrl } from "../environments/runtime";
 

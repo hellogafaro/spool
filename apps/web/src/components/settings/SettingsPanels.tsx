@@ -7,7 +7,7 @@ import {
   PlusIcon,
   RefreshCwIcon,
   XIcon,
-} from "lucide-react";
+} from "~/components/ui/icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import {

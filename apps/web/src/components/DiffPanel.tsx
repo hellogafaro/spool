@@ -10,7 +10,7 @@ import {
   Columns2Icon,
   Rows3Icon,
   TextWrapIcon,
-} from "lucide-react";
+} from "~/components/ui/icons";
 import {
   type WheelEvent as ReactWheelEvent,
   useCallback,

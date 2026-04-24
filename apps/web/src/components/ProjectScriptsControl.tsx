@@ -13,7 +13,7 @@ import {
   PlusIcon,
   SettingsIcon,
   WrenchIcon,
-} from "lucide-react";
+} from "~/components/ui/icons";
 import React, { type FormEvent, type KeyboardEvent, useCallback, useMemo, useState } from "react";
 
 import {

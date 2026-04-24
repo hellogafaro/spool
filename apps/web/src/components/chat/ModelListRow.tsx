@@ -1,6 +1,6 @@
 import { type ProviderKind } from "@t3tools/contracts";
 import { memo } from "react";
-import { StarIcon } from "lucide-react";
+import { StarIcon } from "~/components/ui/icons";
 import {
   getDisplayModelName,
   getProviderLabel,

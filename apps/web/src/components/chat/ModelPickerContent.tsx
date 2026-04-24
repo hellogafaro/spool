@@ -6,7 +6,7 @@ import {
 } from "@t3tools/contracts";
 import { resolveSelectableModel } from "@t3tools/shared/model";
 import { memo, useMemo, useState, useCallback, useEffect, useLayoutEffect, useRef } from "react";
-import { SearchIcon } from "lucide-react";
+import { SearchIcon } from "~/components/ui/icons";
 import { ModelListRow } from "./ModelListRow";
 import { ModelPickerSidebar } from "./ModelPickerSidebar";
 import { isModelPickerNewModel } from "./modelPickerModelHighlights";

@@ -4,7 +4,7 @@ import {
   type ServerProviderSkill,
   type ServerProviderSlashCommand,
 } from "@t3tools/contracts";
-import { BotIcon } from "lucide-react";
+import { BotIcon } from "~/components/ui/icons";
 import { memo, useLayoutEffect, useMemo, useRef } from "react";
 
 import { type ComposerSlashCommand, type ComposerTriggerKind } from "../../composer-logic";

@@ -28,7 +28,7 @@ import {
   Undo2Icon,
   WrenchIcon,
   ZapIcon,
-} from "lucide-react";
+} from "~/components/ui/icons";
 import { Button } from "../ui/button";
 import { buildExpandedImagePreview, ExpandedImagePreview } from "./ExpandedImagePreview";
 import { ProposedPlanCard } from "./ProposedPlanCard";

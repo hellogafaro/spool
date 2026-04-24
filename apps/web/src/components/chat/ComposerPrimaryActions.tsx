@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { ChevronDownIcon, ChevronLeftIcon } from "lucide-react";
+import { ChevronDownIcon, ChevronLeftIcon } from "~/components/ui/icons";
 import { cn } from "~/lib/utils";
 import { Button } from "../ui/button";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";

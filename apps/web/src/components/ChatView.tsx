@@ -683,7 +683,7 @@ export default function ChatView(props: ChatViewProps) {
   >({});
   const [pendingUserInputQuestionIndexByRequestId, setPendingUserInputQuestionIndexByRequestId] =
     useState<Record<string, number>>({});
-  const planSidebarOpen = rawSearch.tasks === "1";
+  const planSidebarOpen = rawSearch.plan === "1";
   const shouldUsePlanSidebarSheet = useMediaQuery(RIGHT_PANEL_INLINE_LAYOUT_MEDIA_QUERY);
   // Tracks whether the user explicitly dismissed the sidebar for the active turn.
   const planSidebarDismissedForTurnRef = useRef<string | null>(null);
@@ -1472,6 +1472,10 @@ export default function ChatView(props: ChatViewProps) {
     () => shortcutLabelForCommand(keybindings, "terminal.close", terminalShortcutLabelOptions),
     [keybindings, terminalShortcutLabelOptions],
   );
+  const planToggleShortcutLabel = useMemo(
+    () => shortcutLabelForCommand(keybindings, "plan.toggle", nonTerminalShortcutLabelOptions),
+    [keybindings, nonTerminalShortcutLabelOptions],
+  );
   const diffPanelShortcutLabel = useMemo(
     () => shortcutLabelForCommand(keybindings, "diff.toggle", nonTerminalShortcutLabelOptions),
     [keybindings, nonTerminalShortcutLabelOptions],
@@ -1915,7 +1919,7 @@ export default function ChatView(props: ChatViewProps) {
         void navigate({
           to: "/$environmentId/$threadId",
           params: buildThreadRouteParams(routeThreadRef),
-          search: (previous) => ({ ...previous, tasks: open ? "1" : undefined }),
+          search: (previous) => ({ ...previous, plan: open ? "1" : undefined }),
           ...(options?.replace !== undefined ? { replace: options.replace } : {}),
         });
         return;
@@ -1928,7 +1932,7 @@ export default function ChatView(props: ChatViewProps) {
       void navigate({
         to: "/draft/$draftId",
         params: buildDraftThreadRouteParams(draftId),
-        search: (previous) => ({ ...previous, tasks: open ? "1" : undefined }),
+        search: (previous) => ({ ...previous, plan: open ? "1" : undefined }),
         ...(options?.replace !== undefined ? { replace: options.replace } : {}),
       });
     },
@@ -2318,6 +2322,13 @@ export default function ChatView(props: ChatViewProps) {
         return;
       }
 
+      if (command === "plan.toggle") {
+        event.preventDefault();
+        event.stopPropagation();
+        togglePlanSidebar();
+        return;
+      }
+
       if (command === "modelPicker.toggle") {
         event.preventDefault();
         event.stopPropagation();
@@ -2347,6 +2358,7 @@ export default function ChatView(props: ChatViewProps) {
     splitTerminal,
     keybindings,
     onToggleDiff,
+    togglePlanSidebar,
     toggleTerminalVisibility,
   ]);
 
@@ -3289,6 +3301,7 @@ export default function ChatView(props: ChatViewProps) {
           terminalOpen={terminalState.terminalOpen}
           terminalToggleShortcutLabel={terminalToggleShortcutLabel}
           diffToggleShortcutLabel={diffPanelShortcutLabel}
+          planToggleShortcutLabel={planToggleShortcutLabel}
           gitCwd={gitCwd}
           diffOpen={diffOpen}
           tasksLabel={planSidebarLabel}

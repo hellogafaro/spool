@@ -15,7 +15,7 @@ import {
 } from "@t3tools/shared/model";
 import { memo, useCallback, useState } from "react";
 import type { VariantProps } from "class-variance-authority";
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon } from "~/components/ui/icons";
 import { Button, buttonVariants } from "../ui/button";
 import {
   Menu,
