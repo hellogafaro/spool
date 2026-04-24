@@ -137,10 +137,16 @@ export const ProposedPlanCard = memo(function ProposedPlanCard({
   };
 
   return (
-    <div className="rounded-[24px] border border-border/80 bg-card/70 p-4 sm:p-5">
+    <div className="rounded-lg border border-border/80 bg-card/70 p-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <Badge variant="secondary">Plan</Badge>
+          <Badge
+            variant="secondary"
+            size="sm"
+            className="h-5 min-w-5 rounded-full px-1.5 text-xs uppercase tracking-wide sm:h-5 sm:min-w-5"
+          >
+            Plan
+          </Badge>
           <p className="truncate text-sm font-medium text-foreground">{title}</p>
         </div>
         <Menu>

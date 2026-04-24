@@ -399,9 +399,9 @@ function TimelineRowContent({ row }: { row: TimelineRow }) {
           return (
             <>
               {row.showCompletionDivider && (
-                <div className="my-3 flex items-center gap-3">
+                <div className="my-3 flex items-center gap-0">
                   <span className="h-px flex-1 bg-border" />
-                  <span className="rounded-full border border-border bg-background px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-muted-foreground/80">
+                  <span className="rounded-full border border-border bg-background px-2.5 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground/80">
                     {ctx.completionSummary ? `Response • ${ctx.completionSummary}` : "Response"}
                   </span>
                   <span className="h-px flex-1 bg-border" />
@@ -464,13 +464,13 @@ function TimelineRowContent({ row }: { row: TimelineRow }) {
 
       {row.kind === "working" && (
         <div className="py-0.5 pl-1.5">
-          <div className="flex items-center gap-2 pt-1 text-[11px] text-muted-foreground/70">
-            <span className="inline-flex items-center gap-[3px]">
-              <span className="h-1 w-1 rounded-full bg-muted-foreground/30 animate-pulse" />
-              <span className="h-1 w-1 rounded-full bg-muted-foreground/30 animate-pulse [animation-delay:200ms]" />
-              <span className="h-1 w-1 rounded-full bg-muted-foreground/30 animate-pulse [animation-delay:400ms]" />
+          <div className="flex items-center gap-2 pt-1 text-sm text-muted-foreground/70">
+            <span className="inline-flex items-center gap-[3px] self-center">
+              <span className="size-1.5 rounded-full bg-muted-foreground/30 animate-pulse" />
+              <span className="size-1.5 rounded-full bg-muted-foreground/30 animate-pulse [animation-delay:200ms]" />
+              <span className="size-1.5 rounded-full bg-muted-foreground/30 animate-pulse [animation-delay:400ms]" />
             </span>
-            <span>
+            <span className="self-center">
               {row.createdAt ? (
                 <>
                   Working for <WorkingTimer createdAt={row.createdAt} />
@@ -550,8 +550,8 @@ const WorkGroupSection = memo(function WorkGroupSection({
   return (
     <div className="rounded-lg border border-border/45 bg-card/25">
       {showHeader && (
-        <div className="flex items-center justify-between gap-2 px-3 py-2">
-          <p className="text-[9px] uppercase tracking-[0.16em] text-muted-foreground/55">
+        <div className="flex items-center justify-between gap-2 px-3 pt-2 pb-0">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground/55">
             {groupLabel} ({groupedEntries.length})
           </p>
           {hasOverflow && (
@@ -629,7 +629,7 @@ function AssistantChangedFilesSectionInner({
   const changedFileCountLabel = String(checkpointFiles.length);
 
   return (
-    <div className="mt-2 rounded-lg border border-border/80 bg-card/45 p-2.5">
+    <div className="mt-2 rounded-lg border border-border/80 bg-card/45 p-2">
       <div className="mb-1.5 flex items-start justify-between gap-2">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground/65">
           <span>Changed files ({changedFileCountLabel})</span>
