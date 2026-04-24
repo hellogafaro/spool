@@ -1,11 +1,14 @@
 export const BRAND_ASSET_PATHS = {
   productionMacIconPng: "assets/prod/black-macos-1024.png",
   productionLinuxIconPng: "assets/prod/black-universal-1024.png",
-  productionWindowsIconIco: "assets/prod/t3-black-windows.ico",
-  productionWebFaviconIco: "assets/prod/t3-black-web-favicon.ico",
-  productionWebFavicon16Png: "assets/prod/t3-black-web-favicon-16x16.png",
-  productionWebFavicon32Png: "assets/prod/t3-black-web-favicon-32x32.png",
-  productionWebAppleTouchIconPng: "assets/prod/t3-black-web-apple-touch-180.png",
+  productionWindowsIconIco: "assets/prod/spool-black-windows.ico",
+  productionWebFaviconIco: "assets/prod/spool-black-web-favicon.ico",
+  productionWebFavicon16Png: "assets/prod/spool-black-web-favicon-16x16.png",
+  productionWebFavicon32Png: "assets/prod/spool-black-web-favicon-32x32.png",
+  productionWebAppleTouchIconPng: "assets/prod/spool-black-web-apple-touch-180.png",
+  productionWebPwa192Png: "assets/prod/spool-black-pwa-192x192.png",
+  productionWebPwa512Png: "assets/prod/spool-black-pwa-512x512.png",
+  productionWebMaskableIcon512Png: "assets/prod/spool-black-maskable-icon-512x512.png",
 
   nightlyMacIconPng: "assets/nightly/blueprint-macos-1024.png",
   nightlyLinuxIconPng: "assets/nightly/blueprint-universal-1024.png",
@@ -59,5 +62,17 @@ export const PUBLISH_ICON_OVERRIDES: ReadonlyArray<IconOverride> = [
   {
     sourceRelativePath: BRAND_ASSET_PATHS.productionWebAppleTouchIconPng,
     targetRelativePath: "dist/client/apple-touch-icon.png",
+  },
+  {
+    sourceRelativePath: BRAND_ASSET_PATHS.productionWebPwa192Png,
+    targetRelativePath: "dist/client/pwa-192x192.png",
+  },
+  {
+    sourceRelativePath: BRAND_ASSET_PATHS.productionWebPwa512Png,
+    targetRelativePath: "dist/client/pwa-512x512.png",
+  },
+  {
+    sourceRelativePath: BRAND_ASSET_PATHS.productionWebMaskableIcon512Png,
+    targetRelativePath: "dist/client/maskable-icon-512x512.png",
   },
 ];
