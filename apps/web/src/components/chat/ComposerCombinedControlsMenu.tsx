@@ -18,6 +18,7 @@ import {
   BrainIcon,
   ChevronDownIcon,
   FlashlightIcon,
+  Rows3Icon,
   SpeedIcon,
 } from "~/components/ui/icons";
 
@@ -91,6 +92,10 @@ function getTraitsSummary(input: {
 
 function getCombinedControlsLabel(descriptor: ProviderOptionDescriptor): string {
   return descriptor.id === "reasoningEffort" ? "Intelligence" : descriptor.label;
+}
+
+function getCombinedControlsIcon(descriptor: ProviderOptionDescriptor) {
+  return descriptor.id === "contextWindow" ? Rows3Icon : BrainIcon;
 }
 
 function replaceDescriptorCurrentValue(
@@ -283,7 +288,10 @@ export const ComposerCombinedControlsMenu = memo(function ComposerCombinedContro
           <MenuGroup key={descriptor.id}>
             <MenuSub>
               <MenuSubTrigger>
-                <BrainIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+                {(() => {
+                  const Icon = getCombinedControlsIcon(descriptor);
+                  return <Icon className="size-4 text-muted-foreground" aria-hidden="true" />;
+                })()}
                 <span className="min-w-0 flex-1 truncate">
                   {getCombinedControlsLabel(descriptor)}
                 </span>
