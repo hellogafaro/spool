@@ -60,10 +60,8 @@ import {
   shouldUseCompactComposerFooter,
 } from "../composerFooterLayout";
 import { type ComposerPromptEditorHandle, ComposerPromptEditor } from "../ComposerPromptEditor";
-import { ProviderModelPicker } from "./ProviderModelPicker";
 import { type ComposerCommandItem, ComposerCommandMenu } from "./ComposerCommandMenu";
 import { ComposerPendingApprovalActions } from "./ComposerPendingApprovalActions";
-import { CompactComposerControlsMenu } from "./CompactComposerControlsMenu";
 import { ComposerCombinedControlsMenu } from "./ComposerCombinedControlsMenu";
 import { ComposerPrimaryActions } from "./ComposerPrimaryActions";
 import { ComposerPendingApprovalPanel } from "./ComposerPendingApprovalPanel";
@@ -71,7 +69,7 @@ import { ComposerPendingUserInputPanel } from "./ComposerPendingUserInputPanel";
 import { ComposerPlanFollowUpBanner } from "./ComposerPlanFollowUpBanner";
 import { resolveComposerMenuActiveItemId } from "./composerMenuHighlight";
 import { searchSlashCommandItems } from "./composerSlashCommandSearch";
-import { getComposerProviderState, renderProviderTraitsMenuContent } from "./composerProviderState";
+import { getComposerProviderState } from "./composerProviderState";
 import { ContextWindowMeter } from "./ContextWindowMeter";
 import { buildExpandedImagePreview, type ExpandedImagePreview } from "./ExpandedImagePreview";
 import { basenameOfPath } from "../../vscode-icons";
@@ -424,8 +422,6 @@ export const ChatComposer = memo(
     const {
       composerDraftTarget,
       environmentId,
-      routeKind,
-      routeThreadRef,
       draftId,
       activeThreadId,
       activeThreadEnvironmentId: _activeThreadEnvironmentId,
@@ -456,8 +452,6 @@ export const ChatComposer = memo(
       activeThreadActivities,
       resolvedTheme,
       settings,
-      keybindings,
-      terminalOpen,
       gitCwd,
       promptRef,
       composerImagesRef,
@@ -477,7 +471,6 @@ export const ChatComposer = memo(
       handleRuntimeModeChange,
       handleInteractionModeChange,
       focusComposer,
-      scheduleComposerFocus,
       setThreadError,
       onExpandImage,
     } = props;
@@ -810,35 +803,6 @@ export const ChatComposer = memo(
         : "No matching command.";
     }, [composerTriggerKind]);
 
-    // ------------------------------------------------------------------
-    // Provider traits UI
-    // ------------------------------------------------------------------
-    const setPromptFromTraits = useCallback(
-      (nextPrompt: string) => {
-        if (nextPrompt === promptRef.current) {
-          scheduleComposerFocus();
-          return;
-        }
-        promptRef.current = nextPrompt;
-        setComposerDraftPrompt(composerDraftTarget, nextPrompt);
-        const nextCursor = collapseExpandedComposerCursor(nextPrompt, nextPrompt.length);
-        setComposerCursor(nextCursor);
-        setComposerTrigger(detectComposerTrigger(nextPrompt, nextPrompt.length));
-        scheduleComposerFocus();
-      },
-      [composerDraftTarget, promptRef, scheduleComposerFocus, setComposerDraftPrompt],
-    );
-
-    const providerTraitsMenuContent = renderProviderTraitsMenuContent({
-      provider: selectedProvider,
-      ...(routeKind === "server" ? { threadRef: routeThreadRef } : {}),
-      ...(routeKind === "draft" && draftId ? { draftId } : {}),
-      model: selectedModel,
-      models: selectedProviderModels,
-      modelOptions: composerModelOptions?.[selectedProvider],
-      prompt,
-      onPromptChange: setPromptFromTraits,
-    });
     const handleCombinedModelOptionsChange = useCallback(
       (nextOptions: ReadonlyArray<ProviderOptionSelection> | undefined) => {
         setComposerDraftProviderModelOptions(composerDraftTarget, selectedProvider, nextOptions, {
@@ -1837,67 +1801,28 @@ export const ChatComposer = memo(
                 )}
               >
                 <div className="-m-1 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {isComposerFooterCompact ? (
-                    <>
-                      <ProviderModelPicker
-                        compact={isComposerFooterCompact}
-                        provider={selectedProvider}
-                        model={selectedModelForPickerWithCustomFallback}
-                        lockedProvider={lockedProvider}
-                        providers={providerStatuses}
-                        keybindings={keybindings}
-                        modelOptionsByProvider={modelOptionsByProvider}
-                        terminalOpen={terminalOpen}
-                        open={isComposerModelPickerOpen}
-                        {...(composerProviderState.modelPickerIconClassName
-                          ? {
-                              activeProviderIconClassName:
-                                composerProviderState.modelPickerIconClassName,
-                            }
-                          : {})}
-                        onOpenChange={(open) => {
-                          setIsComposerModelPickerOpen(open);
-                        }}
-                        onProviderModelChange={onProviderModelSelect}
-                      />
-                      <CompactComposerControlsMenu
-                        interactionMode={interactionMode}
-                        runtimeMode={runtimeMode}
-                        showInteractionModeToggle={
-                          composerProviderControls.showInteractionModeToggle
-                        }
-                        traitsMenuContent={providerTraitsMenuContent}
-                        onToggleInteractionMode={toggleInteractionMode}
-                        onRuntimeModeChange={handleRuntimeModeChange}
-                      />
-                    </>
-                  ) : (
-                    <>
-                      <ComposerCombinedControlsMenu
-                        provider={selectedProvider}
-                        model={selectedModelForPickerWithCustomFallback}
-                        models={selectedProviderModels}
-                        modelOptions={composerModelOptions?.[selectedProvider]}
-                        modelOptionsByProvider={modelOptionsByProvider}
-                        interactionMode={interactionMode}
-                        showInteractionModeToggle={
-                          composerProviderControls.showInteractionModeToggle
-                        }
-                        open={isComposerModelPickerOpen}
-                        onOpenChange={setIsComposerModelPickerOpen}
-                        onProviderModelChange={onProviderModelSelect}
-                        onModelOptionsChange={handleCombinedModelOptionsChange}
-                        onInteractionModeChange={handleInteractionModeChange}
-                      />
-                      <ComposerFooterModeControls
-                        showInteractionModeToggle={false}
-                        interactionMode={interactionMode}
-                        runtimeMode={runtimeMode}
-                        onToggleInteractionMode={toggleInteractionMode}
-                        onRuntimeModeChange={handleRuntimeModeChange}
-                      />
-                    </>
-                  )}
+                  <ComposerCombinedControlsMenu
+                    compact={isComposerFooterCompact}
+                    provider={selectedProvider}
+                    model={selectedModelForPickerWithCustomFallback}
+                    models={selectedProviderModels}
+                    modelOptions={composerModelOptions?.[selectedProvider]}
+                    modelOptionsByProvider={modelOptionsByProvider}
+                    interactionMode={interactionMode}
+                    showInteractionModeToggle={composerProviderControls.showInteractionModeToggle}
+                    open={isComposerModelPickerOpen}
+                    onOpenChange={setIsComposerModelPickerOpen}
+                    onProviderModelChange={onProviderModelSelect}
+                    onModelOptionsChange={handleCombinedModelOptionsChange}
+                    onInteractionModeChange={handleInteractionModeChange}
+                  />
+                  <ComposerFooterModeControls
+                    showInteractionModeToggle={false}
+                    interactionMode={interactionMode}
+                    runtimeMode={runtimeMode}
+                    onToggleInteractionMode={toggleInteractionMode}
+                    onRuntimeModeChange={handleRuntimeModeChange}
+                  />
                 </div>
 
                 {/* Right side: send / stop button */}

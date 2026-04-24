@@ -100,6 +100,7 @@ function replaceDescriptorCurrentValue(
 }
 
 export const ComposerCombinedControlsMenu = memo(function ComposerCombinedControlsMenu(props: {
+  compact?: boolean;
   provider: ProviderKind;
   model: string;
   models: ReadonlyArray<ServerProvider["models"][number]>;
@@ -179,14 +180,18 @@ export const ComposerCombinedControlsMenu = memo(function ComposerCombinedContro
           <Button
             size="sm"
             variant="ghost"
-            className="min-w-0 max-w-64 shrink justify-start overflow-hidden whitespace-nowrap px-2 text-muted-foreground/70 hover:text-foreground/80 sm:max-w-72 sm:px-3 [&_svg]:mx-0"
+            aria-label={triggerLabel || "Composer controls"}
+            className={cn(
+              "shrink justify-start overflow-hidden whitespace-nowrap px-2 text-muted-foreground/70 hover:text-foreground/80 [&_svg]:mx-0",
+              props.compact ? "min-w-0" : "min-w-0 max-w-64 sm:max-w-72 sm:px-3",
+            )}
             data-chat-composer-combined-controls="true"
           />
         }
       >
         <span className="flex min-w-0 w-full items-center gap-2 overflow-hidden">
           <FlashlightIcon className="size-4 shrink-0" aria-hidden />
-          <span className="min-w-0 flex-1 truncate">{triggerLabel}</span>
+          {props.compact ? null : <span className="min-w-0 flex-1 truncate">{triggerLabel}</span>}
           <ChevronDownIcon aria-hidden className="size-3 shrink-0 opacity-60" />
         </span>
       </MenuTrigger>
