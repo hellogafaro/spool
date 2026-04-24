@@ -199,7 +199,7 @@ const ComposerFooterModeControls = memo(function ComposerFooterModeControls(prop
         <SelectTrigger
           variant="ghost"
           size="sm"
-          className={cn("font-medium", props.compact && "px-2 [&_[data-slot=select-icon]]:hidden")}
+          className={cn("font-medium", props.compact && "px-2")}
           aria-label="Runtime mode"
           title={runtimeModeOption.description}
         >
