@@ -1655,7 +1655,7 @@ export const ChatComposer = memo(
               </div>
             ) : null}
 
-            <div className="relative px-2 pt-2">
+            <div className="relative px-3 pt-2">
               {composerMenuOpen && !isComposerApprovalState && (
                 <div className="absolute inset-x-0 bottom-full z-20 mb-2 px-1">
                   <ComposerCommandMenu
