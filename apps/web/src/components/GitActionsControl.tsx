@@ -883,7 +883,7 @@ export default function GitActionsControl({
                 render={
                   <Button
                     aria-disabled="true"
-                    className="cursor-not-allowed rounded-e-none border-e-0 opacity-64 before:rounded-e-none"
+                    className="cursor-not-allowed border-e-0 opacity-64"
                     size="xs"
                     variant="outline"
                   />
