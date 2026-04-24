@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, retainSearchParams, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
 import ChatView from "../components/ChatView";
 import { threadHasStarted } from "../components/ChatView.logic";
@@ -7,10 +7,12 @@ import { SidebarInset } from "../components/ui/sidebar";
 import { createThreadSelectorAcrossEnvironments } from "../storeSelectors";
 import { useStore } from "../store";
 import { buildThreadRouteParams } from "../threadRoutes";
+import { type DiffRouteSearch, parseDiffRouteSearch } from "../diffRouteSearch";
 
 function DraftChatThreadRouteView() {
   const navigate = useNavigate();
   const { draftId: rawDraftId } = Route.useParams();
+  const search = Route.useSearch();
   const draftId = DraftId.make(rawDraftId);
   const draftSession = useComposerDraftStore((store) => store.getDraftSession(draftId));
   const serverThread = useStore(
@@ -42,9 +44,10 @@ function DraftChatThreadRouteView() {
     void navigate({
       to: "/$environmentId/$threadId",
       params: buildThreadRouteParams(canonicalThreadRef),
+      search,
       replace: true,
     });
-  }, [canonicalThreadRef, navigate]);
+  }, [canonicalThreadRef, navigate, search]);
 
   useEffect(() => {
     if (draftSession || canonicalThreadRef) {
@@ -82,5 +85,9 @@ function DraftChatThreadRouteView() {
 }
 
 export const Route = createFileRoute("/_chat/draft/$draftId")({
+  validateSearch: (search) => parseDiffRouteSearch(search),
+  search: {
+    middlewares: [retainSearchParams<DiffRouteSearch>(["tasks"])],
+  },
   component: DraftChatThreadRouteView,
 });

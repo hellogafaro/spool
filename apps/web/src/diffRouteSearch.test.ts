@@ -39,6 +39,12 @@ describe("parseDiffRouteSearch", () => {
     });
   });
 
+  it("parses tasks panel search values", () => {
+    expect(parseDiffRouteSearch({ tasks: "1" })).toEqual({ tasks: "1" });
+    expect(parseDiffRouteSearch({ tasks: true })).toEqual({ tasks: "1" });
+    expect(parseDiffRouteSearch({ tasks: "0" })).toEqual({});
+  });
+
   it("drops turn and file values when diff is closed", () => {
     const parsed = parseDiffRouteSearch({
       diff: "0",
