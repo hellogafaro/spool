@@ -182,8 +182,8 @@ export const ComposerCombinedControlsMenu = memo(function ComposerCombinedContro
             variant="ghost"
             aria-label={triggerLabel || "Composer controls"}
             className={cn(
-              "shrink justify-start overflow-hidden whitespace-nowrap px-2 text-muted-foreground/70 hover:text-foreground/80 [&_svg]:mx-0",
-              props.compact ? "min-w-0" : "min-w-0 max-w-64 sm:max-w-72 sm:px-3",
+              "min-w-0 shrink justify-start overflow-hidden whitespace-nowrap text-muted-foreground/70 hover:text-foreground/80 [&_svg]:mx-0",
+              !props.compact && "max-w-64 sm:max-w-72",
             )}
             data-chat-composer-combined-controls="true"
           />
