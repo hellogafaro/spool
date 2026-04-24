@@ -57,9 +57,13 @@
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/dist apps/*/dist-electron packages/*/dist .turbo apps/*/.turbo packages/*/.turbo",
     "sync:vscode-icons": "node scripts/sync-vscode-icons.mjs"
   },
+  "dependencies": {
+    "@anthropic-ai/claude-code": "^2.1.119",
+    "@openai/codex": "^0.124.0",
+    "node-gyp": "^12.3.0"
+  },
   "devDependencies": {
     "@types/node": "catalog:",
-    "node-gyp": "^12.3.0",
     "oxfmt": "^0.40.0",
     "oxlint": "^1.55.0",
     "turbo": "^2.3.3",
@@ -86,6 +90,7 @@
     ]
   },
   "trustedDependencies": [
+    "@anthropic-ai/claude-code",
     "node-pty"
   ]
 }
