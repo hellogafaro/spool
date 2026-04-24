@@ -4,7 +4,12 @@ import { mergeProps } from "@base-ui/react/merge-props";
 import { Select as SelectPrimitive } from "@base-ui/react/select";
 import { useRender } from "@base-ui/react/use-render";
 import { cva, type VariantProps } from "class-variance-authority";
-import { ChevronDownIcon, ChevronsUpDownIcon, ChevronUpIcon } from "~/components/ui/icons";
+import {
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronsUpDownIcon,
+  ChevronUpIcon,
+} from "~/components/ui/icons";
 import type * as React from "react";
 
 import { cn } from "~/lib/utils";
@@ -176,35 +181,20 @@ function SelectItem({
     <SelectPrimitive.Item
       className={cn(
         "grid min-h-8 in-data-[side=none]:min-w-[calc(var(--anchor-width)+1.25rem)] cursor-default items-center gap-2 rounded-sm py-1 text-base outline-none data-disabled:pointer-events-none data-highlighted:bg-accent data-highlighted:text-accent-foreground data-disabled:opacity-64 sm:min-h-7 sm:text-sm [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
-        hideIndicator ? "grid-cols-[1fr] ps-3 pe-3" : "grid-cols-[1rem_1fr] ps-2 pe-4",
+        hideIndicator ? "grid-cols-[1fr] ps-3 pe-3" : "grid-cols-[1fr_1rem] ps-2 pe-2",
         className,
       )}
       data-slot="select-item"
       {...props}
     >
-      {hideIndicator ? null : (
-        <SelectPrimitive.ItemIndicator className="col-start-1" data-slot="select-item-indicator">
-          <svg
-            fill="none"
-            height="24"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2"
-            viewBox="0 0 24 24"
-            width="24"
-            xmlns="http://www.w3.org/1500/svg"
-          >
-            <path d="M5.252 12.7 10.2 18.63 18.748 5.37" />
-          </svg>
-        </SelectPrimitive.ItemIndicator>
-      )}
-      <SelectPrimitive.ItemText
-        className={cn("min-w-0", hideIndicator ? "col-start-1" : "col-start-2")}
-        data-slot="select-item-text"
-      >
+      <SelectPrimitive.ItemText className="col-start-1 min-w-0" data-slot="select-item-text">
         {children}
       </SelectPrimitive.ItemText>
+      {hideIndicator ? null : (
+        <SelectPrimitive.ItemIndicator className="col-start-2" data-slot="select-item-indicator">
+          <CheckIcon />
+        </SelectPrimitive.ItemIndicator>
+      )}
     </SelectPrimitive.Item>
   );
 }
@@ -226,7 +216,7 @@ function SelectGroup(props: SelectPrimitive.Group.Props) {
 function SelectGroupLabel(props: SelectPrimitive.GroupLabel.Props) {
   return (
     <SelectPrimitive.GroupLabel
-      className="px-2 py-1.5 font-medium text-muted-foreground text-xs"
+      className="px-2 py-1.5 font-medium text-muted-foreground text-xs uppercase tracking-wide"
       data-slot="select-group-label"
       {...props}
     />
