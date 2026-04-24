@@ -908,6 +908,44 @@ describe("ProviderModelPicker", () => {
     }
   });
 
+  it("shows the provider default model first when there are no favorites", async () => {
+    localStorage.removeItem("t3code:client-settings:v1");
+
+    const mounted = await mountPicker({
+      provider: "codex",
+      model: "gpt-5.4",
+      lockedProvider: null,
+      providers: [
+        buildCodexProvider([
+          {
+            slug: "gpt-5.4",
+            name: "GPT-5.4",
+            isCustom: false,
+            capabilities: createModelCapabilities({ optionDescriptors: [] }),
+          },
+          {
+            slug: "gpt-5.5",
+            name: "GPT-5.5",
+            isCustom: false,
+            capabilities: createModelCapabilities({ optionDescriptors: [] }),
+          },
+        ]),
+      ],
+    });
+
+    try {
+      await page.getByRole("button").click();
+      await page.getByRole("button", { name: "Codex", exact: true }).click();
+
+      await vi.waitFor(() => {
+        expect(getVisibleModelNames().slice(0, 2)).toEqual(["GPT-5.5", "GPT-5.4"]);
+      });
+    } finally {
+      await mounted.cleanup();
+      localStorage.removeItem("t3code:client-settings:v1");
+    }
+  });
+
   it("dispatches callback with correct provider and model when selected", async () => {
     const mounted = await mountPicker({
       provider: "claudeAgent",

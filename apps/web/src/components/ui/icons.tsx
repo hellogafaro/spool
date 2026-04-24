@@ -25,6 +25,7 @@ import {
   RiExpandUpDownLine,
   RiEyeLine,
   RiFileLine,
+  RiFlashlightLine,
   RiFlaskLine,
   RiFolderAddLine,
   RiFolderLine,
@@ -133,6 +134,7 @@ export const DownloadIcon = createIcon(RiDownloadLine);
 export const EllipsisIcon = createIcon(RiMoreLine);
 export const EyeIcon = createIcon(RiEyeLine);
 export const FileIcon = createIcon(RiFileLine);
+export const FlashlightIcon = createIcon(RiFlashlightLine);
 export const FlaskConicalIcon = createIcon(RiFlaskLine);
 export const FolderClosedIcon = createIcon(RiFolderLine);
 export const FolderGit2Icon = createIcon(RiGitBranchLine);
