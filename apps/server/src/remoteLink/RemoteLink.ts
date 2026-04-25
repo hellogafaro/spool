@@ -15,6 +15,7 @@
  */
 import { Context, Duration, Effect, Layer, Option, Ref, Schedule } from "effect";
 
+import { LOOPBACK_TRUST_HEADER, setLoopbackTrustToken } from "../auth/loopbackTrust.ts";
 import { ServerConfig } from "../config.ts";
 import {
   DEFAULT_REMOTE_LINK_API_URL,
@@ -99,15 +100,21 @@ const bridgeChannel = (
     return Effect.sync(() => teardown(1001, "scope closed"));
   });
 
+const openLoopback = (loopbackUrl: string, trustToken: string): WebSocket =>
+  new WebSocket(loopbackUrl, {
+    headers: { [LOOPBACK_TRUST_HEADER]: trustToken },
+  } as unknown as string[]);
+
 const handleDial = (
   apiUrl: URL,
   local: RemoteLinkLocalConfig,
   loopbackUrl: string,
+  trustToken: string,
   channelId: string,
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
     const remote = openWithProof(buildChannelUrl(apiUrl, local.serverId, channelId), local.serverSecret);
-    const loopback = new WebSocket(loopbackUrl);
+    const loopback = openLoopback(loopbackUrl, trustToken);
     yield* bridgeChannel(remote, loopback);
   }).pipe(Effect.ignoreCause({ log: true }));
 
@@ -116,6 +123,7 @@ const connectControl = (
   local: RemoteLinkLocalConfig,
   apiUrl: URL,
   loopbackUrl: string,
+  trustToken: string,
 ): Effect.Effect<void> =>
   Effect.callback<void>((resume) => {
     const setStatus = (
@@ -152,7 +160,7 @@ const connectControl = (
         // ignore non-JSON or malformed control frames
       }
       if (signal) {
-        Effect.runFork(handleDial(apiUrl, local, loopbackUrl, signal.channelId));
+        Effect.runFork(handleDial(apiUrl, local, loopbackUrl, trustToken, signal.channelId));
       }
     });
 
@@ -201,7 +209,9 @@ export const RemoteLinkLive = Layer.effect(
       const local = localOption.value;
       const apiUrl = resolveApiUrl();
       const loopbackUrl = buildLoopbackUrl(config.port);
-      const loop = connectControl(ref, local, apiUrl, loopbackUrl).pipe(
+      const trustToken = crypto.randomUUID();
+      setLoopbackTrustToken(trustToken);
+      const loop = connectControl(ref, local, apiUrl, loopbackUrl, trustToken).pipe(
         Effect.andThen(Effect.sleep(Duration.seconds(1))),
         Effect.repeat(reconnectSchedule),
         Effect.asVoid,

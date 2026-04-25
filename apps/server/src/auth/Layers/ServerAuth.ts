@@ -6,9 +6,11 @@ import {
   type AuthSessionState,
   type AuthWebSocketTokenResult,
 } from "@t3tools/contracts";
+import { AuthSessionId } from "@t3tools/contracts";
 import { DateTime, Effect, Layer, Option } from "effect";
 import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest";
 
+import { LOOPBACK_TRUST_HEADER, getLoopbackTrustToken } from "../loopbackTrust.ts";
 import { AuthControlPlane } from "../Services/AuthControlPlane.ts";
 import { ServerAuthPolicyLive } from "./ServerAuthPolicy.ts";
 import { BootstrapCredentialService } from "../Services/BootstrapCredentialService.ts";
@@ -33,6 +35,21 @@ type BootstrapExchangeResult = {
 
 const AUTHORIZATION_PREFIX = "Bearer ";
 const WEBSOCKET_TOKEN_QUERY_PARAM = "wsToken";
+
+function tryLoopbackTrustSession(
+  request: HttpServerRequest.HttpServerRequest,
+): AuthenticatedSession | null {
+  const expected = getLoopbackTrustToken();
+  if (!expected) return null;
+  const presented = request.headers[LOOPBACK_TRUST_HEADER];
+  if (typeof presented !== "string" || presented !== expected) return null;
+  return {
+    sessionId: AuthSessionId.make(`loopback-trust:${crypto.randomUUID()}`),
+    subject: "trunk-loopback-relay",
+    method: "bearer-session-token",
+    role: "owner",
+  };
+}
 
 export function toBootstrapExchangeAuthError(cause: BootstrapCredentialError): AuthError {
   if (cause.status === 500) {
@@ -93,6 +110,10 @@ export const makeServerAuth = Effect.gen(function* () {
     );
 
   const authenticateRequest = (request: HttpServerRequest.HttpServerRequest) => {
+    const trusted = tryLoopbackTrustSession(request);
+    if (trusted) {
+      return Effect.succeed(trusted);
+    }
     const cookieToken = request.cookies[sessions.cookieName];
     const bearerToken = parseBearerToken(request);
     const credential = cookieToken ?? bearerToken;
@@ -343,6 +364,10 @@ export const makeServerAuth = Effect.gen(function* () {
 
   const authenticateWebSocketUpgrade: ServerAuthShape["authenticateWebSocketUpgrade"] = (request) =>
     Effect.gen(function* () {
+      const trusted = tryLoopbackTrustSession(request);
+      if (trusted) {
+        return trusted;
+      }
       const requestUrl = HttpServerRequest.toURL(request);
       if (Option.isSome(requestUrl)) {
         const websocketToken = requestUrl.value.searchParams.get(WEBSOCKET_TOKEN_QUERY_PARAM);

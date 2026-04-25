@@ -85,6 +85,7 @@ Open a second `wscat` session against the same `serverId` in another shell. Both
 | Browser WS gets close code 1013 | Server side never connected, or its outbound dropped. |
 | Browser WS gets close code 4404 (on `/server-channel`) | Channel id expired (browser closed before server dialed back). |
 | T3 doesn't log a loopback connection | `config.port` is 0 or the `/ws` upgrade target is misconfigured. RemoteLink only runs when `config.port > 0`. |
+| Loopback dial reaches T3 but T3 returns 401 | The `x-trunk-loopback-trust` header is missing or doesn't match the in-process token. RemoteLink generates the token at boot and `ServerAuth` synthesises an owner session when it matches; if you see this, RemoteLink and ServerAuth booted from different processes. |
 
 ## When this test should run
 
