@@ -1,7 +1,7 @@
 export const API_PROTOCOL_VERSION = 1;
 
 export const API_PATHS = {
-  browser: "/browser",
+  browser: "/ws",
   health: "/health",
   server: "/server",
   serverChannel: "/server-channel",
