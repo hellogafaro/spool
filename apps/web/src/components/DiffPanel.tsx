@@ -432,7 +432,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
         <button
           type="button"
           className={cn(
-            "absolute left-0 top-1/2 z-20 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-md border bg-background/90 text-muted-foreground transition-colors",
+            "absolute left-0 top-1/2 z-20 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-sm border bg-background/90 text-muted-foreground transition-colors",
             canScrollTurnStripLeft
               ? "border-border/70 hover:border-border hover:text-foreground"
               : "cursor-not-allowed border-border/40 text-muted-foreground/40",
@@ -446,7 +446,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
         <button
           type="button"
           className={cn(
-            "absolute right-0 top-1/2 z-20 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-md border bg-background/90 text-muted-foreground transition-colors",
+            "absolute right-0 top-1/2 z-20 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-sm border bg-background/90 text-muted-foreground transition-colors",
             canScrollTurnStripRight
               ? "border-border/70 hover:border-border hover:text-foreground"
               : "cursor-not-allowed border-border/40 text-muted-foreground/40",
@@ -471,13 +471,13 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
         >
           <button
             type="button"
-            className="shrink-0 rounded-md"
+            className="shrink-0 rounded-sm"
             onClick={selectWholeConversation}
             data-turn-chip-selected={selectedTurnId === null}
           >
             <div
               className={cn(
-                "rounded-md border px-2 py-1 text-left transition-colors",
+                "rounded-sm border px-2 py-1 text-left transition-colors",
                 selectedTurnId === null
                   ? "border-border bg-accent text-accent-foreground"
                   : "border-border/70 bg-background/70 text-muted-foreground/80 hover:border-border hover:text-foreground/80",
@@ -490,14 +490,14 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
             <button
               key={summary.turnId}
               type="button"
-              className="shrink-0 rounded-md"
+              className="shrink-0 rounded-sm"
               onClick={() => selectTurn(summary.turnId)}
               title={summary.turnId}
               data-turn-chip-selected={summary.turnId === selectedTurn?.turnId}
             >
               <div
                 className={cn(
-                  "rounded-md border px-2 py-1 text-left transition-colors",
+                  "rounded-sm border px-2 py-1 text-left transition-colors",
                   summary.turnId === selectedTurn?.turnId
                     ? "border-border bg-accent text-accent-foreground"
                     : "border-border/70 bg-background/70 text-muted-foreground/80 hover:border-border hover:text-foreground/80",
@@ -532,16 +532,17 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
             }
           }}
         >
-          <Toggle aria-label="Stacked diff view" value="stacked">
+          <Toggle aria-label="Stacked diff view" value="stacked" className="rounded-sm">
             <Rows3Icon className="size-3" />
           </Toggle>
-          <Toggle aria-label="Split diff view" value="split">
+          <Toggle aria-label="Split diff view" value="split" className="rounded-sm">
             <Columns2Icon className="size-3" />
           </Toggle>
         </ToggleGroup>
         <Toggle
           aria-label={diffWordWrap ? "Disable diff line wrapping" : "Enable diff line wrapping"}
           title={diffWordWrap ? "Disable line wrapping" : "Enable line wrapping"}
+          className="rounded-sm"
           variant="outline"
           size="xs"
           pressed={diffWordWrap}
