@@ -20,4 +20,10 @@
   "observability": {
     "enabled": true,
   },
+  // WORKOS_CLIENT_ID is optional. When set, the Worker verifies the
+  // browser's bearer token against WorkOS's JWKS. When unset (e.g. in
+  // local dev or tests), the Worker falls back to presence-only auth.
+  // Override per-environment via `wrangler deploy --var WORKOS_CLIENT_ID=...`
+  // or via Cloudflare secrets in production.
+  "vars": {},
 }

@@ -1,7 +1,13 @@
+import {
+  makeWorkOsBrowserAuthVerifier,
+  presenceOnlyBrowserAuthVerifier,
+  type BrowserAuthVerifier,
+} from "./auth.ts";
 import { API_PATHS, API_PROTOCOL_VERSION, type ControlMessage } from "./protocol.ts";
 
 interface Env {
   SERVER_ROOMS: DurableObjectNamespace;
+  WORKOS_CLIENT_ID?: string;
 }
 
 interface VersionPayload {
@@ -30,8 +36,15 @@ const WS_PATHS = new Set<string>([
   API_PATHS.browser,
 ]);
 
+function resolveBrowserAuthVerifier(env: Env): BrowserAuthVerifier {
+  if (env.WORKOS_CLIENT_ID && env.WORKOS_CLIENT_ID.length > 0) {
+    return makeWorkOsBrowserAuthVerifier(env.WORKOS_CLIENT_ID);
+  }
+  return presenceOnlyBrowserAuthVerifier;
+}
+
 export default {
-  fetch(request: Request, env: Env): Response | Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
     if (url.pathname === API_PATHS.health) {
@@ -62,8 +75,15 @@ export default {
       return new Response("server proof required\n", { status: 401, headers: textHeaders });
     }
 
-    if (url.pathname === API_PATHS.browser && !request.headers.get("authorization")) {
-      return new Response("authorization required\n", { status: 401, headers: textHeaders });
+    if (url.pathname === API_PATHS.browser) {
+      const verify = resolveBrowserAuthVerifier(env);
+      const result = await verify(request, url);
+      if (!result.ok) {
+        return new Response(`${result.reason}\n`, {
+          status: result.status,
+          headers: textHeaders,
+        });
+      }
     }
 
     if (url.pathname === API_PATHS.serverChannel && !url.searchParams.get("channelId")?.trim()) {
