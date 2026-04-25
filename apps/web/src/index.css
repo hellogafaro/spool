@@ -420,7 +420,8 @@ label:has(> select#reasoning-effort) select {
   padding-right: calc(0.5rem + var(--chat-markdown-codeblock-copy-button-space));
 }
 
-.chat-markdown .chat-markdown-copy-button {
+.chat-markdown .chat-markdown-copy-button,
+.chat-markdown-copy-button {
   position: absolute;
   top: 0.5rem;
   right: 0.5rem;
@@ -444,18 +445,36 @@ label:has(> select#reasoning-effort) select {
 }
 
 .chat-markdown .chat-markdown-codeblock:hover .chat-markdown-copy-button,
-.chat-markdown .chat-markdown-codeblock:focus-within .chat-markdown-copy-button {
+.chat-markdown .chat-markdown-codeblock:focus-within .chat-markdown-copy-button,
+.chat-markdown-codeblock:hover .chat-markdown-copy-button,
+.chat-markdown-codeblock:focus-within .chat-markdown-copy-button {
   opacity: 1;
   pointer-events: auto;
 }
 
-.chat-markdown .chat-markdown-copy-button:hover {
+.chat-markdown .chat-markdown-copy-button:hover,
+.chat-markdown-copy-button:hover {
   color: var(--foreground);
   border-color: color-mix(in srgb, var(--border) 70%, var(--foreground));
 }
 
 .chat-markdown .chat-markdown-shiki .shiki {
   background: color-mix(in srgb, var(--muted) 78%, var(--background)) !important;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--border) 78%, transparent) transparent;
+}
+
+.chat-markdown .chat-markdown-shiki .shiki::-webkit-scrollbar {
+  height: 4px;
+}
+
+.chat-markdown .chat-markdown-shiki .shiki::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-markdown .chat-markdown-shiki .shiki::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 78%, transparent);
 }
 
 .chat-markdown table {
@@ -476,10 +495,12 @@ label:has(> select#reasoning-effort) select {
 }
 
 .diff-render-file {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
   overflow: clip;
   background: color-mix(in srgb, var(--card) 92%, var(--background));
+}
+
+.diff-render-file + .diff-render-file {
+  border-top: 1px solid var(--border);
 }
 
 @keyframes ultrathink-rainbow {

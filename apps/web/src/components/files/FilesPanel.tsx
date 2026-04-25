@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { EnvironmentId, ProjectBrowseDirectoryEntry } from "@t3tools/contracts";
-import { memo, useCallback, useMemo, useState, type ReactNode } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 
 import {
   projectBrowseDirectoryQueryOptions,
@@ -10,8 +10,10 @@ import { cn } from "~/lib/utils";
 import { useTheme } from "~/hooks/useTheme";
 import { Button } from "../ui/button";
 import { ScrollArea } from "../ui/scroll-area";
-import { ArrowLeftIcon, ArrowPathIcon, ChevronRightIcon, FolderIcon } from "@heroicons/react/16/solid";
+import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, DocumentDuplicateIcon, FolderIcon } from "@heroicons/react/16/solid";
 import { VscodeEntryIcon } from "../chat/VscodeEntryIcon";
+import ChatMarkdown from "../ChatMarkdown";
+import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
 
 type ExpandedDirectoryState = Record<string, boolean>;
 
@@ -35,14 +37,13 @@ function formatError(error: unknown): string | null {
 export const FilesPanel = memo(function FilesPanel({
   environmentId,
   workspaceRoot,
-  mode = "sidebar",
 }: FilesPanelProps) {
   const { resolvedTheme } = useTheme();
   const [expandedDirectories, setExpandedDirectories] = useState<ExpandedDirectoryState>({
     "": true,
   });
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
-  const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
+
   const rootQuery = useQuery(
     projectBrowseDirectoryQueryOptions({
       environmentId,
@@ -78,116 +79,88 @@ export const FilesPanel = memo(function FilesPanel({
   const collapseAll = useCallback(() => {
     setExpandedDirectories({ "": true });
   }, []);
-  const openFile = useCallback(
-    (pathValue: string) => {
-      setSelectedFilePath(pathValue);
-      if (mode === "sheet") {
-        setMobilePreviewOpen(true);
-      }
-    },
-    [mode],
-  );
-
-  if (!workspaceRoot) {
-    return (
-      <FilesPanelShell title="Files">
-        <EmptyFilesState title="No workspace available." />
-      </FilesPanelShell>
-    );
-  }
+  const openFile = useCallback((pathValue: string) => {
+    setSelectedFilePath(pathValue);
+  }, []);
+  const goBack = useCallback(() => {
+    setSelectedFilePath(null);
+  }, []);
 
   const rootError = formatError(rootQuery.error);
   const fileError = formatError(fileQuery.error);
-  const showMobileTree = mode !== "sheet" || !mobilePreviewOpen;
-  const showPreview = mode !== "sheet" || mobilePreviewOpen;
 
-  return (
-    <FilesPanelShell
-      title="Files"
-      action={
-        <Button type="button" size="xs" variant="outline" onClick={collapseAll}>
-          Collapse all
-        </Button>
-      }
-    >
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        {showMobileTree ? (
-          <div
-            className={cn(
-              "min-h-0 border-border/70",
-              mode === "sheet" ? "flex-1" : "w-[min(44%,22rem)] border-r",
-            )}
-          >
-            <ScrollArea className="h-full">
-              <div className="space-y-0.5 p-2">
-                {rootQuery.isLoading ? (
-                  <EmptyFilesState title="Loading files..." />
-                ) : rootError ? (
-                  <EmptyFilesState title={rootError} />
-                ) : sortedRootEntries.length === 0 ? (
-                  <EmptyFilesState title="No files found." />
-                ) : (
-                  sortedRootEntries.map((entry) => (
-                    <FileTreeEntry
-                      key={entry.path}
-                      cwd={workspaceRoot}
-                      depth={0}
-                      entry={entry}
-                      environmentId={environmentId}
-                      expandedDirectories={expandedDirectories}
-                      resolvedTheme={resolvedTheme}
-                      selectedFilePath={selectedFilePath}
-                      onOpenFile={openFile}
-                      onToggleDirectory={toggleDirectory}
-                    />
-                  ))
-                )}
-              </div>
-            </ScrollArea>
-          </div>
-        ) : null}
-        {showPreview ? (
-          <div className="flex min-h-0 flex-1 flex-col">
-            {mode === "sheet" && mobilePreviewOpen ? (
-              <div className="flex h-10 shrink-0 items-center px-2">
-                <Button
-                  type="button"
-                  size="xs"
-                  variant="ghost"
-                  onClick={() => setMobilePreviewOpen(false)}
-                >
-                  <ArrowLeftIcon className="size-3.5" />
-                  Files
-                </Button>
-              </div>
-            ) : null}
-            <FilePreview
-              contents={fileQuery.data?.contents ?? null}
-              error={fileError}
-              isLoading={fileQuery.isLoading}
-              pathValue={selectedFilePath}
-              resolvedTheme={resolvedTheme}
-            />
-          </div>
-        ) : null}
+  if (selectedFilePath) {
+    const filename = selectedFilePath.split("/").pop() ?? selectedFilePath;
+    return (
+      <div className="flex h-full min-w-0 flex-col bg-background">
+        <div className="flex h-12 shrink-0 items-center gap-2 px-3">
+          <Button type="button" size="icon-sm" variant="outline" onClick={goBack}>
+            <ChevronLeftIcon />
+          </Button>
+          <VscodeEntryIcon
+            pathValue={selectedFilePath}
+            kind="file"
+            theme={resolvedTheme}
+            className="size-4 shrink-0"
+          />
+          <span className="min-w-0 truncate text-sm">{filename}</span>
+        </div>
+        <FilePreview
+          contents={fileQuery.data?.contents ?? null}
+          error={fileError}
+          isLoading={fileQuery.isLoading}
+          pathValue={selectedFilePath}
+          cwd={workspaceRoot}
+        />
       </div>
-    </FilesPanelShell>
-  );
-});
+    );
+  }
 
-function FilesPanelShell(props: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
     <div className="flex h-full min-w-0 flex-col bg-background">
       <div className="flex h-12 shrink-0 items-center justify-between gap-2 px-3">
         <p className="text-base font-medium text-foreground">
-          {props.title}
+          {workspaceRoot ? "Files" : "Files"}
         </p>
-        <div className="flex items-center gap-1.5">{props.action}</div>
+        {workspaceRoot ? (
+          <Button type="button" size="xs" variant="outline" onClick={collapseAll}>
+            Collapse all
+          </Button>
+        ) : null}
       </div>
-      {props.children}
+      {!workspaceRoot ? (
+        <EmptyFilesState title="No workspace available." />
+      ) : (
+        <ScrollArea className="h-full">
+          <div className="space-y-0.5 p-2">
+            {rootQuery.isLoading ? (
+              <EmptyFilesState title="Loading files..." />
+            ) : rootError ? (
+              <EmptyFilesState title={rootError} />
+            ) : sortedRootEntries.length === 0 ? (
+              <EmptyFilesState title="No files found." />
+            ) : (
+              sortedRootEntries.map((entry) => (
+                <FileTreeEntry
+                  key={entry.path}
+                  cwd={workspaceRoot}
+                  depth={0}
+                  entry={entry}
+                  environmentId={environmentId}
+                  expandedDirectories={expandedDirectories}
+                  resolvedTheme={resolvedTheme}
+                  selectedFilePath={selectedFilePath}
+                  onOpenFile={openFile}
+                  onToggleDirectory={toggleDirectory}
+                />
+              ))
+            )}
+          </div>
+        </ScrollArea>
+      )}
     </div>
   );
-}
+});
 
 function FileTreeEntry(props: {
   cwd: string;
@@ -238,7 +211,7 @@ function FileTreeEntry(props: {
       <div>
         <button
           type="button"
-          className="group flex min-h-7 w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left hover:bg-background/80"
+          className="group flex min-h-7 w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left hover:bg-accent"
           style={{ paddingLeft: `${leftPadding}px` }}
           onClick={() => onToggleDirectory(entry.path)}
         >
@@ -248,12 +221,8 @@ function FileTreeEntry(props: {
               isExpanded && "rotate-90",
             )}
           />
-          {isExpanded ? (
-            <FolderIcon className="size-3.5 shrink-0 text-muted-foreground/75" />
-          ) : (
-            <FolderIcon className="size-3.5 shrink-0 text-muted-foreground/75" />
-          )}
-          <span className="truncate font-mono text-[11px] text-muted-foreground/90 group-hover:text-foreground/90">
+          <FolderIcon className="size-3.5 shrink-0 text-muted-foreground/75" />
+          <span className="truncate text-sm text-muted-foreground/90 group-hover:text-foreground/90">
             {entry.name}
           </span>
         </button>
@@ -261,14 +230,14 @@ function FileTreeEntry(props: {
           <div className="space-y-0.5">
             {childrenQuery.isLoading ? (
               <p
-                className="py-1 pr-2 font-mono text-[11px] text-muted-foreground/50"
+                className="py-1 pr-2 text-sm text-muted-foreground/50"
                 style={{ paddingLeft: `${leftPadding + 28}px` }}
               >
                 Loading...
               </p>
             ) : childrenQuery.error ? (
               <p
-                className="py-1 pr-2 text-[11px] text-destructive/80"
+                className="py-1 pr-2 text-sm text-destructive/80"
                 style={{ paddingLeft: `${leftPadding + 28}px` }}
               >
                 {formatError(childrenQuery.error)}
@@ -299,8 +268,8 @@ function FileTreeEntry(props: {
     <button
       type="button"
       className={cn(
-        "group flex min-h-7 w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left hover:bg-background/80",
-        selectedFilePath === entry.path && "bg-background/80 text-foreground",
+        "group flex min-h-7 w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left hover:bg-accent",
+        selectedFilePath === entry.path && "bg-accent text-foreground",
       )}
       style={{ paddingLeft: `${leftPadding}px` }}
       onClick={() => onOpenFile(entry.path)}
@@ -312,7 +281,7 @@ function FileTreeEntry(props: {
         theme={resolvedTheme}
         className="size-3.5 text-muted-foreground/70"
       />
-      <span className="truncate font-mono text-[11px] text-muted-foreground/80 group-hover:text-foreground/90">
+      <span className="truncate text-sm text-muted-foreground/80 group-hover:text-foreground/90">
         {entry.name}
       </span>
     </button>
@@ -323,45 +292,63 @@ function FilePreview(props: {
   contents: string | null;
   error: string | null;
   isLoading: boolean;
-  pathValue: string | null;
-  resolvedTheme: "light" | "dark";
+  pathValue: string;
+  cwd: string | undefined;
 }) {
-  if (!props.pathValue) {
-    return <EmptyFilesState title="Select a file to preview." />;
-  }
+  const { copyToClipboard, isCopied } = useCopyToClipboard();
+  const ext = props.pathValue.split(".").pop() ?? "";
+  const isMarkdown = ext === "md" || ext === "mdx";
+
   if (props.isLoading) {
     return <EmptyFilesState title="Loading preview..." />;
   }
   if (props.error) {
     return <EmptyFilesState title={props.error} />;
   }
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-10 shrink-0 items-center gap-2 px-3">
-        <VscodeEntryIcon
-          pathValue={props.pathValue}
-          kind="file"
-          theme={props.resolvedTheme}
-          className="size-4"
-        />
-        <span className="min-w-0 truncate font-mono text-xs text-muted-foreground">
-          {props.pathValue}
-        </span>
-      </div>
+
+  if (isMarkdown) {
+    return (
       <ScrollArea className="min-h-0 flex-1">
-        <pre className="p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-foreground/85">
-          {props.contents ?? ""}
-        </pre>
+        <div className="px-3 pb-3">
+          <div
+            className="chat-markdown-codeblock relative overflow-hidden rounded-lg border border-border"
+            style={{ background: "color-mix(in srgb, var(--muted) 78%, var(--background))" }}
+          >
+            <button
+              type="button"
+              className="chat-markdown-copy-button"
+              onClick={() => copyToClipboard(props.contents ?? "")}
+              title={isCopied ? "Copied" : "Copy"}
+              aria-label={isCopied ? "Copied" : "Copy"}
+            >
+              {isCopied ? <CheckIcon className="size-3" /> : <DocumentDuplicateIcon className="size-3" />}
+            </button>
+            <div className="p-3">
+              <ChatMarkdown text={props.contents ?? ""} cwd={props.cwd} isStreaming={false} />
+            </div>
+          </div>
+        </div>
       </ScrollArea>
-    </div>
+    );
+  }
+
+  return (
+    <ScrollArea className="min-h-0 flex-1">
+      <div className="px-3 pb-1">
+        <ChatMarkdown
+          text={`\`\`\`${ext}\n${props.contents ?? ""}\n\`\`\``}
+          cwd={props.cwd}
+          isStreaming={false}
+        />
+      </div>
+    </ScrollArea>
   );
 }
 
 function EmptyFilesState(props: { title: string }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-10 text-center">
-      <ArrowPathIcon className="mb-2 size-4 text-muted-foreground/30" />
-      <p className="text-[13px] text-muted-foreground/55">{props.title}</p>
+    <div className="flex h-full items-center justify-center px-3 py-2 text-sm text-muted-foreground">
+      {props.title}
     </div>
   );
 }

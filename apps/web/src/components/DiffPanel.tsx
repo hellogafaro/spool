@@ -471,8 +471,8 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
         >
           <Button
             size="sm"
-            variant={selectedTurnId === null ? "outline" : "ghost"}
-            className="shrink-0"
+            variant="ghost"
+            className="shrink-0 data-[turn-chip-selected=true]:bg-accent"
             onClick={selectWholeConversation}
             data-turn-chip-selected={selectedTurnId === null}
           >
@@ -482,8 +482,8 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
             <Button
               key={summary.turnId}
               size="sm"
-              variant={summary.turnId === selectedTurn?.turnId ? "outline" : "ghost"}
-              className="shrink-0"
+              variant="ghost"
+              className="shrink-0 data-[turn-chip-selected=true]:bg-accent"
               onClick={() => selectTurn(summary.turnId)}
               title={summary.turnId}
               data-turn-chip-selected={summary.turnId === selectedTurn?.turnId}
@@ -512,10 +512,10 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
             }
           }}
         >
-          <Toggle aria-label="Stacked diff view" value="stacked">
+          <Toggle aria-label="Stacked diff view" value="stacked" className="rounded-sm">
             <Bars3BottomLeftIcon />
           </Toggle>
-          <Toggle aria-label="Split diff view" value="split">
+          <Toggle aria-label="Split diff view" value="split" className="rounded-sm">
             <ViewColumnsIcon />
           </Toggle>
         </ToggleGroup>
@@ -524,6 +524,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
           title={diffWordWrap ? "Disable line wrapping" : "Enable line wrapping"}
           variant="outline"
           size="sm"
+          className="rounded-sm"
           pressed={diffWordWrap}
           onPressedChange={(pressed) => {
             setDiffWordWrap(Boolean(pressed));
@@ -538,15 +539,15 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
   return (
     <DiffPanelShell mode={mode} header={headerRow}>
       {!activeThread ? (
-        <div className="flex flex-1 items-center justify-center px-5 text-center text-xs text-muted-foreground/70">
+        <div className="flex h-full items-center justify-center px-3 py-2 text-sm text-muted-foreground">
           Select a thread to inspect turn diffs.
         </div>
       ) : !isGitRepo ? (
-        <div className="flex flex-1 items-center justify-center px-5 text-center text-xs text-muted-foreground/70">
+        <div className="flex h-full items-center justify-center px-3 py-2 text-sm text-muted-foreground">
           Turn diffs are unavailable because this project is not a git repository.
         </div>
       ) : orderedTurnDiffSummaries.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center px-5 text-center text-xs text-muted-foreground/70">
+        <div className="flex h-full items-center justify-center px-3 py-2 text-sm text-muted-foreground">
           No completed turns yet.
         </div>
       ) : (
@@ -564,7 +565,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
               isLoadingCheckpointDiff ? (
                 <DiffPanelLoadingState label="Loading checkpoint diff..." />
               ) : (
-                <div className="flex h-full items-center justify-center px-3 py-2 text-sm text-muted-foreground/70">
+                <div className="flex h-full items-center justify-center px-3 py-2 text-sm text-muted-foreground">
                   <p>
                     {hasNoNetChanges
                       ? "No net changes in this selection."
@@ -574,7 +575,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
               )
             ) : renderablePatch.kind === "files" ? (
               <Virtualizer
-                className="diff-render-surface h-full min-h-0 overflow-auto px-2 pb-2"
+                className="diff-render-surface h-full min-h-0 overflow-auto"
                 config={{
                   overscrollSize: 600,
                   intersectionObserverMargin: 1200,
@@ -588,7 +589,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
                     <div
                       key={themedFileKey}
                       data-diff-file-path={filePath}
-                      className="diff-render-file mb-2 rounded-lg first:mt-2 last:mb-0"
+                      className="diff-render-file"
                       onClickCapture={(event) => {
                         const nativeEvent = event.nativeEvent as MouseEvent;
                         const composedPath = nativeEvent.composedPath?.() ?? [];
