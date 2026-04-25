@@ -105,11 +105,7 @@ describe("DO routing", () => {
 
   it("forwards browser->server and server->browser frames", async () => {
     const serverId = "room-fanout";
-    const server = await openSocket(
-      API_PATHS.server,
-      { serverId },
-      { "x-trunk-server-proof": "x" },
-    );
+    const server = await openSocket(API_PATHS.server, { serverId }, { "x-trunk-server-proof": "x" });
     const browser = await openSocket(
       API_PATHS.browser,
       { serverId },
@@ -130,22 +126,14 @@ describe("DO routing", () => {
 
   it("server replace does not evict existing browsers", async () => {
     const serverId = "room-replace";
-    const serverA = await openSocket(
-      API_PATHS.server,
-      { serverId },
-      { "x-trunk-server-proof": "x" },
-    );
+    const serverA = await openSocket(API_PATHS.server, { serverId }, { "x-trunk-server-proof": "x" });
     const browser = await openSocket(
       API_PATHS.browser,
       { serverId },
       { authorization: "Bearer x" },
     );
 
-    const serverB = await openSocket(
-      API_PATHS.server,
-      { serverId },
-      { "x-trunk-server-proof": "x" },
-    );
+    const serverB = await openSocket(API_PATHS.server, { serverId }, { "x-trunk-server-proof": "x" });
 
     const browserGot = nextMessage(browser);
     serverB.send("from-replacement");
@@ -158,39 +146,9 @@ describe("DO routing", () => {
     browser.close();
   });
 
-  it("new browser kicks the previous browser in the same room", async () => {
-    const serverId = "room-browser-replace";
-    const server = await openSocket(API_PATHS.server, { serverId }, { "x-trunk-server-proof": "x" });
-    const browserA = await openSocket(
-      API_PATHS.browser,
-      { serverId },
-      { authorization: "Bearer a" },
-    );
-
-    const closedA = nextClose(browserA);
-    const browserB = await openSocket(
-      API_PATHS.browser,
-      { serverId },
-      { authorization: "Bearer b" },
-    );
-    const eventA = await closedA;
-    expect(eventA.code).toBe(4000);
-
-    const got = nextMessage(browserB);
-    server.send("hello-b");
-    expect((await got).data).toBe("hello-b");
-
-    server.close();
-    browserB.close();
-  });
-
   it("evicts browsers when active server disconnects", async () => {
     const serverId = "room-evict";
-    const server = await openSocket(
-      API_PATHS.server,
-      { serverId },
-      { "x-trunk-server-proof": "x" },
-    );
+    const server = await openSocket(API_PATHS.server, { serverId }, { "x-trunk-server-proof": "x" });
     const browser = await openSocket(
       API_PATHS.browser,
       { serverId },

@@ -64,7 +64,7 @@ export default {
 
 export class ServerRoom implements DurableObject {
   private serverSocket: WebSocket | null = null;
-  private browserSocket: WebSocket | null = null;
+  private readonly browsers = new Set<WebSocket>();
 
   constructor(
     private readonly state: DurableObjectState,
@@ -101,9 +101,10 @@ export class ServerRoom implements DurableObject {
     this.serverSocket = socket;
 
     socket.addEventListener("message", (event) => {
-      const browser = this.browserSocket;
-      if (browser && browser.readyState === WebSocket.OPEN) {
-        browser.send(event.data);
+      for (const browser of this.browsers) {
+        if (browser.readyState === WebSocket.OPEN) {
+          browser.send(event.data);
+        }
       }
     });
 
@@ -112,8 +113,10 @@ export class ServerRoom implements DurableObject {
         return;
       }
       this.serverSocket = null;
-      this.browserSocket?.close(1013, "server offline");
-      this.browserSocket = null;
+      for (const browser of this.browsers) {
+        browser.close(1013, "server offline");
+      }
+      this.browsers.clear();
     });
 
     socket.addEventListener("error", () => {
@@ -127,8 +130,7 @@ export class ServerRoom implements DurableObject {
       return;
     }
 
-    this.browserSocket?.close(4000, "browser replaced");
-    this.browserSocket = socket;
+    this.browsers.add(socket);
 
     socket.addEventListener("message", (event) => {
       if (!this.serverSocket || this.serverSocket.readyState !== WebSocket.OPEN) {
@@ -139,15 +141,11 @@ export class ServerRoom implements DurableObject {
     });
 
     socket.addEventListener("close", () => {
-      if (this.browserSocket === socket) {
-        this.browserSocket = null;
-      }
+      this.browsers.delete(socket);
     });
 
     socket.addEventListener("error", () => {
-      if (this.browserSocket === socket) {
-        this.browserSocket = null;
-      }
+      this.browsers.delete(socket);
       socket.close(1011, "browser error");
     });
   }
