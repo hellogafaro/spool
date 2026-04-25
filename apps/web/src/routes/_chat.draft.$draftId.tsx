@@ -87,7 +87,7 @@ function DraftChatThreadRouteView() {
 export const Route = createFileRoute("/_chat/draft/$draftId")({
   validateSearch: (search) => parseDiffRouteSearch(search),
   search: {
-    middlewares: [retainSearchParams<DiffRouteSearch>(["plan"])],
+    middlewares: [retainSearchParams<DiffRouteSearch>(["panel", "diffTurnId", "diffFilePath"])],
   },
   component: DraftChatThreadRouteView,
 });

@@ -50,6 +50,89 @@ const writeTextFile = Effect.fn("writeTextFile")(function* (
 });
 
 it.layer(TestLayer)("WorkspaceFileSystemLive", (it) => {
+  describe("browseDirectory", () => {
+    it.effect("returns direct children with directories first", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "src/app.ts", "export {};\n");
+        yield* writeTextFile(cwd, "README.md", "# Readme\n");
+
+        const result = yield* workspaceFileSystem.browseDirectory({
+          cwd,
+          relativePath: "",
+        });
+
+        expect(result).toEqual({
+          relativePath: "",
+          entries: [
+            { kind: "directory", name: "src", path: "src" },
+            { kind: "file", name: "README.md", path: "README.md" },
+          ],
+        });
+      }),
+    );
+
+    it.effect("rejects directory traversal", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+
+        const error = yield* workspaceFileSystem
+          .browseDirectory({
+            cwd,
+            relativePath: "../",
+          })
+          .pipe(Effect.flip);
+
+        expect(error.message).toContain("Workspace file path must be relative to the project root");
+      }),
+    );
+  });
+
+  describe("readFile", () => {
+    it.effect("reads UTF-8 text files", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "src/app.ts", "export const value = 1;\n");
+
+        const result = yield* workspaceFileSystem.readFile({
+          cwd,
+          relativePath: "src/app.ts",
+        });
+
+        expect(result).toEqual({
+          relativePath: "src/app.ts",
+          contents: "export const value = 1;\n",
+          sizeBytes: 24,
+          truncated: false,
+        });
+      }),
+    );
+
+    it.effect("rejects binary files", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        yield* fileSystem.writeFile(path.join(cwd, "binary.bin"), new Uint8Array([1, 0, 2]));
+
+        const error = yield* workspaceFileSystem
+          .readFile({
+            cwd,
+            relativePath: "binary.bin",
+          })
+          .pipe(Effect.flip);
+
+        expect("detail" in error ? error.detail : error.message).toContain(
+          "Binary files cannot be previewed.",
+        );
+      }),
+    );
+  });
+
   describe("writeFile", () => {
     it.effect("writes files relative to the workspace root", () =>
       Effect.gen(function* () {

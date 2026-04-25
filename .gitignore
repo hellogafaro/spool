@@ -9,6 +9,9 @@ apps/*/dist
 packages/*/dist
 .env
 .env.local
+.dev.vars
+.mf
+.miniflare
 build/
 .logs/
 release/

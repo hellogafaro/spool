@@ -33,7 +33,7 @@ import {
 import { projectScriptCwd, projectScriptRuntimeEnv } from "@t3tools/shared/projectScripts";
 import { truncate } from "@t3tools/shared/String";
 import { Debouncer } from "@tanstack/react-pacer";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useShallow } from "zustand/react/shallow";
 import { useGitStatus } from "~/lib/gitStatusState";
@@ -41,7 +41,11 @@ import { usePrimaryEnvironmentId } from "../environments/primary";
 import { readEnvironmentApi } from "../environmentApi";
 import { isElectron } from "../env";
 import { readLocalApi } from "../localApi";
-import { parseDiffRouteSearch, stripDiffSearchParams } from "../diffRouteSearch";
+import {
+  clearThreadPanelSearchParams,
+  parseDiffRouteSearch,
+  stripDiffSearchParams,
+} from "../diffRouteSearch";
 import {
   collapseExpandedComposerCursor,
   parseStandaloneComposerSlashCommand,
@@ -100,7 +104,6 @@ import { useMediaQuery } from "../hooks/useMediaQuery";
 import { RIGHT_PANEL_INLINE_LAYOUT_MEDIA_QUERY } from "../rightPanelLayout";
 import { BranchToolbar } from "./BranchToolbar";
 import { resolveShortcutCommand, shortcutLabelForCommand } from "../keybindings";
-import PlanSidebar from "./PlanSidebar";
 import ThreadTerminalDrawer from "./ThreadTerminalDrawer";
 import { ArrowDownIcon } from "~/components/ui/icons";
 import { cn, randomUUID } from "~/lib/utils";
@@ -170,14 +173,12 @@ import {
 } from "./ChatView.logic";
 import { useLocalStorage } from "~/hooks/useLocalStorage";
 import { useComposerHandleContext } from "../composerHandleContext";
-import {
-  useServerAvailableEditors,
-  useServerConfig,
-  useServerKeybindings,
-} from "~/rpc/serverState";
+import { useServerConfig, useServerKeybindings } from "~/rpc/serverState";
 import { sanitizeThreadErrorMessage } from "~/rpc/transportError";
 import { retainThreadDetailSubscription } from "../environments/runtime/service";
 import { RightPanelSheet } from "./RightPanelSheet";
+import { ThreadSidePanel } from "./ThreadSidePanel";
+import { Sidebar, SidebarProvider, SidebarRail } from "./ui/sidebar";
 
 const IMAGE_ONLY_BOOTSTRAP_PROMPT =
   "[User attached one or more images without additional text. Respond using the conversation context and the attached image(s).]";
@@ -185,6 +186,10 @@ const EMPTY_ACTIVITIES: OrchestrationThreadActivity[] = [];
 const EMPTY_PROPOSED_PLANS: Thread["proposedPlans"] = [];
 const EMPTY_PROVIDERS: ServerProvider[] = [];
 const EMPTY_PENDING_USER_INPUT_ANSWERS: Record<string, PendingUserInputDraftAnswer> = {};
+const THREAD_SIDE_PANEL_WIDTH_STORAGE_KEY = "thread_side_panel_width";
+const THREAD_SIDE_PANEL_DEFAULT_WIDTH = "clamp(28rem,42vw,48rem)";
+const THREAD_SIDE_PANEL_MIN_WIDTH = 26 * 16;
+const COMPOSER_COMPACT_MIN_LEFT_CONTROLS_WIDTH_PX = 208;
 
 type ThreadPlanCatalogEntry = Pick<Thread, "id" | "proposedPlans">;
 
@@ -683,8 +688,11 @@ export default function ChatView(props: ChatViewProps) {
   >({});
   const [pendingUserInputQuestionIndexByRequestId, setPendingUserInputQuestionIndexByRequestId] =
     useState<Record<string, number>>({});
-  const planSidebarOpen = rawSearch.plan === "1";
-  const shouldUsePlanSidebarSheet = useMediaQuery(RIGHT_PANEL_INLINE_LAYOUT_MEDIA_QUERY);
+  const activePanel = rawSearch.panel;
+  const planSidebarOpen = activePanel === "tasks";
+  const diffOpen = activePanel === "diff";
+  const sidePanelOpen = activePanel !== undefined;
+  const useSidePanelSheet = useMediaQuery(RIGHT_PANEL_INLINE_LAYOUT_MEDIA_QUERY);
   // Tracks whether the user explicitly dismissed the sidebar for the active turn.
   const planSidebarDismissedForTurnRef = useRef<string | null>(null);
   // When set, the thread-change reset effect will open the sidebar instead of closing it.
@@ -792,7 +800,6 @@ export default function ChatView(props: ChatViewProps) {
     composerInteractionMode ?? activeThread?.interactionMode ?? DEFAULT_INTERACTION_MODE;
   const isLocalDraftThread = !isServerThread && localDraftThread !== undefined;
   const canCheckoutPullRequestIntoThread = isLocalDraftThread;
-  const diffOpen = rawSearch.diff === "1";
   const activeThreadId = activeThread?.id ?? null;
   const activeThreadRef = useMemo(
     () => (activeThread ? scopeThreadRef(activeThread.environmentId, activeThread.id) : null),
@@ -1424,7 +1431,6 @@ export default function ChatView(props: ChatViewProps) {
     : null;
   const gitStatusQuery = useGitStatus({ environmentId, cwd: gitCwd });
   const keybindings = useServerKeybindings();
-  const availableEditors = useServerAvailableEditors();
   const activeProviderStatus = useMemo(
     () => providerStatuses.find((status) => status.provider === selectedProvider) ?? null,
     [selectedProvider, providerStatuses],
@@ -1472,12 +1478,9 @@ export default function ChatView(props: ChatViewProps) {
     () => shortcutLabelForCommand(keybindings, "terminal.close", terminalShortcutLabelOptions),
     [keybindings, terminalShortcutLabelOptions],
   );
-  const planToggleShortcutLabel = useMemo(
-    () => shortcutLabelForCommand(keybindings, "plan.toggle", nonTerminalShortcutLabelOptions),
-    [keybindings, nonTerminalShortcutLabelOptions],
-  );
-  const diffPanelShortcutLabel = useMemo(
-    () => shortcutLabelForCommand(keybindings, "diff.toggle", nonTerminalShortcutLabelOptions),
+  const panelToggleShortcutLabel = useMemo(
+    () =>
+      shortcutLabelForCommand(keybindings, "threadPanel.toggle", nonTerminalShortcutLabelOptions),
     [keybindings, nonTerminalShortcutLabelOptions],
   );
   const onToggleDiff = useCallback(() => {
@@ -1496,7 +1499,7 @@ export default function ChatView(props: ChatViewProps) {
       replace: true,
       search: (previous) => {
         const rest = stripDiffSearchParams(previous);
-        return diffOpen ? { ...rest, diff: undefined } : { ...rest, diff: "1" };
+        return diffOpen ? clearThreadPanelSearchParams(previous) : { ...rest, panel: "diff" };
       },
     });
   }, [diffOpen, environmentId, isServerThread, navigate, onDiffPanelOpen, threadId]);
@@ -1913,13 +1916,16 @@ export default function ChatView(props: ChatViewProps) {
   const toggleInteractionMode = useCallback(() => {
     handleInteractionModeChange(interactionMode === "plan" ? "default" : "plan");
   }, [handleInteractionModeChange, interactionMode]);
-  const setPlanSidebarOpenInUrl = useCallback(
-    (open: boolean, options?: { replace?: boolean }) => {
+  const setSidePanelInUrl = useCallback(
+    (panel: "tasks" | "diff" | "files" | null, options?: { replace?: boolean }) => {
       if (routeKind === "server") {
         void navigate({
           to: "/$environmentId/$threadId",
           params: buildThreadRouteParams(routeThreadRef),
-          search: (previous) => ({ ...previous, plan: open ? "1" : undefined }),
+          search: (previous) => {
+            const rest = stripDiffSearchParams(previous);
+            return panel ? { ...rest, panel } : clearThreadPanelSearchParams(previous);
+          },
           ...(options?.replace !== undefined ? { replace: options.replace } : {}),
         });
         return;
@@ -1932,7 +1938,10 @@ export default function ChatView(props: ChatViewProps) {
       void navigate({
         to: "/draft/$draftId",
         params: buildDraftThreadRouteParams(draftId),
-        search: (previous) => ({ ...previous, plan: open ? "1" : undefined }),
+        search: (previous) => {
+          const rest = stripDiffSearchParams(previous);
+          return panel ? { ...rest, panel } : clearThreadPanelSearchParams(previous);
+        },
         ...(options?.replace !== undefined ? { replace: options.replace } : {}),
       });
     },
@@ -1945,13 +1954,86 @@ export default function ChatView(props: ChatViewProps) {
     } else {
       planSidebarDismissedForTurnRef.current = null;
     }
-    setPlanSidebarOpenInUrl(!planSidebarOpen);
-  }, [activePlan?.turnId, planSidebarOpen, setPlanSidebarOpenInUrl, sidebarProposedPlan?.turnId]);
-  const closePlanSidebar = useCallback(() => {
+    setSidePanelInUrl(planSidebarOpen ? null : "tasks");
+  }, [activePlan?.turnId, planSidebarOpen, setSidePanelInUrl, sidebarProposedPlan?.turnId]);
+  const toggleSidePanel = useCallback(() => {
+    if (sidePanelOpen) {
+      planSidebarDismissedForTurnRef.current =
+        activePlan?.turnId ?? sidebarProposedPlan?.turnId ?? "__dismissed__";
+    } else {
+      planSidebarDismissedForTurnRef.current = null;
+    }
+    setSidePanelInUrl(sidePanelOpen ? null : "tasks");
+  }, [activePlan?.turnId, setSidePanelInUrl, sidePanelOpen, sidebarProposedPlan?.turnId]);
+  const closeSidePanel = useCallback(() => {
     planSidebarDismissedForTurnRef.current =
       activePlan?.turnId ?? sidebarProposedPlan?.turnId ?? "__dismissed__";
-    setPlanSidebarOpenInUrl(false);
-  }, [activePlan?.turnId, setPlanSidebarOpenInUrl, sidebarProposedPlan?.turnId]);
+    setSidePanelInUrl(null);
+  }, [activePlan?.turnId, setSidePanelInUrl, sidebarProposedPlan?.turnId]);
+  const changeSidePanelTab = useCallback(
+    (panel: "tasks" | "diff" | "files") => {
+      if (panel === "diff") {
+        onDiffPanelOpen?.();
+      }
+      setSidePanelInUrl(panel);
+    },
+    [onDiffPanelOpen, setSidePanelInUrl],
+  );
+  const handleSidePanelOpenChange = useCallback(
+    (open: boolean) => {
+      if (open) {
+        setSidePanelInUrl(activePanel ?? "tasks");
+        return;
+      }
+      closeSidePanel();
+    },
+    [activePanel, closeSidePanel, setSidePanelInUrl],
+  );
+  const shouldAcceptSidePanelWidth = useCallback(
+    ({ nextWidth, wrapper }: { nextWidth: number; wrapper: HTMLElement }) => {
+      const composerForm = document.querySelector<HTMLElement>("[data-chat-composer-form='true']");
+      if (!composerForm) return true;
+      const composerViewport = composerForm.parentElement;
+      if (!composerViewport) return true;
+      const previousSidebarWidth = wrapper.style.getPropertyValue("--sidebar-width");
+      wrapper.style.setProperty("--sidebar-width", `${nextWidth}px`);
+
+      const viewportStyle = window.getComputedStyle(composerViewport);
+      const viewportPaddingLeft = Number.parseFloat(viewportStyle.paddingLeft) || 0;
+      const viewportPaddingRight = Number.parseFloat(viewportStyle.paddingRight) || 0;
+      const viewportContentWidth = Math.max(
+        0,
+        composerViewport.clientWidth - viewportPaddingLeft - viewportPaddingRight,
+      );
+      const formRect = composerForm.getBoundingClientRect();
+      const composerFooter = composerForm.querySelector<HTMLElement>(
+        "[data-chat-composer-footer='true']",
+      );
+      const composerRightActions = composerForm.querySelector<HTMLElement>(
+        "[data-chat-composer-actions='right']",
+      );
+      const composerRightActionsWidth = composerRightActions?.getBoundingClientRect().width ?? 0;
+      const composerFooterGap = composerFooter
+        ? Number.parseFloat(window.getComputedStyle(composerFooter).columnGap) ||
+          Number.parseFloat(window.getComputedStyle(composerFooter).gap) ||
+          0
+        : 0;
+      const minimumComposerWidth =
+        COMPOSER_COMPACT_MIN_LEFT_CONTROLS_WIDTH_PX + composerRightActionsWidth + composerFooterGap;
+      const hasComposerOverflow = composerForm.scrollWidth > composerForm.clientWidth + 0.5;
+      const overflowsViewport = formRect.width > viewportContentWidth + 0.5;
+      const violatesMinimumComposerWidth = composerForm.clientWidth + 0.5 < minimumComposerWidth;
+
+      if (previousSidebarWidth.length > 0) {
+        wrapper.style.setProperty("--sidebar-width", previousSidebarWidth);
+      } else {
+        wrapper.style.removeProperty("--sidebar-width");
+      }
+
+      return !hasComposerOverflow && !overflowsViewport && !violatesMinimumComposerWidth;
+    },
+    [],
+  );
 
   const persistThreadSettingsForNextTurn = useCallback(
     async (input: {
@@ -2036,30 +2118,30 @@ export default function ChatView(props: ChatViewProps) {
     setShowScrollToBottom(false);
     if (planSidebarOpenOnNextThreadRef.current) {
       planSidebarOpenOnNextThreadRef.current = false;
-      setPlanSidebarOpenInUrl(true, { replace: true });
+      setSidePanelInUrl("tasks", { replace: true });
     } else {
       planSidebarOpenOnNextThreadRef.current = false;
     }
     planSidebarDismissedForTurnRef.current = null;
-  }, [activeThread?.id, setPlanSidebarOpenInUrl]);
+  }, [activeThread?.id, setSidePanelInUrl]);
 
   // Auto-open the plan sidebar when plan/todo steps arrive for the current turn.
   // Don't auto-open for plans carried over from a previous turn (the user can open manually).
   useEffect(() => {
     if (!autoOpenPlanSidebar) return;
     if (!activePlan) return;
-    if (planSidebarOpen) return;
+    if (sidePanelOpen) return;
     const latestTurnId = activeLatestTurn?.turnId ?? null;
     if (latestTurnId && activePlan.turnId !== latestTurnId) return;
     const turnKey = activePlan.turnId ?? sidebarProposedPlan?.turnId ?? "__dismissed__";
     if (planSidebarDismissedForTurnRef.current === turnKey) return;
-    setPlanSidebarOpenInUrl(true, { replace: true });
+    setSidePanelInUrl("tasks", { replace: true });
   }, [
     activePlan,
     activeLatestTurn?.turnId,
     autoOpenPlanSidebar,
-    planSidebarOpen,
-    setPlanSidebarOpenInUrl,
+    setSidePanelInUrl,
+    sidePanelOpen,
     sidebarProposedPlan?.turnId,
   ]);
 
@@ -2329,6 +2411,13 @@ export default function ChatView(props: ChatViewProps) {
         return;
       }
 
+      if (command === "threadPanel.toggle") {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleSidePanel();
+        return;
+      }
+
       if (command === "modelPicker.toggle") {
         event.preventDefault();
         event.stopPropagation();
@@ -2359,6 +2448,7 @@ export default function ChatView(props: ChatViewProps) {
     keybindings,
     onToggleDiff,
     togglePlanSidebar,
+    toggleSidePanel,
     toggleTerminalVisibility,
   ]);
 
@@ -2996,7 +3086,7 @@ export default function ChatView(props: ChatViewProps) {
         // step-tracking activities that the sidebar will display.
         if (nextInteractionMode === "default" && autoOpenPlanSidebar) {
           planSidebarDismissedForTurnRef.current = null;
-          setPlanSidebarOpenInUrl(true, { replace: true });
+          setSidePanelInUrl("tasks", { replace: true });
         }
         sendInFlightRef.current = false;
       } catch (err) {
@@ -3025,7 +3115,7 @@ export default function ChatView(props: ChatViewProps) {
       setThreadError,
       autoOpenPlanSidebar,
       environmentId,
-      setPlanSidebarOpenInUrl,
+      setSidePanelInUrl,
     ],
   );
 
@@ -3242,8 +3332,8 @@ export default function ChatView(props: ChatViewProps) {
         search: (previous) => {
           const rest = stripDiffSearchParams(previous);
           return filePath
-            ? { ...rest, diff: "1", diffTurnId: turnId, diffFilePath: filePath }
-            : { ...rest, diff: "1", diffTurnId: turnId };
+            ? { ...rest, panel: "diff", diffTurnId: turnId, diffFilePath: filePath }
+            : { ...rest, panel: "diff", diffTurnId: turnId };
         },
       });
     },
@@ -3270,232 +3360,264 @@ export default function ChatView(props: ChatViewProps) {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden bg-background">
-      {/* Top bar */}
-      <header
-        className={cn(
-          "border-b border-border px-3 sm:px-5",
-          isElectron
-            ? cn(
-                "drag-region flex h-12 items-center wco:h-[env(titlebar-area-height)]",
-                reserveTitleBarControlInset &&
-                  "wco:pr-[calc(100vw-env(titlebar-area-width)-env(titlebar-area-x)+1em)]",
-              )
-            : "flex h-12 items-center",
-        )}
+      <SidebarProvider
+        defaultOpen={false}
+        open={!useSidePanelSheet && sidePanelOpen}
+        onOpenChange={handleSidePanelOpenChange}
+        className="min-h-0 min-w-0 flex-1 bg-transparent"
+        style={{ "--sidebar-width": THREAD_SIDE_PANEL_DEFAULT_WIDTH } as CSSProperties}
       >
-        <ChatHeader
-          activeThreadEnvironmentId={activeThread.environmentId}
-          activeThreadId={activeThread.id}
-          {...(routeKind === "draft" && draftId ? { draftId } : {})}
-          activeThreadTitle={activeThread.title}
-          activeProjectName={activeProject?.name}
-          isGitRepo={isGitRepo}
-          openInCwd={gitCwd}
-          activeProjectScripts={activeProject?.scripts}
-          preferredScriptId={
-            activeProject ? (lastInvokedScriptByProjectId[activeProject.id] ?? null) : null
-          }
-          keybindings={keybindings}
-          availableEditors={availableEditors}
-          terminalAvailable={activeProject !== undefined}
-          terminalOpen={terminalState.terminalOpen}
-          terminalToggleShortcutLabel={terminalToggleShortcutLabel}
-          diffToggleShortcutLabel={diffPanelShortcutLabel}
-          planToggleShortcutLabel={planToggleShortcutLabel}
-          gitCwd={gitCwd}
-          diffOpen={diffOpen}
-          tasksLabel={planSidebarLabel}
-          tasksOpen={planSidebarOpen}
-          onRunProjectScript={runProjectScript}
-          onAddProjectScript={saveProjectScript}
-          onUpdateProjectScript={updateProjectScript}
-          onDeleteProjectScript={deleteProjectScript}
-          onToggleTerminal={toggleTerminalVisibility}
-          onToggleDiff={onToggleDiff}
-          onToggleTasks={togglePlanSidebar}
-        />
-      </header>
-
-      {/* Error banner */}
-      <ProviderStatusBanner status={activeProviderStatus} />
-      <ThreadErrorBanner
-        error={activeThread.error}
-        onDismiss={() => setThreadError(activeThread.id, null)}
-      />
-      {/* Main content area with optional plan sidebar */}
-      <div className="flex min-h-0 min-w-0 flex-1">
-        {/* Chat column */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          {/* Messages Wrapper */}
-          <div className="relative flex min-h-0 flex-1 flex-col">
-            {/* Messages — LegendList handles virtualization and scrolling internally */}
-            <MessagesTimeline
-              key={activeThread.id}
-              isWorking={isWorking}
-              activeTurnInProgress={isWorking || !latestTurnSettled}
-              activeTurnId={activeLatestTurn?.turnId ?? null}
-              activeTurnStartedAt={activeWorkStartedAt}
-              listRef={legendListRef}
-              timelineEntries={timelineEntries}
-              completionDividerBeforeEntryId={completionDividerBeforeEntryId}
-              completionSummary={completionSummary}
-              turnDiffSummaryByAssistantMessageId={turnDiffSummaryByAssistantMessageId}
-              activeThreadEnvironmentId={activeThread.environmentId}
-              routeThreadKey={routeThreadKey}
-              onOpenTurnDiff={onOpenTurnDiff}
-              revertTurnCountByUserMessageId={revertTurnCountByUserMessageId}
-              onRevertUserMessage={onRevertUserMessage}
-              isRevertingCheckpoint={isRevertingCheckpoint}
-              onImageExpand={onExpandTimelineImage}
-              markdownCwd={gitCwd ?? undefined}
-              resolvedTheme={resolvedTheme}
-              timestampFormat={timestampFormat}
-              workspaceRoot={activeWorkspaceRoot}
-              onIsAtEndChange={onIsAtEndChange}
-            />
-
-            {/* scroll to bottom button — shown when user has scrolled away from the bottom */}
-            {showScrollToBottom && (
-              <div className="pointer-events-none absolute bottom-1 left-1/2 z-30 flex -translate-x-1/2 justify-center py-1.5">
-                <button
-                  type="button"
-                  aria-label="Scroll to bottom"
-                  title="Scroll to bottom"
-                  onClick={() => scrollToEnd(true)}
-                  className="pointer-events-auto inline-flex size-8 items-center justify-center rounded-full border border-border/60 bg-card text-muted-foreground shadow-sm transition-colors hover:cursor-pointer hover:border-border hover:text-foreground"
-                >
-                  <ArrowDownIcon aria-hidden="true" className="size-4" />
-                </button>
-              </div>
+          {/* Top bar */}
+          <header
+            className={cn(
+              "border-b border-border px-3 sm:px-5",
+              isElectron
+                ? cn(
+                    "drag-region flex h-12 items-center wco:h-[env(titlebar-area-height)]",
+                    reserveTitleBarControlInset &&
+                      "wco:pr-[calc(100vw-env(titlebar-area-width)-env(titlebar-area-x)+1em)]",
+                  )
+                : "flex h-12 items-center",
             )}
-          </div>
-
-          {/* Input bar */}
-          <div className={cn("px-3 pt-1.5 sm:px-5 sm:pt-2", isGitRepo ? "pb-1" : "pb-3 sm:pb-4")}>
-            <ChatComposer
-              ref={composerRef}
-              composerDraftTarget={composerDraftTarget}
-              environmentId={environmentId}
-              routeKind={routeKind}
-              routeThreadRef={routeThreadRef}
-              draftId={draftId}
-              activeThreadId={activeThreadId}
-              activeThreadEnvironmentId={activeThread?.environmentId}
-              activeThread={activeThread}
-              isServerThread={isServerThread}
-              isLocalDraftThread={isLocalDraftThread}
-              phase={phase}
-              isConnecting={isConnecting}
-              isSendBusy={isSendBusy}
-              isPreparingWorktree={isPreparingWorktree}
-              activePendingApproval={activePendingApproval}
-              pendingApprovals={pendingApprovals}
-              pendingUserInputs={pendingUserInputs}
-              activePendingProgress={activePendingProgress}
-              activePendingResolvedAnswers={activePendingResolvedAnswers}
-              activePendingIsResponding={activePendingIsResponding}
-              activePendingDraftAnswers={activePendingDraftAnswers}
-              activePendingQuestionIndex={activePendingQuestionIndex}
-              respondingRequestIds={respondingRequestIds}
-              showPlanFollowUpPrompt={showPlanFollowUpPrompt}
-              activeProposedPlan={activeProposedPlan}
-              runtimeMode={runtimeMode}
-              interactionMode={interactionMode}
-              lockedProvider={lockedProvider}
-              providerStatuses={providerStatuses as ServerProvider[]}
-              activeProjectDefaultModelSelection={activeProject?.defaultModelSelection}
-              activeThreadModelSelection={activeThread?.modelSelection}
-              activeThreadActivities={activeThread?.activities}
-              resolvedTheme={resolvedTheme}
-              settings={settings}
-              keybindings={keybindings}
-              terminalOpen={Boolean(terminalState.terminalOpen)}
-              gitCwd={gitCwd}
-              promptRef={promptRef}
-              composerImagesRef={composerImagesRef}
-              composerTerminalContextsRef={composerTerminalContextsRef}
-              shouldAutoScrollRef={isAtEndRef}
-              scheduleStickToBottom={scrollToEnd}
-              onSend={onSend}
-              onInterrupt={onInterrupt}
-              onImplementPlanInNewThread={onImplementPlanInNewThread}
-              onRespondToApproval={onRespondToApproval}
-              onSelectActivePendingUserInputOption={onSelectActivePendingUserInputOption}
-              onAdvanceActivePendingUserInput={onAdvanceActivePendingUserInput}
-              onPreviousActivePendingUserInputQuestion={onPreviousActivePendingUserInputQuestion}
-              onChangeActivePendingUserInputCustomAnswer={
-                onChangeActivePendingUserInputCustomAnswer
-              }
-              onProviderModelSelect={onProviderModelSelect}
-              toggleInteractionMode={toggleInteractionMode}
-              handleRuntimeModeChange={handleRuntimeModeChange}
-              handleInteractionModeChange={handleInteractionModeChange}
-              focusComposer={focusComposer}
-              scheduleComposerFocus={scheduleComposerFocus}
-              setThreadError={setThreadError}
-              onExpandImage={onExpandTimelineImage}
-            />
-          </div>
-
-          {isGitRepo && (
-            <BranchToolbar
-              environmentId={activeThread.environmentId}
-              threadId={activeThread.id}
+          >
+            <ChatHeader
+              activeThreadEnvironmentId={activeThread.environmentId}
+              activeThreadId={activeThread.id}
               {...(routeKind === "draft" && draftId ? { draftId } : {})}
-              onEnvModeChange={onEnvModeChange}
-              {...(canOverrideServerThreadEnvMode ? { effectiveEnvModeOverride: envMode } : {})}
-              {...(canOverrideServerThreadEnvMode
-                ? {
-                    activeThreadBranchOverride: activeThreadBranch,
-                    onActiveThreadBranchOverrideChange: setPendingServerThreadBranch,
-                  }
-                : {})}
-              envLocked={envLocked}
-              onComposerFocusRequest={scheduleComposerFocus}
-              {...(canCheckoutPullRequestIntoThread
-                ? { onCheckoutPullRequestRequest: openPullRequestDialog }
-                : {})}
-              {...(hasMultipleEnvironments
-                ? {
-                    availableEnvironments: logicalProjectEnvironments,
-                    onEnvironmentChange,
-                  }
-                : {})}
+              activeThreadTitle={activeThread.title}
+              activeProjectName={activeProject?.name}
+              isGitRepo={isGitRepo}
+              activeProjectScripts={activeProject?.scripts}
+              preferredScriptId={
+                activeProject ? (lastInvokedScriptByProjectId[activeProject.id] ?? null) : null
+              }
+              keybindings={keybindings}
+              terminalAvailable={activeProject !== undefined}
+              terminalOpen={terminalState.terminalOpen}
+              terminalToggleShortcutLabel={terminalToggleShortcutLabel}
+              panelToggleShortcutLabel={panelToggleShortcutLabel}
+              gitCwd={gitCwd}
+              sidePanelOpen={sidePanelOpen}
+              onRunProjectScript={runProjectScript}
+              onAddProjectScript={saveProjectScript}
+              onUpdateProjectScript={updateProjectScript}
+              onDeleteProjectScript={deleteProjectScript}
+              onToggleTerminal={toggleTerminalVisibility}
+              onToggleSidePanel={toggleSidePanel}
             />
-          )}
-          {pullRequestDialogState ? (
-            <PullRequestThreadDialog
-              key={pullRequestDialogState.key}
-              open
-              environmentId={activeThread.environmentId}
-              threadId={activeThread.id}
-              cwd={activeProject?.cwd ?? null}
-              initialReference={pullRequestDialogState.initialReference}
-              onOpenChange={(open) => {
-                if (!open) {
-                  closePullRequestDialog();
-                }
-              }}
-              onPrepared={handlePreparedPullRequestThread}
-            />
-          ) : null}
-        </div>
-        {/* end chat column */}
+          </header>
 
-        {/* Plan sidebar */}
-        {planSidebarOpen && !shouldUsePlanSidebarSheet ? (
-          <PlanSidebar
-            activePlan={activePlan}
-            activeProposedPlan={sidebarProposedPlan}
-            label={planSidebarLabel}
-            environmentId={environmentId}
-            markdownCwd={gitCwd ?? undefined}
-            workspaceRoot={activeWorkspaceRoot}
-            timestampFormat={timestampFormat}
-            mode="sidebar"
+          {/* Error banner */}
+          <ProviderStatusBanner status={activeProviderStatus} />
+          <ThreadErrorBanner
+            error={activeThread.error}
+            onDismiss={() => setThreadError(activeThread.id, null)}
           />
+
+          {/* Main content area */}
+          <div className="flex min-h-0 min-w-0 flex-1">
+            {/* Chat column */}
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+              {/* Messages Wrapper */}
+              <div className="relative flex min-h-0 flex-1 flex-col">
+                {/* Messages — LegendList handles virtualization and scrolling internally */}
+                <MessagesTimeline
+                  key={activeThread.id}
+                  isWorking={isWorking}
+                  activeTurnInProgress={isWorking || !latestTurnSettled}
+                  activeTurnId={activeLatestTurn?.turnId ?? null}
+                  activeTurnStartedAt={activeWorkStartedAt}
+                  listRef={legendListRef}
+                  timelineEntries={timelineEntries}
+                  completionDividerBeforeEntryId={completionDividerBeforeEntryId}
+                  completionSummary={completionSummary}
+                  turnDiffSummaryByAssistantMessageId={turnDiffSummaryByAssistantMessageId}
+                  activeThreadEnvironmentId={activeThread.environmentId}
+                  routeThreadKey={routeThreadKey}
+                  onOpenTurnDiff={onOpenTurnDiff}
+                  revertTurnCountByUserMessageId={revertTurnCountByUserMessageId}
+                  onRevertUserMessage={onRevertUserMessage}
+                  isRevertingCheckpoint={isRevertingCheckpoint}
+                  onImageExpand={onExpandTimelineImage}
+                  markdownCwd={gitCwd ?? undefined}
+                  resolvedTheme={resolvedTheme}
+                  timestampFormat={timestampFormat}
+                  workspaceRoot={activeWorkspaceRoot}
+                  onIsAtEndChange={onIsAtEndChange}
+                />
+
+                {/* scroll to bottom button — shown when user has scrolled away from the bottom */}
+                {showScrollToBottom && (
+                  <div className="pointer-events-none absolute bottom-1 left-1/2 z-30 flex -translate-x-1/2 justify-center py-1.5">
+                    <button
+                      type="button"
+                      aria-label="Scroll to bottom"
+                      title="Scroll to bottom"
+                      onClick={() => scrollToEnd(true)}
+                      className="pointer-events-auto inline-flex size-8 items-center justify-center rounded-full border border-border/60 bg-card text-muted-foreground shadow-sm transition-colors hover:cursor-pointer hover:border-border hover:text-foreground"
+                    >
+                      <ArrowDownIcon aria-hidden="true" className="size-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Input bar */}
+              <div
+                className={cn("px-3 pt-1.5 sm:px-5 sm:pt-2", isGitRepo ? "pb-1" : "pb-3 sm:pb-4")}
+              >
+                <ChatComposer
+                  ref={composerRef}
+                  composerDraftTarget={composerDraftTarget}
+                  environmentId={environmentId}
+                  routeKind={routeKind}
+                  routeThreadRef={routeThreadRef}
+                  draftId={draftId}
+                  activeThreadId={activeThreadId}
+                  activeThreadEnvironmentId={activeThread?.environmentId}
+                  activeThread={activeThread}
+                  isServerThread={isServerThread}
+                  isLocalDraftThread={isLocalDraftThread}
+                  phase={phase}
+                  isConnecting={isConnecting}
+                  isSendBusy={isSendBusy}
+                  isPreparingWorktree={isPreparingWorktree}
+                  activePendingApproval={activePendingApproval}
+                  pendingApprovals={pendingApprovals}
+                  pendingUserInputs={pendingUserInputs}
+                  activePendingProgress={activePendingProgress}
+                  activePendingResolvedAnswers={activePendingResolvedAnswers}
+                  activePendingIsResponding={activePendingIsResponding}
+                  activePendingDraftAnswers={activePendingDraftAnswers}
+                  activePendingQuestionIndex={activePendingQuestionIndex}
+                  respondingRequestIds={respondingRequestIds}
+                  showPlanFollowUpPrompt={showPlanFollowUpPrompt}
+                  activeProposedPlan={activeProposedPlan}
+                  runtimeMode={runtimeMode}
+                  interactionMode={interactionMode}
+                  lockedProvider={lockedProvider}
+                  providerStatuses={providerStatuses as ServerProvider[]}
+                  activeProjectDefaultModelSelection={activeProject?.defaultModelSelection}
+                  activeThreadModelSelection={activeThread?.modelSelection}
+                  activeThreadActivities={activeThread?.activities}
+                  resolvedTheme={resolvedTheme}
+                  settings={settings}
+                  keybindings={keybindings}
+                  terminalOpen={Boolean(terminalState.terminalOpen)}
+                  gitCwd={gitCwd}
+                  promptRef={promptRef}
+                  composerImagesRef={composerImagesRef}
+                  composerTerminalContextsRef={composerTerminalContextsRef}
+                  shouldAutoScrollRef={isAtEndRef}
+                  scheduleStickToBottom={scrollToEnd}
+                  onSend={onSend}
+                  onInterrupt={onInterrupt}
+                  onImplementPlanInNewThread={onImplementPlanInNewThread}
+                  onRespondToApproval={onRespondToApproval}
+                  onSelectActivePendingUserInputOption={onSelectActivePendingUserInputOption}
+                  onAdvanceActivePendingUserInput={onAdvanceActivePendingUserInput}
+                  onPreviousActivePendingUserInputQuestion={
+                    onPreviousActivePendingUserInputQuestion
+                  }
+                  onChangeActivePendingUserInputCustomAnswer={
+                    onChangeActivePendingUserInputCustomAnswer
+                  }
+                  onProviderModelSelect={onProviderModelSelect}
+                  toggleInteractionMode={toggleInteractionMode}
+                  handleRuntimeModeChange={handleRuntimeModeChange}
+                  handleInteractionModeChange={handleInteractionModeChange}
+                  focusComposer={focusComposer}
+                  scheduleComposerFocus={scheduleComposerFocus}
+                  setThreadError={setThreadError}
+                  onExpandImage={onExpandTimelineImage}
+                />
+              </div>
+
+              {isGitRepo && (
+                <BranchToolbar
+                  environmentId={activeThread.environmentId}
+                  threadId={activeThread.id}
+                  {...(routeKind === "draft" && draftId ? { draftId } : {})}
+                  onEnvModeChange={onEnvModeChange}
+                  {...(canOverrideServerThreadEnvMode ? { effectiveEnvModeOverride: envMode } : {})}
+                  {...(canOverrideServerThreadEnvMode
+                    ? {
+                        activeThreadBranchOverride: activeThreadBranch,
+                        onActiveThreadBranchOverrideChange: setPendingServerThreadBranch,
+                      }
+                    : {})}
+                  envLocked={envLocked}
+                  onComposerFocusRequest={scheduleComposerFocus}
+                  {...(canCheckoutPullRequestIntoThread
+                    ? { onCheckoutPullRequestRequest: openPullRequestDialog }
+                    : {})}
+                  {...(hasMultipleEnvironments
+                    ? {
+                        availableEnvironments: logicalProjectEnvironments,
+                        onEnvironmentChange,
+                      }
+                    : {})}
+                />
+              )}
+              {pullRequestDialogState ? (
+                <PullRequestThreadDialog
+                  key={pullRequestDialogState.key}
+                  open
+                  environmentId={activeThread.environmentId}
+                  threadId={activeThread.id}
+                  cwd={activeProject?.cwd ?? null}
+                  initialReference={pullRequestDialogState.initialReference}
+                  onOpenChange={(open) => {
+                    if (!open) {
+                      closePullRequestDialog();
+                    }
+                  }}
+                  onPrepared={handlePreparedPullRequestThread}
+                />
+              ) : null}
+            </div>
+            {/* end chat column */}
+          </div>
+          {/* end main content area */}
+        </div>
+        {/* end pushed chat area */}
+
+        {!useSidePanelSheet ? (
+          <Sidebar
+            side="right"
+            collapsible="offcanvas"
+            className="border-l border-border bg-card text-foreground"
+            resizable={{
+              minWidth: THREAD_SIDE_PANEL_MIN_WIDTH,
+              shouldAcceptWidth: shouldAcceptSidePanelWidth,
+              storageKey: THREAD_SIDE_PANEL_WIDTH_STORAGE_KEY,
+            }}
+          >
+            {activePanel ? (
+              <ThreadSidePanel
+                activeTab={activePanel}
+                mode="sidebar"
+                onTabChange={changeSidePanelTab}
+                tasks={{
+                  activePlan,
+                  activeProposedPlan: sidebarProposedPlan,
+                  label: planSidebarLabel,
+                  environmentId,
+                  markdownCwd: gitCwd ?? undefined,
+                  workspaceRoot: activeWorkspaceRoot,
+                  timestampFormat,
+                }}
+                files={{
+                  environmentId,
+                  workspaceRoot: activeWorkspaceRoot,
+                }}
+              />
+            ) : null}
+            <SidebarRail />
+          </Sidebar>
         ) : null}
-      </div>
+      </SidebarProvider>
       {/* end horizontal flex container */}
 
       {mountedTerminalThreadRefs.map(({ key: mountedThreadKey, threadRef: mountedThreadRef }) => (
@@ -3515,18 +3637,28 @@ export default function ChatView(props: ChatViewProps) {
           onAddTerminalContext={addTerminalContextToDraft}
         />
       ))}
-      {shouldUsePlanSidebarSheet ? (
-        <RightPanelSheet open={planSidebarOpen} onClose={closePlanSidebar}>
-          <PlanSidebar
-            activePlan={activePlan}
-            activeProposedPlan={sidebarProposedPlan}
-            label={planSidebarLabel}
-            environmentId={environmentId}
-            markdownCwd={gitCwd ?? undefined}
-            workspaceRoot={activeWorkspaceRoot}
-            timestampFormat={timestampFormat}
-            mode="sheet"
-          />
+      {useSidePanelSheet ? (
+        <RightPanelSheet open={sidePanelOpen} onClose={closeSidePanel}>
+          {activePanel ? (
+            <ThreadSidePanel
+              activeTab={activePanel}
+              mode="sheet"
+              onTabChange={changeSidePanelTab}
+              tasks={{
+                activePlan,
+                activeProposedPlan: sidebarProposedPlan,
+                label: planSidebarLabel,
+                environmentId,
+                markdownCwd: gitCwd ?? undefined,
+                workspaceRoot: activeWorkspaceRoot,
+                timestampFormat,
+              }}
+              files={{
+                environmentId,
+                workspaceRoot: activeWorkspaceRoot,
+              }}
+            />
+          ) : null}
         </RightPanelSheet>
       ) : null}
 

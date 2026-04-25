@@ -1,6 +1,5 @@
 import {
   type EnvironmentId,
-  type EditorId,
   type ProjectScript,
   type ResolvedKeybindingsConfig,
   type ThreadId,
@@ -9,13 +8,12 @@ import { scopeThreadRef } from "@t3tools/client-runtime";
 import { memo } from "react";
 import GitActionsControl from "../GitActionsControl";
 import { type DraftId } from "~/composerDraftStore";
-import { DiffIcon, ListTodoIcon, TerminalSquareIcon } from "~/components/ui/icons";
+import { PanelRightCloseIcon, TerminalSquareIcon } from "~/components/ui/icons";
 import { Badge } from "../ui/badge";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import ProjectScriptsControl, { type NewProjectScriptInput } from "../ProjectScriptsControl";
 import { Toggle } from "../ui/toggle";
 import { SidebarTrigger } from "../ui/sidebar";
-import { OpenInPicker } from "./OpenInPicker";
 
 interface ChatHeaderProps {
   activeThreadEnvironmentId: EnvironmentId;
@@ -24,27 +22,21 @@ interface ChatHeaderProps {
   activeThreadTitle: string;
   activeProjectName: string | undefined;
   isGitRepo: boolean;
-  openInCwd: string | null;
   activeProjectScripts: ProjectScript[] | undefined;
   preferredScriptId: string | null;
   keybindings: ResolvedKeybindingsConfig;
-  availableEditors: ReadonlyArray<EditorId>;
   terminalAvailable: boolean;
   terminalOpen: boolean;
   terminalToggleShortcutLabel: string | null;
-  diffToggleShortcutLabel: string | null;
-  planToggleShortcutLabel: string | null;
+  panelToggleShortcutLabel: string | null;
   gitCwd: string | null;
-  diffOpen: boolean;
-  tasksLabel: string;
-  tasksOpen: boolean;
+  sidePanelOpen: boolean;
   onRunProjectScript: (script: ProjectScript) => void;
   onAddProjectScript: (input: NewProjectScriptInput) => Promise<void>;
   onUpdateProjectScript: (scriptId: string, input: NewProjectScriptInput) => Promise<void>;
   onDeleteProjectScript: (scriptId: string) => Promise<void>;
   onToggleTerminal: () => void;
-  onToggleDiff: () => void;
-  onToggleTasks: () => void;
+  onToggleSidePanel: () => void;
 }
 
 export const ChatHeader = memo(function ChatHeader({
@@ -54,27 +46,21 @@ export const ChatHeader = memo(function ChatHeader({
   activeThreadTitle,
   activeProjectName,
   isGitRepo,
-  openInCwd,
   activeProjectScripts,
   preferredScriptId,
   keybindings,
-  availableEditors,
   terminalAvailable,
   terminalOpen,
   terminalToggleShortcutLabel,
-  diffToggleShortcutLabel,
-  planToggleShortcutLabel,
+  panelToggleShortcutLabel,
   gitCwd,
-  diffOpen,
-  tasksLabel,
-  tasksOpen,
+  sidePanelOpen,
   onRunProjectScript,
   onAddProjectScript,
   onUpdateProjectScript,
   onDeleteProjectScript,
   onToggleTerminal,
-  onToggleDiff,
-  onToggleTasks,
+  onToggleSidePanel,
 }: ChatHeaderProps) {
   return (
     <div className="@container/header-actions flex min-w-0 flex-1 items-center gap-2">
@@ -110,44 +96,12 @@ export const ChatHeader = memo(function ChatHeader({
           />
         )}
         {activeProjectName && (
-          <OpenInPicker
-            keybindings={keybindings}
-            availableEditors={availableEditors}
-            openInCwd={openInCwd}
-          />
-        )}
-        {activeProjectName && (
           <GitActionsControl
             gitCwd={gitCwd}
             activeThreadRef={scopeThreadRef(activeThreadEnvironmentId, activeThreadId)}
             {...(draftId ? { draftId } : {})}
           />
         )}
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Toggle
-                className="shrink-0 rounded-sm"
-                pressed={tasksOpen}
-                onPressedChange={onToggleTasks}
-                aria-label={`Toggle ${tasksLabel.toLowerCase()} panel`}
-                variant="outline"
-                size="xs"
-              >
-                <ListTodoIcon className="size-3" />
-              </Toggle>
-            }
-          />
-          <TooltipPopup side="bottom">
-            {tasksOpen
-              ? planToggleShortcutLabel
-                ? `Hide ${tasksLabel.toLowerCase()} panel (${planToggleShortcutLabel})`
-                : `Hide ${tasksLabel.toLowerCase()} panel`
-              : planToggleShortcutLabel
-                ? `Show ${tasksLabel.toLowerCase()} panel (${planToggleShortcutLabel})`
-                : `Show ${tasksLabel.toLowerCase()} panel`}
-          </TooltipPopup>
-        </Tooltip>
         <Tooltip>
           <TooltipTrigger
             render={
@@ -177,23 +131,20 @@ export const ChatHeader = memo(function ChatHeader({
             render={
               <Toggle
                 className="shrink-0 rounded-sm"
-                pressed={diffOpen}
-                onPressedChange={onToggleDiff}
-                aria-label="Toggle diff panel"
+                pressed={sidePanelOpen}
+                onPressedChange={onToggleSidePanel}
+                aria-label="Toggle panel"
                 variant="outline"
                 size="xs"
-                disabled={!isGitRepo}
               >
-                <DiffIcon className="size-3" />
+                <PanelRightCloseIcon className="size-3" />
               </Toggle>
             }
           />
           <TooltipPopup side="bottom">
-            {!isGitRepo
-              ? "Diff panel is unavailable because this project is not a git repository."
-              : diffToggleShortcutLabel
-                ? `Toggle diff panel (${diffToggleShortcutLabel})`
-                : "Toggle diff panel"}
+            {panelToggleShortcutLabel
+              ? `${sidePanelOpen ? "Hide" : "Show"} panel (${panelToggleShortcutLabel})`
+              : `${sidePanelOpen ? "Hide" : "Show"} panel`}
           </TooltipPopup>
         </Tooltip>
       </div>

@@ -48,9 +48,7 @@ const connectOnce = (
       headers: { [PROOF_HEADER]: local.serverSecret },
     } as unknown as string[]);
 
-    Effect.runFork(
-      setStatus({ status: "connecting", serverId: local.serverId, lastError: null }),
-    );
+    Effect.runFork(setStatus({ status: "connecting", serverId: local.serverId, lastError: null }));
 
     socket.addEventListener("open", () => {
       Effect.runFork(
