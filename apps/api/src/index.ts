@@ -3,11 +3,17 @@ import {
   presenceOnlyBrowserAuthVerifier,
   type BrowserAuthVerifier,
 } from "./auth.ts";
+import {
+  allowAllOwnershipChecker,
+  makeWorkOsOwnershipChecker,
+  type OwnershipChecker,
+} from "./ownership.ts";
 import { API_PATHS, API_PROTOCOL_VERSION, type ControlMessage } from "./protocol.ts";
 
 interface Env {
   SERVER_ROOMS: DurableObjectNamespace;
   WORKOS_CLIENT_ID?: string;
+  WORKOS_API_KEY?: string;
 }
 
 interface VersionPayload {
@@ -41,6 +47,21 @@ function resolveBrowserAuthVerifier(env: Env): BrowserAuthVerifier {
     return makeWorkOsBrowserAuthVerifier(env.WORKOS_CLIENT_ID);
   }
   return presenceOnlyBrowserAuthVerifier;
+}
+
+let cachedOwnershipChecker: { apiKey: string; checker: OwnershipChecker } | null = null;
+
+function resolveOwnershipChecker(env: Env): OwnershipChecker {
+  if (!env.WORKOS_API_KEY || env.WORKOS_API_KEY.length === 0) {
+    return allowAllOwnershipChecker;
+  }
+  if (!cachedOwnershipChecker || cachedOwnershipChecker.apiKey !== env.WORKOS_API_KEY) {
+    cachedOwnershipChecker = {
+      apiKey: env.WORKOS_API_KEY,
+      checker: makeWorkOsOwnershipChecker({ apiKey: env.WORKOS_API_KEY }),
+    };
+  }
+  return cachedOwnershipChecker.checker;
 }
 
 export default {
@@ -77,10 +98,18 @@ export default {
 
     if (url.pathname === API_PATHS.browser) {
       const verify = resolveBrowserAuthVerifier(env);
-      const result = await verify(request, url);
-      if (!result.ok) {
-        return new Response(`${result.reason}\n`, {
-          status: result.status,
+      const authResult = await verify(request, url);
+      if (!authResult.ok) {
+        return new Response(`${authResult.reason}\n`, {
+          status: authResult.status,
+          headers: textHeaders,
+        });
+      }
+      const ownership = resolveOwnershipChecker(env);
+      const ownershipResult = await ownership(authResult.auth.userId, serverId);
+      if (!ownershipResult.ok) {
+        return new Response(`${ownershipResult.reason}\n`, {
+          status: ownershipResult.status,
           headers: textHeaders,
         });
       }
