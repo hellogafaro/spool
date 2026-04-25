@@ -1,4 +1,4 @@
-import { Undo2Icon } from "~/components/ui/icons";
+import { ArrowUturnLeftIcon } from "@heroicons/react/16/solid";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { cn } from "../../lib/utils";
@@ -104,7 +104,7 @@ export function SettingResetButton({ label, onClick }: { label: string; onClick:
               onClick();
             }}
           >
-            <Undo2Icon className="size-3" />
+            <ArrowUturnLeftIcon className="size-3" />
           </Button>
         }
       />

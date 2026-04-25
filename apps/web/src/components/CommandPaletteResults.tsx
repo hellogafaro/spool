@@ -1,5 +1,5 @@
 import { type ResolvedKeybindingsConfig } from "@t3tools/contracts";
-import { ChevronRightIcon } from "~/components/ui/icons";
+import { ChevronRightIcon } from "@heroicons/react/16/solid";
 import { shortcutLabelForCommand } from "../keybindings";
 import {
   type CommandPaletteActionItem,

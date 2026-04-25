@@ -1,7 +1,9 @@
 import { type EnvironmentId, type MessageId, type TurnId } from "@t3tools/contracts";
 import {
   createContext,
+  type FC,
   memo,
+  type SVGProps,
   use,
   useCallback,
   useEffect,
@@ -15,20 +17,7 @@ import { deriveTimelineEntries, formatElapsed } from "../../session-logic";
 import { type TurnDiffSummary } from "../../types";
 import { summarizeTurnDiffStats } from "../../lib/turnDiffTree";
 import ChatMarkdown from "../ChatMarkdown";
-import {
-  BotIcon,
-  CheckIcon,
-  CircleAlertIcon,
-  EyeIcon,
-  GlobeIcon,
-  HammerIcon,
-  type LucideIcon,
-  SquarePenIcon,
-  TerminalIcon,
-  Undo2Icon,
-  WrenchIcon,
-  ZapIcon,
-} from "~/components/ui/icons";
+import { ArrowUturnLeftIcon, BoltIcon, CheckIcon, CommandLineIcon, CpuChipIcon, ExclamationCircleIcon, EyeIcon, GlobeAltIcon, PencilSquareIcon, WrenchScrewdriverIcon } from "@heroicons/react/16/solid";
 import { Button } from "../ui/button";
 import { buildExpandedImagePreview, ExpandedImagePreview } from "./ExpandedImagePreview";
 import { ProposedPlanCard } from "./ProposedPlanCard";
@@ -369,7 +358,7 @@ function TimelineRowContent({ row }: { row: TimelineRow }) {
                         onClick={() => ctx.onRevertUserMessage(row.message.id)}
                         title="Revert to this message"
                       >
-                        <Undo2Icon className="size-3" />
+                        <ArrowUturnLeftIcon className="size-3" />
                       </Button>
                     )}
                   </div>
@@ -837,18 +826,18 @@ function formatMessageMeta(
 }
 
 function workToneIcon(tone: TimelineWorkEntry["tone"]): {
-  icon: LucideIcon;
+  icon: FC<SVGProps<SVGSVGElement>>;
   className: string;
 } {
   if (tone === "error") {
     return {
-      icon: CircleAlertIcon,
+      icon: ExclamationCircleIcon,
       className: "text-foreground/92",
     };
   }
   if (tone === "thinking") {
     return {
-      icon: BotIcon,
+      icon: CpuChipIcon,
       className: "text-foreground/92",
     };
   }
@@ -859,7 +848,7 @@ function workToneIcon(tone: TimelineWorkEntry["tone"]): {
     };
   }
   return {
-    icon: ZapIcon,
+    icon: BoltIcon,
     className: "text-foreground/92",
   };
 }
@@ -896,26 +885,26 @@ function workEntryRawCommand(
   return rawCommand === workEntry.command.trim() ? null : rawCommand;
 }
 
-function workEntryIcon(workEntry: TimelineWorkEntry): LucideIcon {
-  if (workEntry.requestKind === "command") return TerminalIcon;
+function workEntryIcon(workEntry: TimelineWorkEntry): FC<SVGProps<SVGSVGElement>> {
+  if (workEntry.requestKind === "command") return CommandLineIcon;
   if (workEntry.requestKind === "file-read") return EyeIcon;
-  if (workEntry.requestKind === "file-change") return SquarePenIcon;
+  if (workEntry.requestKind === "file-change") return PencilSquareIcon;
 
   if (workEntry.itemType === "command_execution" || workEntry.command) {
-    return TerminalIcon;
+    return CommandLineIcon;
   }
   if (workEntry.itemType === "file_change" || (workEntry.changedFiles?.length ?? 0) > 0) {
-    return SquarePenIcon;
+    return PencilSquareIcon;
   }
-  if (workEntry.itemType === "web_search") return GlobeIcon;
+  if (workEntry.itemType === "web_search") return GlobeAltIcon;
   if (workEntry.itemType === "image_view") return EyeIcon;
 
   switch (workEntry.itemType) {
     case "mcp_tool_call":
-      return WrenchIcon;
+      return WrenchScrewdriverIcon;
     case "dynamic_tool_call":
     case "collab_agent_tool_call":
-      return HammerIcon;
+      return WrenchScrewdriverIcon;
   }
 
   return workToneIcon(workEntry.tone).icon;

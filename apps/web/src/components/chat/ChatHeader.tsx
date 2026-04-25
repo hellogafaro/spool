@@ -8,7 +8,7 @@ import { scopeThreadRef } from "@t3tools/client-runtime";
 import { memo } from "react";
 import GitActionsControl from "../GitActionsControl";
 import { type DraftId } from "~/composerDraftStore";
-import { PanelRightCloseIcon, TerminalSquareIcon } from "~/components/ui/icons";
+import { ChevronDoubleRightIcon, CommandLineIcon } from "@heroicons/react/16/solid";
 import { Badge } from "../ui/badge";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import ProjectScriptsControl, { type NewProjectScriptInput } from "../ProjectScriptsControl";
@@ -110,11 +110,11 @@ export const ChatHeader = memo(function ChatHeader({
                 pressed={terminalOpen}
                 onPressedChange={onToggleTerminal}
                 aria-label="Toggle terminal drawer"
-                variant="outline"
-                size="xs"
+                variant="ghost"
+                size="sm"
                 disabled={!terminalAvailable}
               >
-                <TerminalSquareIcon className="size-3" />
+                <CommandLineIcon />
               </Toggle>
             }
           />
@@ -134,10 +134,10 @@ export const ChatHeader = memo(function ChatHeader({
                 pressed={sidePanelOpen}
                 onPressedChange={onToggleSidePanel}
                 aria-label="Toggle panel"
-                variant="outline"
-                size="xs"
+                variant="ghost"
+                size="sm"
               >
-                <PanelRightCloseIcon className="size-3" />
+                <ChevronDoubleRightIcon />
               </Toggle>
             }
           />

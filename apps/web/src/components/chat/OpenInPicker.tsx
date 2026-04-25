@@ -2,7 +2,7 @@ import { EditorId, type ResolvedKeybindingsConfig } from "@t3tools/contracts";
 import { memo, useCallback, useEffect, useMemo } from "react";
 import { isOpenFavoriteEditorShortcut, shortcutLabelForCommand } from "../../keybindings";
 import { usePreferredEditor } from "../../editorPreferences";
-import { ChevronDownIcon, FolderClosedIcon } from "~/components/ui/icons";
+import { ChevronDownIcon, FolderIcon } from "@heroicons/react/16/solid";
 import { Button } from "../ui/button";
 import { Group, GroupSeparator } from "../ui/group";
 import { Menu, MenuItem, MenuPopup, MenuShortcut, MenuTrigger } from "../ui/menu";
@@ -74,7 +74,7 @@ const resolveOptions = (platform: string, availableEditors: ReadonlyArray<Editor
         : isWindowsPlatform(platform)
           ? "Explorer"
           : "Files",
-      Icon: FolderClosedIcon,
+      Icon: FolderIcon,
       value: "file-manager",
     },
   ];

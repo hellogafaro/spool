@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useState } from "react";
-import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "~/components/ui/icons";
+import { ChevronLeftIcon, ChevronRightIcon, XMarkIcon } from "@heroicons/react/16/solid";
 import { Button } from "../ui/button";
 import type { ExpandedImagePreview } from "./ExpandedImagePreview";
 
@@ -90,7 +90,7 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
           onClick={onClose}
           aria-label="Close image preview"
         >
-          <XIcon />
+          <XMarkIcon />
         </Button>
         <img
           src={item.src}

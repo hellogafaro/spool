@@ -1,4 +1,4 @@
-import { RotateCcwIcon } from "~/components/ui/icons";
+import { ArrowUturnLeftIcon } from "@heroicons/react/16/solid";
 import { Outlet, createFileRoute, redirect, useLocation } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
@@ -17,7 +17,7 @@ function RestoreDefaultsButton({ onRestored }: { onRestored: () => void }) {
       disabled={changedSettingLabels.length === 0}
       onClick={() => void restoreDefaults()}
     >
-      <RotateCcwIcon className="size-3.5" />
+      <ArrowUturnLeftIcon className="size-3.5" />
       Restore defaults
     </Button>
   );

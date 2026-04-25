@@ -105,7 +105,7 @@ import { RIGHT_PANEL_INLINE_LAYOUT_MEDIA_QUERY } from "../rightPanelLayout";
 import { BranchToolbar } from "./BranchToolbar";
 import { resolveShortcutCommand, shortcutLabelForCommand } from "../keybindings";
 import ThreadTerminalDrawer from "./ThreadTerminalDrawer";
-import { ArrowDownIcon } from "~/components/ui/icons";
+import { ArrowDownIcon } from "@heroicons/react/16/solid";
 import { cn, randomUUID } from "~/lib/utils";
 import { stackedThreadToast, toastManager } from "./ui/toast";
 import { decodeProjectScriptKeybindingRule } from "~/lib/projectScriptKeybindings";
@@ -3371,7 +3371,7 @@ export default function ChatView(props: ChatViewProps) {
           {/* Top bar */}
           <header
             className={cn(
-              "border-b border-border px-3 sm:px-5",
+              "px-3 sm:px-5",
               isElectron
                 ? cn(
                     "drag-region flex h-12 items-center wco:h-[env(titlebar-area-height)]",

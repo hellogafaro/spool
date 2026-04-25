@@ -1,7 +1,7 @@
 "use client";
 
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
-import { CheckIcon, ChevronsUpDownIcon, XIcon } from "~/components/ui/icons";
+import { CheckIcon, ChevronUpDownIcon, XMarkIcon } from "@heroicons/react/16/solid";
 import * as React from "react";
 
 import { cn } from "~/lib/utils";
@@ -109,7 +109,7 @@ function ComboboxInput({
           )}
         >
           <ComboboxPrimitive.Icon data-slot="combobox-icon">
-            <ChevronsUpDownIcon />
+            <ChevronUpDownIcon />
           </ComboboxPrimitive.Icon>
         </ComboboxTrigger>
       )}
@@ -120,7 +120,7 @@ function ComboboxInput({
             sizeValue === "sm" ? "end-0" : "end-0.5",
           )}
         >
-          <XIcon />
+          <XMarkIcon />
         </ComboboxClear>
       )}
     </div>
@@ -374,7 +374,7 @@ function ComboboxChipRemove(props: ComboboxPrimitive.ChipRemove.Props) {
       data-slot="combobox-chip-remove"
       {...props}
     >
-      <XIcon />
+      <XMarkIcon />
     </ComboboxPrimitive.ChipRemove>
   );
 }

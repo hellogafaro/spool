@@ -1,7 +1,7 @@
 import { type ServerProvider } from "@t3tools/contracts";
 import { memo } from "react";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
-import { CircleAlertIcon } from "~/components/ui/icons";
+import { ExclamationCircleIcon } from "@heroicons/react/16/solid";
 import { formatProviderKindLabel } from "../../providerModels";
 
 export const ProviderStatusBanner = memo(function ProviderStatusBanner({
@@ -23,7 +23,7 @@ export const ProviderStatusBanner = memo(function ProviderStatusBanner({
   return (
     <div className="mx-auto w-full max-w-208 pt-3">
       <Alert variant={status.status === "error" ? "error" : "warning"}>
-        <CircleAlertIcon />
+        <ExclamationCircleIcon />
         <AlertTitle>{title}</AlertTitle>
         <AlertDescription className="line-clamp-3" title={status.message ?? defaultMessage}>
           {status.message ?? defaultMessage}

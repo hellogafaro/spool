@@ -5,7 +5,7 @@ import {
 } from "@t3tools/contracts";
 import { memo, useEffect, useState } from "react";
 import type { VariantProps } from "class-variance-authority";
-import { ChevronDownIcon } from "~/components/ui/icons";
+import { ChevronDownIcon } from "@heroicons/react/16/solid";
 import { Button, buttonVariants } from "../ui/button";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";

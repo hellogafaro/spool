@@ -9,7 +9,7 @@ import {
   stripDisplayedPlanMarkdown,
 } from "../../proposedPlan";
 import ChatMarkdown from "../ChatMarkdown";
-import { EllipsisIcon } from "~/components/ui/icons";
+import { EllipsisHorizontalIcon } from "@heroicons/react/16/solid";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
@@ -153,7 +153,7 @@ export const ProposedPlanCard = memo(function ProposedPlanCard({
           <MenuTrigger
             render={<Button aria-label="Plan actions" size="icon-xs" variant="outline" />}
           >
-            <EllipsisIcon aria-hidden="true" className="size-4" />
+            <EllipsisHorizontalIcon aria-hidden="true" className="size-4" />
           </MenuTrigger>
           <MenuPopup align="end">
             <MenuItem onClick={handleCopyPlan}>

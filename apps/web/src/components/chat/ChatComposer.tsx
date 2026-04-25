@@ -19,8 +19,10 @@ import {
 } from "@t3tools/contracts";
 import { createModelSelection, normalizeModelSlug } from "@t3tools/shared/model";
 import {
+  type FC,
   forwardRef,
   memo,
+  type SVGProps,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -78,15 +80,7 @@ import { Button } from "../ui/button";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { toastManager } from "../ui/toast";
-import {
-  BotIcon,
-  CircleAlertIcon,
-  type LucideIcon,
-  LockIcon,
-  LockOpenIcon,
-  PenLineIcon,
-  XIcon,
-} from "~/components/ui/icons";
+import { CpuChipIcon, ExclamationCircleIcon, LockClosedIcon, LockOpenIcon, PencilIcon, XMarkIcon } from "@heroicons/react/16/solid";
 import { proposedPlanTitle } from "../../proposedPlan";
 import {
   getProviderInteractionModeToggle,
@@ -105,17 +99,17 @@ const IMAGE_SIZE_LIMIT_LABEL = `${Math.round(PROVIDER_SEND_TURN_MAX_IMAGE_BYTES 
 
 const runtimeModeConfig: Record<
   RuntimeMode,
-  { label: string; description: string; icon: LucideIcon }
+  { label: string; description: string; icon: FC<SVGProps<SVGSVGElement>> }
 > = {
   "approval-required": {
     label: "Supervised",
     description: "Ask before commands and file changes.",
-    icon: LockIcon,
+    icon: LockClosedIcon,
   },
   "auto-accept-edits": {
     label: "Auto-accept edits",
     description: "Auto-approve edits, ask before other actions.",
-    icon: PenLineIcon,
+    icon: PencilIcon,
   },
   "full-access": {
     label: "Full access",
@@ -185,7 +179,7 @@ const ComposerFooterModeControls = memo(function ComposerFooterModeControls(prop
               : "Default mode — click to enter plan mode"
           }
         >
-          <BotIcon />
+          <CpuChipIcon />
           <span className="sr-only sm:not-sr-only">
             {props.interactionMode === "plan" ? "Plan" : "Build"}
           </span>
@@ -1715,7 +1709,7 @@ export const ChatComposer = memo(
                                   aria-label="Draft attachment may not persist"
                                   className="absolute left-1 top-1 inline-flex items-center justify-center rounded bg-background/85 p-0.5 text-amber-600"
                                 >
-                                  <CircleAlertIcon className="size-3" />
+                                  <ExclamationCircleIcon className="size-3" />
                                 </span>
                               }
                             />
@@ -1735,7 +1729,7 @@ export const ChatComposer = memo(
                           onClick={() => removeComposerImage(image.id)}
                           aria-label={`Remove ${image.name}`}
                         >
-                          <XIcon />
+                          <XMarkIcon />
                         </Button>
                       </div>
                     ))}

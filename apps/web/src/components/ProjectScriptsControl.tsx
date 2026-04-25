@@ -3,17 +3,7 @@ import type {
   ProjectScriptIcon,
   ResolvedKeybindingsConfig,
 } from "@t3tools/contracts";
-import {
-  BugIcon,
-  ChevronDownIcon,
-  FlaskConicalIcon,
-  HammerIcon,
-  ListChecksIcon,
-  PlayIcon,
-  PlusIcon,
-  SettingsIcon,
-  WrenchIcon,
-} from "~/components/ui/icons";
+import { BeakerIcon, BugAntIcon, ChevronDownIcon, ClipboardDocumentCheckIcon, Cog6ToothIcon, PlayIcon, WrenchScrewdriverIcon } from "@heroicons/react/16/solid";
 import React, { type FormEvent, type KeyboardEvent, useCallback, useMemo, useState } from "react";
 
 import {
@@ -70,11 +60,11 @@ function ScriptIcon({
   icon: ProjectScriptIcon;
   className?: string;
 }) {
-  if (icon === "test") return <FlaskConicalIcon className={className} />;
-  if (icon === "lint") return <ListChecksIcon className={className} />;
-  if (icon === "configure") return <WrenchIcon className={className} />;
-  if (icon === "build") return <HammerIcon className={className} />;
-  if (icon === "debug") return <BugIcon className={className} />;
+  if (icon === "test") return <BeakerIcon className={className} />;
+  if (icon === "lint") return <ClipboardDocumentCheckIcon className={className} />;
+  if (icon === "configure") return <WrenchScrewdriverIcon className={className} />;
+  if (icon === "build") return <WrenchScrewdriverIcon className={className} />;
+  if (icon === "debug") return <BugAntIcon className={className} />;
   return <PlayIcon className={className} />;
 }
 
@@ -271,22 +261,22 @@ export default function ProjectScriptsControl({
       {primaryScript ? (
         <Group aria-label="Project scripts">
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             onClick={() => onRunScript(primaryScript)}
             title={`Run ${primaryScript.name}`}
           >
             <ScriptIcon icon={primaryScript.icon} />
-            <span className="sr-only @3xl/header-actions:not-sr-only @3xl/header-actions:ml-0.5">
+            <span className="sr-only @3xl/header-actions:not-sr-only ">
               {primaryScript.name}
             </span>
           </Button>
           <GroupSeparator className="hidden @3xl/header-actions:block" />
           <Menu highlightItemOnHover={false}>
             <MenuTrigger
-              render={<Button size="icon-xs" variant="outline" aria-label="Script actions" />}
+              render={<Button size="icon-sm" variant="outline" aria-label="Script actions" />}
             >
-              <ChevronDownIcon className="size-4" />
+              <ChevronDownIcon />
             </MenuTrigger>
             <MenuPopup align="end">
               {scripts.map((script) => {
@@ -300,7 +290,7 @@ export default function ProjectScriptsControl({
                     className={`group ${dropdownItemClassName}`}
                     onClick={() => onRunScript(script)}
                   >
-                    <ScriptIcon icon={script.icon} className="size-4" />
+                    <ScriptIcon icon={script.icon} />
                     <span className="truncate">
                       {script.runOnWorktreeCreate ? `${script.name} (setup)` : script.name}
                     </span>
@@ -313,7 +303,7 @@ export default function ProjectScriptsControl({
                       <Button
                         type="button"
                         variant="ghost"
-                        size="icon-xs"
+                        size="icon-sm"
                         className="absolute right-0 top-1/2 size-6 -translate-y-1/2 opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto group-focus-visible:opacity-100 group-focus-visible:pointer-events-auto"
                         aria-label={`Edit ${script.name}`}
                         onPointerDown={(event) => {
@@ -326,23 +316,23 @@ export default function ProjectScriptsControl({
                           openEditDialog(script);
                         }}
                       >
-                        <SettingsIcon className="size-3.5" />
+                        <Cog6ToothIcon />
                       </Button>
                     </span>
                   </MenuItem>
                 );
               })}
               <MenuItem className={dropdownItemClassName} onClick={openAddDialog}>
-                <PlusIcon className="size-4" />
+                <PlayIcon />
                 Add action
               </MenuItem>
             </MenuPopup>
           </Menu>
         </Group>
       ) : (
-        <Button size="xs" variant="outline" onClick={openAddDialog} title="Add action">
-          <PlusIcon className="size-3.5" />
-          <span className="sr-only @3xl/header-actions:not-sr-only @3xl/header-actions:ml-0.5">
+        <Button size="sm" variant="outline" onClick={openAddDialog} title="Add action">
+          <PlayIcon />
+          <span className="sr-only @3xl/header-actions:not-sr-only ">
             Add action
           </span>
         </Button>

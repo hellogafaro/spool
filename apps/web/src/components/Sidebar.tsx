@@ -1,16 +1,4 @@
-import {
-  ArchiveIcon,
-  ArrowUpDownIcon,
-  ChevronRightIcon,
-  CloudIcon,
-  GitPullRequestIcon,
-  PlusIcon,
-  SearchIcon,
-  SettingsIcon,
-  SquarePenIcon,
-  TerminalIcon,
-  TriangleAlertIcon,
-} from "~/components/ui/icons";
+import { ArchiveBoxIcon, ArrowsRightLeftIcon, ArrowsUpDownIcon, ChevronRightIcon, CloudIcon, Cog6ToothIcon, CommandLineIcon, ExclamationTriangleIcon, MagnifyingGlassIcon, PencilSquareIcon, PlusIcon } from "@heroicons/react/16/solid";
 import {
   prStatusIndicator,
   resolveThreadPr,
@@ -558,7 +546,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                     className={`inline-flex items-center justify-center ${prStatus.colorClass} cursor-pointer rounded-sm outline-hidden focus-visible:ring-1 focus-visible:ring-ring`}
                     onClick={handlePrClick}
                   >
-                    <GitPullRequestIcon className="size-3" />
+                    <ArrowsRightLeftIcon className="size-3" />
                   </button>
                 }
               />
@@ -602,7 +590,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               title={terminalStatus.label}
               className={`inline-flex items-center justify-center ${terminalStatus.colorClass}`}
             >
-              <TerminalIcon className={`size-3 ${terminalStatus.pulse ? "animate-pulse" : ""}`} />
+              <CommandLineIcon className={`size-3 ${terminalStatus.pulse ? "animate-pulse" : ""}`} />
             </span>
           )}
           <div className="flex min-w-12 justify-end">
@@ -631,7 +619,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                     onPointerDown={stopPropagationOnPointerDown}
                     onClick={handleStartArchiveConfirmation}
                   >
-                    <ArchiveIcon className="size-3.5" />
+                    <ArchiveBoxIcon className="size-3.5" />
                   </button>
                 </div>
               ) : (
@@ -648,7 +636,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                           onPointerDown={stopPropagationOnPointerDown}
                           onClick={handleArchiveImmediateClick}
                         >
-                          <ArchiveIcon className="size-3.5" />
+                          <ArchiveBoxIcon className="size-3.5" />
                         </button>
                       </div>
                     }
@@ -2027,7 +2015,7 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
                   className="inline-flex size-5 cursor-pointer items-center justify-center rounded-md text-muted-foreground/70 hover:bg-secondary hover:text-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
                   onClick={handleCreateThreadClick}
                 >
-                  <SquarePenIcon className="size-3.5" />
+                  <PencilSquareIcon className="size-3.5" />
                 </button>
               </div>
             }
@@ -2231,7 +2219,7 @@ function ProjectSortMenu({
             <MenuTrigger className="inline-flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground" />
           }
         >
-          <ArrowUpDownIcon className="size-3.5" />
+          <ArrowsUpDownIcon className="size-3.5" />
         </TooltipTrigger>
         <TooltipPopup side="right">Sort projects</TooltipPopup>
       </Tooltip>
@@ -2389,7 +2377,7 @@ const SidebarChromeFooter = memo(function SidebarChromeFooter() {
             className="gap-2 px-2 py-1.5 text-muted-foreground/70 hover:bg-accent hover:text-foreground"
             onClick={handleSettingsClick}
           >
-            <SettingsIcon className="size-3.5" />
+            <Cog6ToothIcon className="size-3.5" />
             <span>Settings</span>
           </SidebarMenuButton>
         </SidebarMenuItem>
@@ -2508,7 +2496,7 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
                 />
               }
             >
-              <SearchIcon className="size-3.5" />
+              <MagnifyingGlassIcon className="size-3.5" />
               <span className="flex-1 truncate text-left">Search</span>
               {commandPaletteShortcutLabel ? (
                 <Kbd className="h-5 min-w-0 px-1.5 text-xs">{commandPaletteShortcutLabel}</Kbd>
@@ -2520,7 +2508,7 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
       {showArm64IntelBuildWarning && arm64IntelBuildWarningDescription ? (
         <SidebarGroup className="px-2 pt-2 pb-0">
           <Alert variant="warning" className="rounded-2xl border-warning/40 bg-warning/8">
-            <TriangleAlertIcon />
+            <ExclamationTriangleIcon />
             <AlertTitle>Intel build on Apple Silicon</AlertTitle>
             <AlertDescription>{arm64IntelBuildWarningDescription}</AlertDescription>
             {desktopUpdateButtonAction !== "none" ? (

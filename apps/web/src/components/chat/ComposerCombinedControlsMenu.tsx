@@ -13,14 +13,7 @@ import {
   getProviderOptionDescriptors,
 } from "@t3tools/shared/model";
 import { memo, useMemo } from "react";
-import {
-  BardIcon,
-  BrainIcon,
-  ChevronDownIcon,
-  FlashlightIcon,
-  Rows3Icon,
-  SpeedIcon,
-} from "~/components/ui/icons";
+import { Bars3BottomLeftIcon, BoltIcon, ChevronDownIcon, CpuChipIcon, SparklesIcon } from "@heroicons/react/16/solid";
 
 import {
   formatProviderKindLabel,
@@ -95,7 +88,7 @@ function getCombinedControlsLabel(descriptor: ProviderOptionDescriptor): string 
 }
 
 function getCombinedControlsIcon(descriptor: ProviderOptionDescriptor) {
-  return descriptor.id === "contextWindow" ? Rows3Icon : BrainIcon;
+  return descriptor.id === "contextWindow" ? Bars3BottomLeftIcon : CpuChipIcon;
 }
 
 function replaceDescriptorCurrentValue(
@@ -257,7 +250,7 @@ export const ComposerCombinedControlsMenu = memo(function ComposerCombinedContro
         }
       >
         <span className="flex min-w-0 w-full items-center gap-2 overflow-hidden">
-          <FlashlightIcon className="size-4 shrink-0" aria-hidden />
+          <BoltIcon className="size-4 shrink-0" aria-hidden />
           {props.compact ? null : <span className="min-w-0 flex-1 truncate">{triggerLabel}</span>}
           <ChevronDownIcon aria-hidden className="size-3 shrink-0 opacity-60" />
         </span>
@@ -321,7 +314,7 @@ export const ComposerCombinedControlsMenu = memo(function ComposerCombinedContro
 
         <MenuSub>
           <MenuSubTrigger>
-            <BardIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+            <SparklesIcon className="size-4 text-muted-foreground" aria-hidden="true" />
             <span className="min-w-0 flex-1 truncate">Model</span>
             <span className="max-w-36 truncate text-muted-foreground">
               {getTriggerDisplayModelName(currentModel)}
@@ -364,7 +357,7 @@ export const ComposerCombinedControlsMenu = memo(function ComposerCombinedContro
           <>
             <MenuSub>
               <MenuSubTrigger>
-                <SpeedIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+                <BoltIcon className="size-4 text-muted-foreground" aria-hidden="true" />
                 <span className="min-w-0 flex-1 truncate">Speed</span>
                 <span className="text-muted-foreground">{speedLabel}</span>
               </MenuSubTrigger>

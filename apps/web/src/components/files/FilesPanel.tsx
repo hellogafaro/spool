@@ -10,13 +10,7 @@ import { cn } from "~/lib/utils";
 import { useTheme } from "~/hooks/useTheme";
 import { Button } from "../ui/button";
 import { ScrollArea } from "../ui/scroll-area";
-import {
-  ArrowLeftIcon,
-  ChevronRightIcon,
-  FolderClosedIcon,
-  FolderIcon,
-  RefreshCwIcon,
-} from "../ui/icons";
+import { ArrowLeftIcon, ArrowPathIcon, ChevronRightIcon, FolderIcon } from "@heroicons/react/16/solid";
 import { VscodeEntryIcon } from "../chat/VscodeEntryIcon";
 
 type ExpandedDirectoryState = Record<string, boolean>;
@@ -155,7 +149,7 @@ export const FilesPanel = memo(function FilesPanel({
         {showPreview ? (
           <div className="flex min-h-0 flex-1 flex-col">
             {mode === "sheet" && mobilePreviewOpen ? (
-              <div className="flex h-10 shrink-0 items-center border-b border-border/70 px-2">
+              <div className="flex h-10 shrink-0 items-center px-2">
                 <Button
                   type="button"
                   size="xs"
@@ -184,8 +178,8 @@ export const FilesPanel = memo(function FilesPanel({
 function FilesPanelShell(props: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
     <div className="flex h-full min-w-0 flex-col bg-background">
-      <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border px-3">
-        <p className="text-xs font-medium tracking-wide text-muted-foreground/65 uppercase">
+      <div className="flex h-12 shrink-0 items-center justify-between gap-2 px-3">
+        <p className="text-base font-medium text-foreground">
           {props.title}
         </p>
         <div className="flex items-center gap-1.5">{props.action}</div>
@@ -257,7 +251,7 @@ function FileTreeEntry(props: {
           {isExpanded ? (
             <FolderIcon className="size-3.5 shrink-0 text-muted-foreground/75" />
           ) : (
-            <FolderClosedIcon className="size-3.5 shrink-0 text-muted-foreground/75" />
+            <FolderIcon className="size-3.5 shrink-0 text-muted-foreground/75" />
           )}
           <span className="truncate font-mono text-[11px] text-muted-foreground/90 group-hover:text-foreground/90">
             {entry.name}
@@ -343,7 +337,7 @@ function FilePreview(props: {
   }
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border/70 px-3">
+      <div className="flex h-10 shrink-0 items-center gap-2 px-3">
         <VscodeEntryIcon
           pathValue={props.pathValue}
           kind="file"
@@ -366,7 +360,7 @@ function FilePreview(props: {
 function EmptyFilesState(props: { title: string }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-10 text-center">
-      <RefreshCwIcon className="mb-2 size-4 text-muted-foreground/30" />
+      <ArrowPathIcon className="mb-2 size-4 text-muted-foreground/30" />
       <p className="text-[13px] text-muted-foreground/55">{props.title}</p>
     </div>
   );

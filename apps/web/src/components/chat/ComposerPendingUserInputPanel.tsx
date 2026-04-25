@@ -5,7 +5,7 @@ import {
   derivePendingUserInputProgress,
   type PendingUserInputDraftAnswer,
 } from "../../pendingUserInput";
-import { CheckIcon } from "~/components/ui/icons";
+import { CheckIcon } from "@heroicons/react/16/solid";
 import { cn } from "~/lib/utils";
 
 interface PendingUserInputPanelProps {

@@ -1,7 +1,7 @@
 "use client";
 
 import { Autocomplete as AutocompletePrimitive } from "@base-ui/react/autocomplete";
-import { ChevronsUpDownIcon, XIcon } from "~/components/ui/icons";
+import { ChevronUpDownIcon, XMarkIcon } from "@heroicons/react/16/solid";
 
 import { cn } from "~/lib/utils";
 import { Input } from "~/components/ui/input";
@@ -57,7 +57,7 @@ function AutocompleteInput({
           )}
         >
           <AutocompletePrimitive.Icon data-slot="autocomplete-icon">
-            <ChevronsUpDownIcon />
+            <ChevronUpDownIcon />
           </AutocompletePrimitive.Icon>
         </AutocompleteTrigger>
       )}
@@ -68,7 +68,7 @@ function AutocompleteInput({
             sizeValue === "sm" ? "end-0" : "end-0.5",
           )}
         >
-          <XIcon />
+          <XMarkIcon />
         </AutocompleteClear>
       )}
     </div>
@@ -211,7 +211,7 @@ function AutocompleteClear({ className, ...props }: AutocompletePrimitive.Clear.
       data-slot="autocomplete-clear"
       {...props}
     >
-      <XIcon />
+      <XMarkIcon />
     </AutocompletePrimitive.Clear>
   );
 }

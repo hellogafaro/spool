@@ -1,13 +1,4 @@
-import {
-  ArchiveIcon,
-  ArchiveX,
-  ChevronDownIcon,
-  InfoIcon,
-  LoaderIcon,
-  PlusIcon,
-  RefreshCwIcon,
-  XIcon,
-} from "~/components/ui/icons";
+import { ArchiveBoxIcon, ArchiveBoxXMarkIcon, ArrowPathIcon, ChevronDownIcon, InformationCircleIcon, PlusIcon, XMarkIcon } from "@heroicons/react/16/solid";
 import { useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import {
@@ -1185,9 +1176,9 @@ export function GeneralSettingsPanel() {
                     aria-label="Refresh provider status"
                   >
                     {isRefreshingProviders ? (
-                      <LoaderIcon className="size-3 animate-spin" />
+                      <ArrowPathIcon className="size-3 animate-spin" />
                     ) : (
-                      <RefreshCwIcon className="size-3" />
+                      <ArrowPathIcon className="size-3" />
                     )}
                   </Button>
                 }
@@ -1542,7 +1533,7 @@ export function GeneralSettingsPanel() {
                                       />
                                     }
                                   >
-                                    <InfoIcon className="size-3" />
+                                    <InformationCircleIcon className="size-3" />
                                   </TooltipTrigger>
                                   <TooltipPopup side="top" className="max-w-56">
                                     <div className="space-y-1">
@@ -1576,7 +1567,7 @@ export function GeneralSettingsPanel() {
                                       removeCustomModel(providerCard.provider, model.slug)
                                     }
                                   >
-                                    <XIcon className="size-3" />
+                                    <XMarkIcon className="size-3" />
                                   </button>
                                 </div>
                               ) : null}
@@ -1764,7 +1755,7 @@ export function ArchivedThreadsPanel() {
         <SettingsSection title="Archived threads">
           <Empty className="min-h-88">
             <EmptyMedia variant="icon">
-              <ArchiveIcon />
+              <ArchiveBoxIcon />
             </EmptyMedia>
             <EmptyHeader>
               <EmptyTitle>No archived threads</EmptyTitle>
@@ -1822,7 +1813,7 @@ export function ArchivedThreadsPanel() {
                     )
                   }
                 >
-                  <ArchiveX className="size-3.5" />
+                  <ArchiveBoxXMarkIcon className="size-3.5" />
                   <span>Unarchive</span>
                 </Button>
               </div>

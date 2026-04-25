@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { Alert, AlertAction, AlertDescription } from "../ui/alert";
-import { CircleAlertIcon, XIcon } from "~/components/ui/icons";
+import { ExclamationCircleIcon, XMarkIcon } from "@heroicons/react/16/solid";
 
 export const ThreadErrorBanner = memo(function ThreadErrorBanner({
   error,
@@ -13,7 +13,7 @@ export const ThreadErrorBanner = memo(function ThreadErrorBanner({
   return (
     <div className="mx-auto w-full max-w-208 pt-3">
       <Alert variant="error">
-        <CircleAlertIcon />
+        <ExclamationCircleIcon />
         <AlertDescription className="line-clamp-3" title={error}>
           {error}
         </AlertDescription>
@@ -25,7 +25,7 @@ export const ThreadErrorBanner = memo(function ThreadErrorBanner({
               className="inline-flex size-6 items-center justify-center rounded-md text-destructive/60 transition-colors hover:text-destructive"
               onClick={onDismiss}
             >
-              <XIcon className="size-3.5" />
+              <XMarkIcon className="size-3.5" />
             </button>
           </AlertAction>
         )}

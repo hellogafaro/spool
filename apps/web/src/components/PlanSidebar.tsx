@@ -1,17 +1,10 @@
 import { memo, useState, useCallback } from "react";
 import type { EnvironmentId } from "@t3tools/contracts";
 import { type TimestampFormat } from "@t3tools/contracts/settings";
-import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 import ChatMarkdown from "./ChatMarkdown";
-import {
-  CheckIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
-  EllipsisIcon,
-  LoaderIcon,
-} from "~/components/ui/icons";
+import { ArrowPathIcon, CheckIcon, ChevronDownIcon, ChevronRightIcon, EllipsisHorizontalIcon } from "@heroicons/react/16/solid";
 import { cn } from "~/lib/utils";
 import type { ActivePlanState } from "../session-logic";
 import type { LatestProposedPlanState } from "../session-logic";
@@ -39,7 +32,7 @@ function stepStatusIcon(status: string): React.ReactNode {
   if (status === "inProgress") {
     return (
       <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-blue-500/15 text-blue-400">
-        <LoaderIcon className="size-3 animate-spin" />
+        <ArrowPathIcon className="size-3 animate-spin" />
       </span>
     );
   }
@@ -126,21 +119,14 @@ const PlanSidebar = memo(function PlanSidebar({
   return (
     <div
       className={cn(
-        "flex min-h-0 flex-col bg-card/50",
-        mode === "sidebar"
-          ? "h-full w-[340px] shrink-0 border-l border-border/70"
-          : "h-full w-full",
+        "flex h-full min-h-0 w-full flex-col",
+        mode === "sidebar" ? "bg-background" : "bg-card/50",
       )}
     >
       {/* Header */}
-      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border/60 px-3">
+      <div className="flex h-12 shrink-0 items-center justify-between px-3">
         <div className="flex items-center gap-2">
-          <Badge
-            variant="secondary"
-            className="rounded-md bg-blue-500/10 px-1.5 py-0 text-[10px] font-semibold tracking-wide text-blue-400 uppercase"
-          >
-            {label}
-          </Badge>
+          <p className="text-base font-medium text-foreground">{label}</p>
           {activePlan ? (
             <span className="text-[11px] text-muted-foreground/60">
               {formatTimestamp(activePlan.createdAt, timestampFormat)}
@@ -160,7 +146,7 @@ const PlanSidebar = memo(function PlanSidebar({
                   />
                 }
               >
-                <EllipsisIcon className="size-3.5" />
+                <EllipsisHorizontalIcon className="size-3.5" />
               </MenuTrigger>
               <MenuPopup align="end">
                 <MenuItem onClick={handleCopyPlan}>

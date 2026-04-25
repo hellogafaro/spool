@@ -1,9 +1,9 @@
-import { Loader2Icon } from "~/components/ui/icons";
+import { ArrowPathIcon } from "@heroicons/react/16/solid";
 import { cn } from "~/lib/utils";
 
-function Spinner({ className, ...props }: React.ComponentProps<typeof Loader2Icon>) {
+function Spinner({ className, ...props }: React.ComponentProps<typeof ArrowPathIcon>) {
   return (
-    <Loader2Icon
+    <ArrowPathIcon
       aria-label="Loading"
       className={cn("animate-spin", className)}
       role="status"

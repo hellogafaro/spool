@@ -1,6 +1,6 @@
 import { type ProviderKind, type ServerProvider } from "@t3tools/contracts";
 import { memo } from "react";
-import { Clock3Icon, SparklesIcon, StarIcon } from "~/components/ui/icons";
+import { ClockIcon, SparklesIcon, StarIcon } from "@heroicons/react/16/solid";
 import { Gemini, GithubCopilotIcon } from "../Icons";
 import { AVAILABLE_PROVIDER_OPTIONS, PROVIDER_ICON_BY_PROVIDER } from "./providerIconUtils";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -124,7 +124,7 @@ export const ModelPickerSidebar = memo(function ModelPickerSidebar(props: {
               </span>
             ) : badge === "soon" ? (
               <span className={SOON_BADGE_CLASS} aria-hidden>
-                <Clock3Icon className="size-2" />
+                <ClockIcon className="size-2" />
               </span>
             ) : null}
           </button>
@@ -169,7 +169,7 @@ export const ModelPickerSidebar = memo(function ModelPickerSidebar(props: {
               >
                 <Gemini className="size-5 text-muted-foreground/85" aria-hidden />
                 <span className={SOON_BADGE_CLASS} aria-hidden>
-                  <Clock3Icon className="size-2" />
+                  <ClockIcon className="size-2" />
                 </span>
               </button>
             </span>
@@ -195,7 +195,7 @@ export const ModelPickerSidebar = memo(function ModelPickerSidebar(props: {
               >
                 <GithubCopilotIcon className="size-5 text-muted-foreground/85" aria-hidden />
                 <span className={SOON_BADGE_CLASS} aria-hidden>
-                  <Clock3Icon className="size-2" />
+                  <ClockIcon className="size-2" />
                 </span>
               </button>
             </span>

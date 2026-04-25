@@ -9,17 +9,7 @@ import {
 } from "@t3tools/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import {
-  ArrowDownIcon,
-  ArrowLeftIcon,
-  ArrowUpIcon,
-  CornerLeftUpIcon,
-  FolderIcon,
-  FolderPlusIcon,
-  MessageSquareIcon,
-  SettingsIcon,
-  SquarePenIcon,
-} from "~/components/ui/icons";
+import { ArrowDownIcon, ArrowLeftIcon, ArrowUturnLeftIcon, ChevronUpIcon, Cog6ToothIcon, CommandLineIcon, FolderIcon, FolderPlusIcon, PencilSquareIcon } from "@heroicons/react/16/solid";
 import {
   useCallback,
   useDeferredValue,
@@ -504,7 +494,7 @@ function OpenCommandPaletteDialog() {
         ...(activeThreadId ? { activeThreadId } : {}),
         projectTitleById,
         sortOrder: settings.sidebarThreadSortOrder,
-        icon: <MessageSquareIcon className={ITEM_ICON_CLASS} />,
+        icon: <CommandLineIcon className={ITEM_ICON_CLASS} />,
         renderLeadingContent: (thread) => <ThreadRowLeadingStatus thread={thread} />,
         renderTrailingContent: (thread) => <ThreadRowTrailingStatus thread={thread} />,
         runThread: async (thread) => {
@@ -648,7 +638,7 @@ function OpenCommandPaletteDialog() {
             New thread in <span className="font-semibold">{activeProjectTitle}</span>
           </>
         ),
-        icon: <SquarePenIcon className={ITEM_ICON_CLASS} />,
+        icon: <PencilSquareIcon className={ITEM_ICON_CLASS} />,
         shortcutCommand: "chat.new",
         run: async () => {
           await startNewThreadFromContext({
@@ -667,8 +657,8 @@ function OpenCommandPaletteDialog() {
       value: "action:new-thread-in",
       searchTerms: ["new thread", "project", "pick", "choose", "select"],
       title: "New thread in...",
-      icon: <SquarePenIcon className={ITEM_ICON_CLASS} />,
-      addonIcon: <SquarePenIcon className={ADDON_ICON_CLASS} />,
+      icon: <PencilSquareIcon className={ITEM_ICON_CLASS} />,
+      addonIcon: <PencilSquareIcon className={ADDON_ICON_CLASS} />,
       groups: [{ value: "projects", label: "Projects", items: projectThreadItems }],
     });
   }
@@ -702,7 +692,7 @@ function OpenCommandPaletteDialog() {
     value: "action:settings",
     searchTerms: ["settings", "preferences", "configuration", "keybindings"],
     title: "Open settings",
-    icon: <SettingsIcon className={ITEM_ICON_CLASS} />,
+    icon: <Cog6ToothIcon className={ITEM_ICON_CLASS} />,
     run: async () => {
       await navigate({ to: "/settings" });
     },
@@ -852,7 +842,7 @@ function OpenCommandPaletteDialog() {
     browseEntries: filteredBrowseEntries,
     browseQuery: query,
     canBrowseUp,
-    upIcon: <CornerLeftUpIcon className={ITEM_ICON_CLASS} />,
+    upIcon: <ArrowUturnLeftIcon className={ITEM_ICON_CLASS} />,
     directoryIcon: <FolderIcon className={ITEM_ICON_CLASS} />,
     browseUp,
     browseTo,
@@ -1081,7 +1071,7 @@ function OpenCommandPaletteDialog() {
           <div className="flex items-center gap-3">
             <KbdGroup className="items-center gap-1.5">
               <Kbd>
-                <ArrowUpIcon />
+                <ChevronUpIcon />
               </Kbd>
               <Kbd>
                 <ArrowDownIcon />

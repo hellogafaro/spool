@@ -4,13 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { scopeThreadRef } from "@t3tools/client-runtime";
 import type { TurnId } from "@t3tools/contracts";
-import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  Columns2Icon,
-  Rows3Icon,
-  TextWrapIcon,
-} from "~/components/ui/icons";
+import { Bars3BottomLeftIcon, ChevronLeftIcon, ChevronRightIcon, ViewColumnsIcon } from "@heroicons/react/16/solid";
 import {
   type WheelEvent as ReactWheelEvent,
   useCallback,
@@ -36,6 +30,7 @@ import { buildThreadRouteParams, resolveThreadRouteRef } from "../threadRoutes";
 import { useSettings } from "../hooks/useSettings";
 import { formatShortTimestamp } from "../timestampFormat";
 import { DiffPanelLoadingState, DiffPanelShell, type DiffPanelMode } from "./DiffPanelShell";
+import { Button } from "./ui/button";
 import { ToggleGroup, Toggle } from "./ui/toggle-group";
 
 type DiffRenderMode = "stacked" | "split";
@@ -91,7 +86,7 @@ const DIFF_PANEL_UNSAFE_CSS = `
   padding-block: 0 !important;
   padding-inline: 12px !important;
   background-color: color-mix(in srgb, var(--card) 94%, var(--foreground)) !important;
-  border-bottom: 1px solid var(--border) !important;
+  border-bottom: none !important;
 }
 
 [data-title] {
@@ -434,34 +429,34 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
   const headerRow = (
     <>
       <div className="relative min-w-0 flex-1 [-webkit-app-region:no-drag]">
-        <button
+        <Button
           type="button"
+          size="icon-sm"
+          variant="outline"
           className={cn(
-            "absolute left-0 top-1/2 z-20 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-sm border bg-background/90 text-muted-foreground transition-colors",
-            canScrollTurnStripLeft
-              ? "border-border/70 hover:border-border hover:text-foreground"
-              : "cursor-not-allowed border-border/40 text-muted-foreground/40",
+            "absolute left-0 top-1/2 z-20 -translate-y-1/2 bg-background/90",
+            !canScrollTurnStripLeft && "cursor-not-allowed opacity-40",
           )}
           onClick={() => scrollTurnStripBy(-180)}
           disabled={!canScrollTurnStripLeft}
           aria-label="Scroll turn list left"
         >
-          <ChevronLeftIcon className="size-3.5" />
-        </button>
-        <button
+          <ChevronLeftIcon />
+        </Button>
+        <Button
           type="button"
+          size="icon-sm"
+          variant="outline"
           className={cn(
-            "absolute right-0 top-1/2 z-20 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-sm border bg-background/90 text-muted-foreground transition-colors",
-            canScrollTurnStripRight
-              ? "border-border/70 hover:border-border hover:text-foreground"
-              : "cursor-not-allowed border-border/40 text-muted-foreground/40",
+            "absolute right-0 top-1/2 z-20 -translate-y-1/2 bg-background/90",
+            !canScrollTurnStripRight && "cursor-not-allowed opacity-40",
           )}
           onClick={() => scrollTurnStripBy(180)}
           disabled={!canScrollTurnStripRight}
           aria-label="Scroll turn list right"
         >
-          <ChevronRightIcon className="size-3.5" />
-        </button>
+          <ChevronRightIcon />
+        </Button>
         <div
           ref={turnStripRef}
           className="turn-chip-strip flex gap-1 overflow-x-auto px-8 py-0.5"
@@ -474,53 +469,33 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
           }
           onWheel={onTurnStripWheel}
         >
-          <button
-            type="button"
-            className="shrink-0 rounded-sm"
+          <Button
+            size="sm"
+            variant={selectedTurnId === null ? "outline" : "ghost"}
+            className="shrink-0"
             onClick={selectWholeConversation}
             data-turn-chip-selected={selectedTurnId === null}
           >
-            <div
-              className={cn(
-                "rounded-sm border px-2 py-1 text-left transition-colors",
-                selectedTurnId === null
-                  ? "border-border bg-accent text-accent-foreground"
-                  : "border-border/70 bg-background/70 text-muted-foreground/80 hover:border-border hover:text-foreground/80",
-              )}
-            >
-              <div className="text-[10px] leading-tight font-medium">All turns</div>
-            </div>
-          </button>
+            All turns
+          </Button>
           {orderedTurnDiffSummaries.map((summary) => (
-            <button
+            <Button
               key={summary.turnId}
-              type="button"
-              className="shrink-0 rounded-sm"
+              size="sm"
+              variant={summary.turnId === selectedTurn?.turnId ? "outline" : "ghost"}
+              className="shrink-0"
               onClick={() => selectTurn(summary.turnId)}
               title={summary.turnId}
               data-turn-chip-selected={summary.turnId === selectedTurn?.turnId}
             >
-              <div
-                className={cn(
-                  "rounded-sm border px-2 py-1 text-left transition-colors",
-                  summary.turnId === selectedTurn?.turnId
-                    ? "border-border bg-accent text-accent-foreground"
-                    : "border-border/70 bg-background/70 text-muted-foreground/80 hover:border-border hover:text-foreground/80",
-                )}
-              >
-                <div className="flex items-center gap-1">
-                  <span className="text-[10px] leading-tight font-medium">
-                    Turn{" "}
-                    {summary.checkpointTurnCount ??
-                      inferredCheckpointTurnCountByTurnId[summary.turnId] ??
-                      "?"}
-                  </span>
-                  <span className="text-[9px] leading-tight opacity-70">
-                    {formatShortTimestamp(summary.completedAt, settings.timestampFormat)}
-                  </span>
-                </div>
-              </div>
-            </button>
+              Turn{" "}
+              {summary.checkpointTurnCount ??
+                inferredCheckpointTurnCountByTurnId[summary.turnId] ??
+                "?"}
+              <span className="text-muted-foreground">
+                {formatShortTimestamp(summary.completedAt, settings.timestampFormat)}
+              </span>
+            </Button>
           ))}
         </div>
       </div>
@@ -528,7 +503,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
         <ToggleGroup
           className="shrink-0"
           variant="outline"
-          size="xs"
+          size="sm"
           value={[diffRenderMode]}
           onValueChange={(value) => {
             const next = value[0];
@@ -537,25 +512,24 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
             }
           }}
         >
-          <Toggle aria-label="Stacked diff view" value="stacked" className="rounded-sm">
-            <Rows3Icon className="size-3" />
+          <Toggle aria-label="Stacked diff view" value="stacked">
+            <Bars3BottomLeftIcon />
           </Toggle>
-          <Toggle aria-label="Split diff view" value="split" className="rounded-sm">
-            <Columns2Icon className="size-3" />
+          <Toggle aria-label="Split diff view" value="split">
+            <ViewColumnsIcon />
           </Toggle>
         </ToggleGroup>
         <Toggle
           aria-label={diffWordWrap ? "Disable diff line wrapping" : "Enable diff line wrapping"}
           title={diffWordWrap ? "Disable line wrapping" : "Enable line wrapping"}
-          className="rounded-sm"
           variant="outline"
-          size="xs"
+          size="sm"
           pressed={diffWordWrap}
           onPressedChange={(pressed) => {
             setDiffWordWrap(Boolean(pressed));
           }}
         >
-          <TextWrapIcon className="size-3" />
+          <Bars3BottomLeftIcon />
         </Toggle>
       </div>
     </>

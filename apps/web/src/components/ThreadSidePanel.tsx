@@ -6,7 +6,7 @@ import type { ActivePlanState, LatestProposedPlanState } from "../session-logic"
 import type { ThreadPanelTab } from "../diffRouteSearch";
 import { cn } from "~/lib/utils";
 import { Button } from "./ui/button";
-import { DiffIcon, FileIcon, ListTodoIcon } from "./ui/icons";
+import { ClipboardDocumentListIcon, CodeBracketSquareIcon, DocumentIcon } from "@heroicons/react/16/solid";
 import PlanSidebar from "./PlanSidebar";
 import { FilesPanel } from "./files/FilesPanel";
 import { DiffWorkerPoolProvider } from "./DiffWorkerPoolProvider";
@@ -41,11 +41,11 @@ interface ThreadSidePanelProps {
 const PANEL_TABS: Array<{
   value: ThreadPanelTab;
   label: string;
-  icon: typeof ListTodoIcon;
+  icon: typeof ClipboardDocumentListIcon;
 }> = [
-  { value: "tasks", label: "Tasks", icon: ListTodoIcon },
-  { value: "diff", label: "Diff", icon: DiffIcon },
-  { value: "files", label: "Files", icon: FileIcon },
+  { value: "tasks", label: "Tasks", icon: ClipboardDocumentListIcon },
+  { value: "diff", label: "Diff", icon: CodeBracketSquareIcon },
+  { value: "files", label: "Files", icon: DocumentIcon },
 ];
 
 const DiffLoadingFallback = (props: { mode: DiffPanelMode }) => (
@@ -76,7 +76,7 @@ export const ThreadSidePanel = memo(function ThreadSidePanel({
         mode === "sidebar" && "w-full",
       )}
     >
-      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-2">
+      <div className="flex h-12 shrink-0 items-center gap-2 px-2">
         <div className="flex min-w-0 items-center gap-1">
           {PANEL_TABS.map((tab) => {
             const Icon = tab.icon;
@@ -84,13 +84,13 @@ export const ThreadSidePanel = memo(function ThreadSidePanel({
               <Button
                 key={tab.value}
                 type="button"
-                size="xs"
+                size="sm"
                 variant={activeTab === tab.value ? "secondary" : "ghost"}
                 className="gap-1.5"
                 onClick={() => onTabChange(tab.value)}
               >
-                <Icon className="size-3.5" />
-                <span className={mode === "sheet" ? "max-sm:sr-only" : ""}>{tab.label}</span>
+                <Icon />
+                <span>{tab.label}</span>
               </Button>
             );
           })}

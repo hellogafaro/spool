@@ -1,11 +1,5 @@
 import { memo } from "react";
-import {
-  ArrowDownIcon,
-  ArrowUpLineIcon,
-  ChevronLeftIcon,
-  Loader2Icon,
-  StopIcon,
-} from "~/components/ui/icons";
+import { ArrowDownIcon, ArrowPathIcon, ArrowUpIcon, ChevronLeftIcon, StopIcon } from "@heroicons/react/16/solid";
 import { cn } from "~/lib/utils";
 import { Button } from "../ui/button";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
@@ -192,9 +186,9 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
       }
     >
       {isConnecting || isSendBusy ? (
-        <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+        <ArrowPathIcon className="size-4 animate-spin" aria-hidden="true" />
       ) : (
-        <ArrowUpLineIcon className="size-4" aria-hidden="true" />
+        <ArrowUpIcon className="size-4" aria-hidden="true" />
       )}
     </button>
   );

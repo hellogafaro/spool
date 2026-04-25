@@ -1,6 +1,6 @@
 import { scopeProjectRef, scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime";
 import type { GitStatusResult } from "@t3tools/contracts";
-import { CloudIcon, GitPullRequestIcon, TerminalIcon } from "~/components/ui/icons";
+import { ArrowsRightLeftIcon, CloudIcon, CommandLineIcon } from "@heroicons/react/16/solid";
 import { useMemo } from "react";
 import { usePrimaryEnvironmentId } from "../environments/primary";
 import {
@@ -192,7 +192,7 @@ export function ThreadRowLeadingStatus({ thread }: { thread: SidebarThreadSummar
               />
             }
           >
-            <GitPullRequestIcon className="size-3" />
+            <ArrowsRightLeftIcon className="size-3" />
           </TooltipTrigger>
           <TooltipPopup side="top">{prStatus.tooltip}</TooltipPopup>
         </Tooltip>
@@ -240,7 +240,7 @@ export function ThreadRowTrailingStatus({ thread }: { thread: SidebarThreadSumma
           title={terminalStatus.label}
           className={`inline-flex items-center justify-center ${terminalStatus.colorClass}`}
         >
-          <TerminalIcon className={`size-3 ${terminalStatus.pulse ? "animate-pulse" : ""}`} />
+          <CommandLineIcon className={`size-3 ${terminalStatus.pulse ? "animate-pulse" : ""}`} />
         </span>
       ) : null}
       {isRemoteThread ? (

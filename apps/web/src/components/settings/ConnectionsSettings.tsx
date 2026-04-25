@@ -1,4 +1,4 @@
-import { PlusIcon, QrCodeIcon } from "~/components/ui/icons";
+import { PlusIcon, QrCodeIcon } from "@heroicons/react/16/solid";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   type AuthClientSession,

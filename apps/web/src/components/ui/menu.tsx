@@ -1,7 +1,7 @@
 "use client";
 
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
-import { CheckIcon, ChevronRightIcon } from "~/components/ui/icons";
+import { CheckIcon, ChevronRightIcon } from "@heroicons/react/16/solid";
 import type * as React from "react";
 
 import { cn } from "~/lib/utils";

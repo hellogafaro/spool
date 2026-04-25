@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { ArchiveIcon, ArrowLeftIcon, Link2Icon, Settings2Icon } from "~/components/ui/icons";
+import { ArchiveBoxIcon, ArrowLeftIcon, Cog8ToothIcon, LinkIcon } from "@heroicons/react/16/solid";
 import { useNavigate } from "@tanstack/react-router";
 
 import {
@@ -20,9 +20,9 @@ export const SETTINGS_NAV_ITEMS: ReadonlyArray<{
   to: SettingsSectionPath;
   icon: ComponentType<{ className?: string }>;
 }> = [
-  { label: "General", to: "/settings/general", icon: Settings2Icon },
-  { label: "Connections", to: "/settings/connections", icon: Link2Icon },
-  { label: "Archive", to: "/settings/archived", icon: ArchiveIcon },
+  { label: "General", to: "/settings/general", icon: Cog8ToothIcon },
+  { label: "Connections", to: "/settings/connections", icon: LinkIcon },
+  { label: "Archive", to: "/settings/archived", icon: ArchiveBoxIcon },
 ];
 
 export function SettingsSidebarNav({ pathname }: { pathname: string }) {

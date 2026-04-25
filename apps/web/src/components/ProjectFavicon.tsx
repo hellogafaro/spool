@@ -1,5 +1,5 @@
 import type { EnvironmentId } from "@t3tools/contracts";
-import { FolderIcon } from "~/components/ui/icons";
+import { FolderIcon } from "@heroicons/react/16/solid";
 import { useState } from "react";
 import { resolveEnvironmentHttpUrl } from "../environments/runtime";
 

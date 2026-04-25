@@ -11,18 +11,7 @@ import {
 } from "react";
 import { useParams } from "@tanstack/react-router";
 import { type ScopedThreadRef, type ThreadId } from "@t3tools/contracts";
-import {
-  CheckIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
-  CircleAlertIcon,
-  CircleCheckIcon,
-  CopyIcon,
-  InfoIcon,
-  LoaderCircleIcon,
-  TriangleAlertIcon,
-  XIcon,
-} from "~/components/ui/icons";
+import { ArrowPathIcon, CheckCircleIcon, CheckIcon, ChevronDownIcon, ChevronUpIcon, DocumentDuplicateIcon, ExclamationCircleIcon, ExclamationTriangleIcon, InformationCircleIcon, XMarkIcon } from "@heroicons/react/16/solid";
 
 import { cn } from "~/lib/utils";
 import { buttonVariants } from "~/components/ui/button";
@@ -63,11 +52,11 @@ type ToastId = ReturnType<typeof toastManager.add>;
 const threadToastVisibleTimeoutRemainingMs = new Map<ToastId, number>();
 
 const TOAST_ICONS = {
-  error: CircleAlertIcon,
-  info: InfoIcon,
-  loading: LoaderCircleIcon,
-  success: CircleCheckIcon,
-  warning: TriangleAlertIcon,
+  error: ExclamationCircleIcon,
+  info: InformationCircleIcon,
+  loading: ArrowPathIcon,
+  success: CheckCircleIcon,
+  warning: ExclamationTriangleIcon,
 } as const;
 
 /** Visually shorten long error bodies; clipboard copy still uses the full `description` string. */
@@ -100,7 +89,7 @@ function CopyErrorButton({ text }: { text: string }) {
       title="Copy error"
       type="button"
     >
-      {isCopied ? <CheckIcon className="size-3 text-success" /> : <CopyIcon className="size-3" />}
+      {isCopied ? <CheckIcon className="size-3 text-success" /> : <DocumentDuplicateIcon className="size-3" />}
     </button>
   );
 }
@@ -582,7 +571,7 @@ function Toasts({ position = "top-right" }: { position: ToastPosition }) {
                   onClick={() => toastManager.close(toast.id)}
                   type="button"
                 >
-                  <XIcon className="size-3" strokeWidth={2.25} />
+                  <XMarkIcon className="size-3" strokeWidth={2.25} />
                 </button>
               </div>
               <Toast.Content
@@ -673,7 +662,7 @@ function AnchoredToasts() {
                           onClick={() => anchoredToastManager.close(toast.id)}
                           type="button"
                         >
-                          <XIcon className="size-3" strokeWidth={2.25} />
+                          <XMarkIcon className="size-3" strokeWidth={2.25} />
                         </button>
                       </div>
                       <Toast.Content

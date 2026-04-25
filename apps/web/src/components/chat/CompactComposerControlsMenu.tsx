@@ -1,6 +1,6 @@
 import { ProviderInteractionMode, RuntimeMode } from "@t3tools/contracts";
 import { memo, type ReactNode } from "react";
-import { EllipsisIcon } from "~/components/ui/icons";
+import { EllipsisHorizontalIcon } from "@heroicons/react/16/solid";
 import { Button } from "../ui/button";
 import {
   Menu,
@@ -31,7 +31,7 @@ export const CompactComposerControlsMenu = memo(function CompactComposerControls
           />
         }
       >
-        <EllipsisIcon aria-hidden="true" className="size-4" />
+        <EllipsisHorizontalIcon aria-hidden="true" className="size-4" />
       </MenuTrigger>
       <MenuPopup align="start">
         {props.traitsMenuContent ? (

@@ -1,5 +1,5 @@
 import type { EnvironmentId } from "@t3tools/contracts";
-import { CloudIcon, MonitorIcon } from "~/components/ui/icons";
+import { CloudIcon, ComputerDesktopIcon } from "@heroicons/react/16/solid";
 import { memo, useMemo } from "react";
 
 import type { EnvironmentOption } from "./BranchToolbar.logic";
@@ -43,7 +43,7 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
     return (
       <span className="inline-flex items-center gap-1 border border-transparent px-[calc(--spacing(3)-1px)] text-sm font-medium text-muted-foreground/70 sm:text-xs">
         {activeEnvironment?.isPrimary ? (
-          <MonitorIcon className="size-3" />
+          <ComputerDesktopIcon className="size-3" />
         ) : (
           <CloudIcon className="size-3" />
         )}
@@ -60,7 +60,7 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
     >
       <SelectTrigger variant="ghost" size="xs" className="font-medium" aria-label="Run on">
         {activeEnvironment?.isPrimary ? (
-          <MonitorIcon className="size-3" />
+          <ComputerDesktopIcon className="size-3" />
         ) : (
           <CloudIcon className="size-3" />
         )}
@@ -73,7 +73,7 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
             <SelectItem key={env.environmentId} value={env.environmentId}>
               <span className="inline-flex items-center gap-1.5">
                 {env.isPrimary ? (
-                  <MonitorIcon className="size-3" />
+                  <ComputerDesktopIcon className="size-3" />
                 ) : (
                   <CloudIcon className="size-3" />
                 )}

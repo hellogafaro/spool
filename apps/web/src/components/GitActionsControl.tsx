@@ -7,7 +7,7 @@ import type {
 } from "@t3tools/contracts";
 import { useIsMutating, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
-import { ChevronDownIcon, CloudUploadIcon, GitCommitIcon, InfoIcon } from "~/components/ui/icons";
+import { ChevronDownIcon, CircleStackIcon, CloudArrowUpIcon, InformationCircleIcon } from "@heroicons/react/16/solid";
 import { GitHubIcon } from "./Icons";
 import {
   buildGitActionProgressStages,
@@ -190,24 +190,24 @@ const COMMIT_DIALOG_DESCRIPTION =
   "Review and confirm your commit. Leave the message blank to auto-generate one.";
 
 function GitActionItemIcon({ icon }: { icon: GitActionIconName }) {
-  if (icon === "commit") return <GitCommitIcon />;
-  if (icon === "push") return <CloudUploadIcon />;
+  if (icon === "commit") return <CircleStackIcon />;
+  if (icon === "push") return <CloudArrowUpIcon />;
   return <GitHubIcon />;
 }
 
 function GitQuickActionIcon({ quickAction }: { quickAction: GitQuickAction }) {
   const iconClassName = "size-3.5";
   if (quickAction.kind === "open_pr") return <GitHubIcon className={iconClassName} />;
-  if (quickAction.kind === "run_pull") return <InfoIcon className={iconClassName} />;
+  if (quickAction.kind === "run_pull") return <InformationCircleIcon className={iconClassName} />;
   if (quickAction.kind === "run_action") {
-    if (quickAction.action === "commit") return <GitCommitIcon className={iconClassName} />;
+    if (quickAction.action === "commit") return <CircleStackIcon className={iconClassName} />;
     if (quickAction.action === "push" || quickAction.action === "commit_push") {
-      return <CloudUploadIcon className={iconClassName} />;
+      return <CloudArrowUpIcon className={iconClassName} />;
     }
     return <GitHubIcon className={iconClassName} />;
   }
-  if (quickAction.label === "Commit") return <GitCommitIcon className={iconClassName} />;
-  return <InfoIcon className={iconClassName} />;
+  if (quickAction.label === "Commit") return <CircleStackIcon className={iconClassName} />;
+  return <InformationCircleIcon className={iconClassName} />;
 }
 
 export default function GitActionsControl({
@@ -868,7 +868,7 @@ export default function GitActionsControl({
       {!isRepo ? (
         <Button
           variant="outline"
-          size="xs"
+          size="sm"
           disabled={initMutation.isPending}
           onClick={() => initMutation.mutate()}
         >
@@ -884,7 +884,7 @@ export default function GitActionsControl({
                   <Button
                     aria-disabled="true"
                     className="cursor-not-allowed border-e-0 opacity-64"
-                    size="xs"
+                    size="sm"
                     variant="outline"
                   />
                 }
@@ -901,7 +901,7 @@ export default function GitActionsControl({
           ) : (
             <Button
               variant="outline"
-              size="xs"
+              size="sm"
               disabled={isGitActionRunning || quickAction.disabled}
               onClick={runQuickAction}
             >
@@ -923,7 +923,7 @@ export default function GitActionsControl({
             }}
           >
             <MenuTrigger
-              render={<Button aria-label="Git action options" size="icon-xs" variant="outline" />}
+              render={<Button aria-label="Git action options" size="icon-sm" variant="outline" />}
               disabled={isGitActionRunning}
             >
               <ChevronDownIcon aria-hidden="true" className="size-4" />
@@ -1044,7 +1044,7 @@ export default function GitActionsControl({
                   {allFiles.length > 0 && (
                     <Button
                       variant="ghost"
-                      size="xs"
+                      size="sm"
                       onClick={() => setIsEditingFiles((prev) => !prev)}
                     >
                       {isEditingFiles ? "Done" : "Edit"}

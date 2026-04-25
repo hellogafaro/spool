@@ -1,4 +1,4 @@
-import { TerminalIcon } from "~/components/ui/icons";
+import { CommandLineIcon } from "@heroicons/react/16/solid";
 
 import { cn } from "~/lib/utils";
 import {
@@ -28,7 +28,7 @@ export function TerminalContextInlineChip(props: TerminalContextInlineChipProps)
             )}
             data-terminal-context-expired={expired ? "true" : undefined}
           >
-            <TerminalIcon
+            <CommandLineIcon
               className={cn(
                 COMPOSER_INLINE_CHIP_ICON_CLASS_NAME,
                 "size-3.5",

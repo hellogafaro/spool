@@ -1,5 +1,5 @@
 import { DiffsHighlighter, getSharedHighlighter, SupportedLanguages } from "@pierre/diffs";
-import { CheckIcon, CopyIcon } from "~/components/ui/icons";
+import { CheckIcon, DocumentDuplicateIcon } from "@heroicons/react/16/solid";
 import React, {
   Children,
   Suspense,
@@ -178,7 +178,7 @@ function MarkdownCodeBlock({ code, children }: { code: string; children: ReactNo
         title={copied ? "Copied" : "Copy code"}
         aria-label={copied ? "Copied" : "Copy code"}
       >
-        {copied ? <CheckIcon className="size-3" /> : <CopyIcon className="size-3" />}
+        {copied ? <CheckIcon className="size-3" /> : <DocumentDuplicateIcon className="size-3" />}
       </button>
       {children}
     </div>

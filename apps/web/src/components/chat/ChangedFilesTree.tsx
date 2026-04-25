@@ -2,7 +2,7 @@ import { type TurnId } from "@t3tools/contracts";
 import { memo, useCallback, useMemo, useState } from "react";
 import { type TurnDiffFileChange } from "../../types";
 import { buildTurnDiffTree, type TurnDiffTreeNode } from "../../lib/turnDiffTree";
-import { ChevronRightIcon, FolderIcon, FolderClosedIcon } from "~/components/ui/icons";
+import { ChevronRightIcon, FolderIcon } from "@heroicons/react/16/solid";
 import { cn } from "~/lib/utils";
 import { DiffStatLabel, hasNonZeroStat } from "./DiffStatLabel";
 import { VscodeEntryIcon } from "./VscodeEntryIcon";
@@ -74,7 +74,7 @@ export const ChangedFilesTree = memo(function ChangedFilesTree(props: {
             {isExpanded ? (
               <FolderIcon className="size-3.5 shrink-0 text-muted-foreground/75" />
             ) : (
-              <FolderClosedIcon className="size-3.5 shrink-0 text-muted-foreground/75" />
+              <FolderIcon className="size-3.5 shrink-0 text-muted-foreground/75" />
             )}
             <span className="truncate font-mono text-[11px] text-muted-foreground/90 group-hover:text-foreground/90">
               {node.name}

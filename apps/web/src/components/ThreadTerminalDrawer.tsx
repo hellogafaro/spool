@@ -1,5 +1,5 @@
 import { FitAddon } from "@xterm/addon-fit";
-import { Plus, SquareSplitHorizontal, TerminalSquare, Trash2, XIcon } from "~/components/ui/icons";
+import { CommandLineIcon, PlusIcon, RectangleGroupIcon, TrashIcon, XMarkIcon } from "@heroicons/react/16/solid";
 import {
   type ResolvedKeybindingsConfig,
   type ScopedThreadRef,
@@ -1134,7 +1134,7 @@ export default function ThreadTerminalDrawer({
               onClick={onSplitTerminalAction}
               label={splitTerminalActionLabel}
             >
-              <SquareSplitHorizontal className="size-3.25" />
+              <RectangleGroupIcon className="size-3.25" />
             </TerminalActionButton>
             <div className="h-4 w-px bg-border/80" />
             <TerminalActionButton
@@ -1142,7 +1142,7 @@ export default function ThreadTerminalDrawer({
               onClick={onNewTerminalAction}
               label={newTerminalActionLabel}
             >
-              <Plus className="size-3.25" />
+              <PlusIcon className="size-3.25" />
             </TerminalActionButton>
             <div className="h-4 w-px bg-border/80" />
             <TerminalActionButton
@@ -1150,7 +1150,7 @@ export default function ThreadTerminalDrawer({
               onClick={() => onCloseTerminal(resolvedActiveTerminalId)}
               label={closeTerminalActionLabel}
             >
-              <Trash2 className="size-3.25" />
+              <TrashIcon className="size-3.25" />
             </TerminalActionButton>
           </div>
         </div>
@@ -1235,21 +1235,21 @@ export default function ThreadTerminalDrawer({
                     onClick={onSplitTerminalAction}
                     label={splitTerminalActionLabel}
                   >
-                    <SquareSplitHorizontal className="size-3.25" />
+                    <RectangleGroupIcon className="size-3.25" />
                   </TerminalActionButton>
                   <TerminalActionButton
                     className="inline-flex h-full items-center border-l border-border/70 px-1 text-foreground/90 transition-colors hover:bg-accent/70"
                     onClick={onNewTerminalAction}
                     label={newTerminalActionLabel}
                   >
-                    <Plus className="size-3.25" />
+                    <PlusIcon className="size-3.25" />
                   </TerminalActionButton>
                   <TerminalActionButton
                     className="inline-flex h-full items-center border-l border-border/70 px-1 text-foreground/90 transition-colors hover:bg-accent/70"
                     onClick={() => onCloseTerminal(resolvedActiveTerminalId)}
                     label={closeTerminalActionLabel}
                   >
-                    <Trash2 className="size-3.25" />
+                    <TrashIcon className="size-3.25" />
                   </TerminalActionButton>
                 </div>
               </div>
@@ -1305,7 +1305,7 @@ export default function ThreadTerminalDrawer({
                                 className="flex min-w-0 flex-1 items-center gap-1 text-left"
                                 onClick={() => onActiveTerminalChange(terminalId)}
                               >
-                                <TerminalSquare className="size-3 shrink-0" />
+                                <CommandLineIcon className="size-3 shrink-0" />
                                 <span className="truncate">
                                   {terminalLabelById.get(terminalId) ?? "Terminal"}
                                 </span>
@@ -1323,7 +1323,7 @@ export default function ThreadTerminalDrawer({
                                       />
                                     }
                                   >
-                                    <XIcon className="size-2.5" />
+                                    <XMarkIcon className="size-2.5" />
                                   </PopoverTrigger>
                                   <PopoverPopup
                                     tooltipStyle

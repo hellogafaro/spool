@@ -1,7 +1,7 @@
 "use client";
 
 import { Dialog as CommandDialogPrimitive } from "@base-ui/react/dialog";
-import { SearchIcon } from "~/components/ui/icons";
+import { MagnifyingGlassIcon } from "@heroicons/react/16/solid";
 import type * as React from "react";
 import { cn } from "~/lib/utils";
 import {
@@ -106,7 +106,7 @@ function CommandInput({
         )}
         placeholder={placeholder}
         size="lg"
-        startAddon={<SearchIcon />}
+        startAddon={<MagnifyingGlassIcon />}
         {...props}
       />
     </div>
