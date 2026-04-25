@@ -47,6 +47,7 @@ const DIFF_PANEL_UNSAFE_CSS = `
 [data-file],
 [data-error-wrapper],
 [data-virtualizer-buffer] {
+  font-size: var(--diff-font-size) !important;
   --diffs-bg: color-mix(in srgb, var(--card) 90%, var(--background)) !important;
   --diffs-light-bg: color-mix(in srgb, var(--card) 90%, var(--background)) !important;
   --diffs-dark-bg: color-mix(in srgb, var(--card) 90%, var(--background)) !important;
@@ -85,6 +86,10 @@ const DIFF_PANEL_UNSAFE_CSS = `
   position: sticky !important;
   top: 0;
   z-index: 4;
+  min-height: 40px !important;
+  height: 40px !important;
+  padding-block: 0 !important;
+  padding-inline: 12px !important;
   background-color: color-mix(in srgb, var(--card) 94%, var(--foreground)) !important;
   border-bottom: 1px solid var(--border) !important;
 }
@@ -609,7 +614,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
                     <div
                       key={themedFileKey}
                       data-diff-file-path={filePath}
-                      className="diff-render-file mb-2 rounded-md first:mt-2 last:mb-0"
+                      className="diff-render-file mb-2 rounded-lg first:mt-2 last:mb-0"
                       onClickCapture={(event) => {
                         const nativeEvent = event.nativeEvent as MouseEvent;
                         const composedPath = nativeEvent.composedPath?.() ?? [];
