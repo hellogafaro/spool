@@ -45,6 +45,7 @@ import { ThreadDeletionReactorLive } from "./orchestration/Layers/ThreadDeletion
 import { ProviderRegistryLive } from "./provider/Layers/ProviderRegistry.ts";
 import { ServerSettingsLive } from "./serverSettings.ts";
 import { ProjectFaviconResolverLive } from "./project/Layers/ProjectFaviconResolver.ts";
+import { RemoteLinkLive } from "./remoteLink/RemoteLink.ts";
 import { RepositoryIdentityResolverLive } from "./project/Layers/RepositoryIdentityResolver.ts";
 import { WorkspaceEntriesLive } from "./workspace/Layers/WorkspaceEntries.ts";
 import { WorkspaceFileSystemLive } from "./workspace/Layers/WorkspaceFileSystem.ts";
@@ -244,6 +245,7 @@ const RuntimeDependenciesLive = ReactorLayerLive.pipe(
   Layer.provideMerge(AnalyticsServiceLayerLive),
   Layer.provideMerge(OpenLive),
   Layer.provideMerge(ServerLifecycleEventsLive),
+  Layer.provideMerge(RemoteLinkLive),
   Layer.provide(NetService.layer),
 );
 
