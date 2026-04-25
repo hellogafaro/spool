@@ -8,6 +8,11 @@ import {
   makeWorkOsOwnershipChecker,
   type OwnershipChecker,
 } from "./ownership.ts";
+import {
+  handlePairingRequest,
+  makeWorkOsPairingWriter,
+  type PairingWriter,
+} from "./pairing.ts";
 import { API_PATHS, API_PROTOCOL_VERSION, type ControlMessage } from "./protocol.ts";
 
 interface Env {
@@ -50,6 +55,7 @@ function resolveBrowserAuthVerifier(env: Env): BrowserAuthVerifier {
 }
 
 let cachedOwnershipChecker: { apiKey: string; checker: OwnershipChecker } | null = null;
+let cachedPairingWriter: { apiKey: string; writer: PairingWriter } | null = null;
 
 function resolveOwnershipChecker(env: Env): OwnershipChecker {
   if (!env.WORKOS_API_KEY || env.WORKOS_API_KEY.length === 0) {
@@ -64,6 +70,17 @@ function resolveOwnershipChecker(env: Env): OwnershipChecker {
   return cachedOwnershipChecker.checker;
 }
 
+function resolvePairingWriter(env: Env): PairingWriter | null {
+  if (!env.WORKOS_API_KEY || env.WORKOS_API_KEY.length === 0) return null;
+  if (!cachedPairingWriter || cachedPairingWriter.apiKey !== env.WORKOS_API_KEY) {
+    cachedPairingWriter = {
+      apiKey: env.WORKOS_API_KEY,
+      writer: makeWorkOsPairingWriter({ apiKey: env.WORKOS_API_KEY }),
+    };
+  }
+  return cachedPairingWriter.writer;
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -74,6 +91,20 @@ export default {
 
     if (url.pathname === API_PATHS.version) {
       return Response.json(VERSION_PAYLOAD, { headers: jsonHeaders });
+    }
+
+    if (url.pathname === API_PATHS.pairing) {
+      const writer = resolvePairingWriter(env);
+      if (!writer) {
+        return new Response("pairing not configured\n", {
+          status: 503,
+          headers: textHeaders,
+        });
+      }
+      return handlePairingRequest(request, url, {
+        authVerifier: resolveBrowserAuthVerifier(env),
+        writer,
+      });
     }
 
     if (!WS_PATHS.has(url.pathname)) {

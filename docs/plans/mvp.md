@@ -140,7 +140,7 @@ MVP-target commands on the `trunk` CLI:
 | 3 | Server outbound `RemoteLink` with reconnect | Done (`52523f49`). |
 | 4 | Dial-back relay so each browser gets its own pair (multi-device) | Done (`a9289187`, `c9abb866`, `a3e53044`). |
 | 4a | `trunk pair` CLI subcommand for bootstrapping the local config | Done (`e77ed108`). |
-| 5 | Real WorkOS verification at the API edge (JWT + ownership check) | In progress: JWT + WorkOS user-metadata ownership both wired (`e0ab2d10`, this commit). Pending: `Sec-WebSocket-Protocol` token fallback verified against workerd, server-side proof upgrade, AuthKit hosted UI in `apps/web`. |
+| 5 | Real WorkOS verification at the API edge (JWT + ownership + pairing write) | In progress: JWT verification (`e0ab2d10`), ownership check (`cc0ef046`), and pairing write endpoint (this commit) all wired. Pending: `Sec-WebSocket-Protocol` token fallback verified against workerd, server-side proof upgrade, AuthKit hosted UI in `apps/web`. |
 | 6 | WorkOS-backed collaboration (multi-user per server) | Not started. |
 | 7 | Installer + service registration | Not started. |
 | 8 | Reconnect / offline / version-mismatch UX in the web app | Not started. |
