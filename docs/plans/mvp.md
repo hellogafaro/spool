@@ -2,201 +2,166 @@
 
 ## Goal
 
-Trunk is a remote-first web UI for AI coding CLIs. Users host the server and CLIs on their own machine. Trunk hosts the web app and a zero-DB WebSocket API that connects the browser to the user's server over an encrypted outbound server connection.
+Trunk is a remote-first web UI for AI coding CLIs. Users host the server (T3) on their own machine. Trunk hosts the web app and a stateless WebSocket relay so the browser can reach the user's server without exposing it to the public internet.
 
 ## Domains
 
-- `trunk.codes`: marketing site.
-- `app.trunk.codes`: hosted Vite web app.
-- `api.trunk.codes`: zero-DB WebSocket API.
+- `trunk.codes` — marketing site (Cloudflare Pages).
+- `app.trunk.codes` — hosted Vite web app (Cloudflare Pages).
+- `api.trunk.codes` — WebSocket relay (Cloudflare Worker + Durable Object).
 
 ## Core Architecture
 
-The user machine runs the existing T3 Code server. The server optionally dials the hosted API for remote access.
-
 ```txt
-Browser app <-> api.trunk.codes <-> Trunk server
+[Browser] <── wss://api.trunk.codes/ws ──> [api Worker + DO] <── wss://…/server (control) ──> [User's machine, T3]
+                                                  ↕
+                                          /server-channel (paired per browser)
 ```
 
-The API exists because the Vite app is static and cannot accept WebSockets from user servers. Both browser and server make outbound WebSocket connections to the API.
+The user's machine never accepts inbound connections. T3 dials the relay outbound. Each browser gets its own paired connection through the relay so T3 sees a normal local WebSocket upgrade per browser — its existing multi-session, bearer-auth, and reactive RPC code handle the rest.
 
 ## Hosted API
 
-Deploy `api.trunk.codes` on Cloudflare Workers with Durable Objects.
-
-- Worker routes requests and verifies request shape/auth.
-- One Durable Object instance is addressed by `serverId`.
-- Durable Object holds live WebSocket references in memory.
-- Durable Object forwards encrypted frames between browser and server.
-- Durable Object does not write storage.
-- API has no database.
+Single Cloudflare Worker fronting one Durable Object class (`ServerRoom`), keyed by `serverId`.
 
 Endpoints:
 
 - `GET /health`
 - `GET /version`
-- `WSS /server`
-- `WSS /browser`
+- `WSS /server` — long-lived control WebSocket from the user's server.
+- `WSS /server-channel?serverId=…&channelId=…` — per-browser pair, opened by the server in response to a dial signal.
+- `WSS /ws?serverId=…` — browser-side connection. The Worker generates a `channelId`, holds the browser socket, sends `{ type: "dial", channelId }` to the server's control WS, and bridges bytes once the server connects to `/server-channel`.
 
-If the Worker or Durable Object restarts, active sockets drop and reconnect. Durable pairing state is not lost because it lives in WorkOS and on the user machine.
+The Durable Object holds in-memory references only. No storage writes. If the Worker or DO restarts, sockets drop and reconnect.
+
+## Multi-Device
+
+Each browser gets its own pair through the relay. T3's existing per-upgrade session handler treats every paired connection as an independent local browser, so multi-device "just works" without any multiplexing protocol or channel envelope.
+
+A single user with their laptop, phone, and second computer all connected at once: three independent pairs, three sessions, all reactive over WS.
 
 ## Stored State
 
-WorkOS user metadata stores only a non-secret server pointer:
+Trunk hosts no per-user state for the transport. The relay is stateless beyond live socket references in the DO.
 
-```json
-{ "serverId": "happy-coffee-a7k9" }
-```
-
-User machine stores local server state in `~/.trunk/config.json`:
+User machine stores `~/.trunk/config.json`:
 
 ```json
 {
-  "serverId": "happy-coffee-a7k9",
-  "serverSecret": "random-256-bit-secret",
-  "userId": "user_abc123"
+  "serverId": "happy-harbor-sd52",
+  "serverSecret": "<256-bit hex>",
+  "userId": "<optional WorkOS user id>"
 }
 ```
 
-`serverId` is public. `serverSecret` is local-only. Provider credentials, sessions, code, diffs, files, prompts, and terminal output remain on the user machine.
+`serverId` is public. `serverSecret` is local-only — used as the `x-trunk-server-proof` header on outbound dials. T3's own state (sessions, bearer tokens, projects, prompts, code, terminal output) stays on the user's machine.
 
 ## Authentication
 
-The hosted app uses WorkOS AuthKit hosted UI.
+For MVP we lean on T3's existing auth surface and treat the API as a transparent transport.
 
-Browser connection requirements:
+- **Server → relay**: server proves itself with `x-trunk-server-proof: <serverSecret>` on the outbound `/server` and `/server-channel` upgrades.
+- **Browser → relay**: browser presents `Authorization: Bearer <token>` on `/ws`. The token is issued by T3's existing session-issuance flow (`trunk session issue --role owner` etc.).
+- **Browser → server (inside the WS)**: T3's `authenticateWebSocketUpgrade` validates the bearer token at the local upgrade. T3 already supports remote-reachable auth policy.
 
-- User is authenticated with WorkOS.
-- Browser requests the `serverId` from WorkOS metadata.
-- API verifies WorkOS auth before routing.
+The MVP API only checks header **presence**. Real verification (WorkOS JWT for browser, signed proof for server) lands as the next phase.
 
-Server connection requirements:
+## Trust Model
 
-- Server authenticates with WorkOS CLI Auth.
-- Server registers its public `serverId`.
-- API never stores server credentials.
+Standard SaaS trust shape:
 
-Final authorization happens on the user server side:
+- TLS to Cloudflare. Cloudflare can technically observe traffic in the relay; our terms say we don't.
+- Provider credentials (Anthropic/OpenAI keys, etc.) and source code never leave the user's machine — only T3's own RPC frames cross the wire, which mostly carry the same bytes the LLM provider would see anyway.
+- T3's pairing tokens, bearer sessions, and revoke endpoints are the auth moat.
 
-- The WorkOS `userId` must match local `~/.trunk/config.json.userId`.
-
-## Encryption
-
-Browser and server establish end-to-end encryption through the API before application traffic flows.
-
-- API forwards key-exchange messages.
-- Browser and server derive a session key.
-- Browser encrypts T3/WebSocket frames.
-- Server decrypts and handles them locally.
-- Server encrypts local responses.
-- API forwards ciphertext only.
-
-API can observe `serverId`, connection timing, byte counts, and online/offline status. API must not be able to read prompts, code, diffs, files, terminal output, provider credentials, or conversation payloads.
+End-to-end encryption is **deferred**. The relay is byte-opaque already, so layering ECDH + AEAD on top is additive (~110 lines) and can be added if customers demand "Cloudflare cannot read my traffic" as an architectural property.
 
 ## Pairing Flow
 
-Installer initializes:
+Today (MVP):
 
-- `serverId`
-- WorkOS CLI Auth on the server
+1. User installs Trunk on their machine.
+2. User runs `bun run apps/server/scripts/trunk-pair.ts` (eventually `trunk pair`). Generates `serverId` + `serverSecret`, writes `~/.trunk/config.json`, prints `wss://api.trunk.codes/?serverId=…`.
+3. User runs `trunk session issue --role owner` to mint a bearer token.
+4. User opens `app.trunk.codes`, adds an environment with the printed URL and the bearer token.
+5. Browser connects → API generates channelId → signals server → server dials back → bridge → T3 authenticates → session live.
 
-Server connects to `api.trunk.codes` after WorkOS CLI Auth succeeds.
+WorkOS-backed collaboration (future):
 
-User opens:
-
-```txt
-https://app.trunk.codes/pair
-```
-
-The app requires WorkOS login. The server and browser are paired when both authenticate as the same WorkOS user. The server stores:
-
-```json
-{ "userId": "user_abc123" }
-```
-
-The app writes this non-secret metadata to WorkOS:
-
-```json
-{ "serverId": "happy-coffee-a7k9" }
-```
-
-Pairing rules:
-
-- use WorkOS-hosted AuthKit and CLI Auth
-- store WorkOS refresh credentials only on the user's server
-- never stored in WorkOS metadata
+- Owner pairs the server with WorkOS identity (their `userId` written to `~/.trunk/config.json` and to WorkOS user metadata as `serverId`).
+- Owner invites collaborators via WorkOS.
+- Each invitee logs in via AuthKit and inherits a server-scoped bearer token bound to the shared server.
 
 ## Install Flow
-
-Command:
 
 ```bash
 curl -fsSL https://trunk.codes/install | bash
 ```
 
-Installer responsibilities:
+Installer responsibilities (MVP target):
 
-- install Bun if needed
-- install Trunk server
-- initialize `~/.trunk/config.json`
-- register systemd service on Linux
-- register launchd agent on macOS
-- start Trunk server on `127.0.0.1:7777`
-- authenticate server through WorkOS CLI Auth
-- open outbound WebSocket to `wss://api.trunk.codes/server`
+- Install Bun if needed.
+- Install the Trunk server.
+- Run `trunk pair` to bootstrap `~/.trunk/config.json`.
+- Register systemd / launchd to start T3 + outbound dial on boot.
+- Print the pairing URL and a bearer-token instruction.
 
-No Caddy, DNS, inbound ports, Cloudflare Tunnel, or user router configuration is required.
+No public ports, no DNS, no router config, no Caddy, no Cloudflare Tunnel.
 
-## Commands
+## Commands (CLI)
 
-MVP CLI commands:
+MVP-target commands on the `trunk` CLI:
 
-- `trunk server`: run local server.
-- `trunk status`: show local server and remote connection status.
-- `trunk update`: update Trunk server and bundled CLIs.
-- `trunk unpair`: remove local `userId` and require pairing again.
+- `trunk server` — run the local server (existing T3 entry point).
+- `trunk pair` — bootstrap `~/.trunk/config.json`. Wraps the script above.
+- `trunk status` — show local server state and remote-link snapshot.
+- `trunk session issue` — already exists in T3; documented as the bearer-token mint.
+- `trunk update` — update Trunk + bundled CLIs.
+- `trunk unpair` — clear `userId` (and optionally rotate `serverSecret`) to require re-pairing.
 
 ## Deployment
 
-- `apps/marketing` deploys to Cloudflare Pages at `trunk.codes`.
-- `apps/web` deploys to Cloudflare Pages at `app.trunk.codes`.
-- `apps/api` deploys to Cloudflare Workers at `api.trunk.codes`.
-
-The API should be Cloudflare-native first because Workers and Durable Objects give cheap global WebSocket routing without operating servers.
+- `apps/marketing` → Cloudflare Pages, `trunk.codes`.
+- `apps/web` → Cloudflare Pages, `app.trunk.codes`. Build env: `VITE_WS_URL=wss://api.trunk.codes` (so the RPC client's forced `/ws` path lands on the relay's browser endpoint).
+- `apps/api` → Cloudflare Worker + Durable Object, `api.trunk.codes`.
 
 ## Validation
 
-- Treat Wrangler output as part of the test result.
-- Do not ignore Worker, Durable Object, workerd, or Wrangler warnings/errors.
-- Investigate noisy local Wrangler logs before calling an API slice production-ready.
-- Run endpoint and WebSocket checks directly from the terminal when validating API behavior.
+- Treat Wrangler output as part of the test result; investigate noisy local logs before calling a slice ready.
+- `apps/api` runs in `workerd` via `@cloudflare/vitest-pool-workers` (pinned to vitest 3 because pool-workers is not yet vitest-4 compatible).
+- Run end-to-end checks against `wrangler dev` + a real T3 server before each release.
 
-## MVP Phases
+## Status
 
-1. Keep T3 internals intact and add Trunk branding/distribution surfaces.
-2. Add `apps/api` with zero-storage Durable Object routing.
-3. Add isolated server remote-link module that authenticates and maintains outbound WebSocket.
-4. Add browser-to-server encrypted transport.
-5. Add WorkOS AuthKit hosted login to `apps/web`.
-6. Add pairing screen and WorkOS metadata write for `serverId`.
-7. Add installer and local service setup.
-8. Add reconnect/offline/version mismatch UX.
-9. Add update/unpair/rotate commands.
-10. Add PostHog/error reporting with strict redaction and no payload capture.
+| Phase | Description | Status |
+|-------|-------------|--------|
+| 1 | Trunk branding + distribution surfaces over T3 internals | Done. |
+| 2 | `apps/api` zero-storage DO routing skeleton | Done (`bea0bbc1`, `1c17493f`). |
+| 3 | Server outbound `RemoteLink` with reconnect | Done (`52523f49`). |
+| 4 | Dial-back relay so each browser gets its own pair (multi-device) | Done (`a9289187`, `c9abb866`, `a3e53044`). |
+| 4a | `trunk pair` bootstrap script | Done (`e77ed108`). |
+| 5 | Real WorkOS verification at the API edge (browser auth + server proof) | Not started. |
+| 6 | WorkOS-backed collaboration (multi-user per server) | Not started. |
+| 7 | Installer + service registration | Not started. |
+| 8 | Reconnect / offline / version-mismatch UX in the web app | Not started. |
+| 9 | `trunk update` / `trunk unpair` / key rotation | Not started. |
+| 10 | PostHog + error reporting with strict redaction | Not started. |
 
-## Non-Goals
+## Non-Goals (MVP)
 
-- No managed Cloudflare Tunnels.
-- No relay database.
-- No Trunk-hosted session storage.
+- No managed Cloudflare Tunnels. Pricing model doesn't fit a free product at scale.
+- No relay-side database or state. The DO is in-memory only.
+- No Trunk-hosted session storage. T3's local SQLite remains the source of truth.
 - No provider credential storage outside the user machine.
 - No CLI abstraction or replacement.
-- No localStorage auth tokens.
 - No public inbound port requirement.
+- No end-to-end encryption layer in MVP. Standard SaaS trust shape.
+- No multiplexing protocol (channel ids in frame envelopes). Each browser gets its own pair.
 
 ## Open Decisions
 
-- Exact E2E crypto library and frame format.
-- How the static app performs WorkOS metadata writes without adding a durable backend.
-- Whether `trunk update` uses git, npm, or release artifacts for MVP.
-- Compatibility protocol version shape between app, API, and server.
+- Whether to inline `trunk pair` as a Command-framework subcommand now or keep the script-based flow until installer work begins.
+- WorkOS AuthKit integration shape — still a hosted-UI redirect from `app.trunk.codes`, plus a CLI device-flow for server pairing.
+- Whether to add HTTP forwarding through the API for the `/api/auth/*` pairing endpoints, or keep pairing fully WS-mediated.
+- Compatibility / protocol version handshake between app, API, and server.
+- License (MIT vs. Apache 2.0) for open-source release.
