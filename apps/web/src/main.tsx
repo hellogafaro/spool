@@ -11,6 +11,7 @@ import { getRouter } from "./router";
 import { APP_DISPLAY_NAME } from "./branding";
 import { syncDocumentWindowControlsOverlayClass } from "./lib/windowControlsOverlay";
 import { TrunkAuthProvider } from "./auth/workos";
+import { SignedOutGate } from "./auth/SignedOutGate";
 
 // Electron loads the app from a file-backed shell, so hash history avoids path resolution issues.
 const history = isElectron ? createHashHistory() : createBrowserHistory();
@@ -26,7 +27,9 @@ document.title = APP_DISPLAY_NAME;
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <TrunkAuthProvider>
-      <RouterProvider router={router} />
+      <SignedOutGate>
+        <RouterProvider router={router} />
+      </SignedOutGate>
     </TrunkAuthProvider>
   </React.StrictMode>,
 );
