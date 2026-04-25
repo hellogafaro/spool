@@ -1,8 +1,10 @@
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "trunk-api",
+  "account_id": "3c664cf60b79efaab2e96ca62522d152",
   "main": "src/index.ts",
   "compatibility_date": "2025-09-06",
+  "routes": [{ "pattern": "api.trunk.codes", "custom_domain": true }],
   "durable_objects": {
     "bindings": [
       {
