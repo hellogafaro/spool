@@ -6,6 +6,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { ServerConfig } from "../config.ts";
 import { RemoteLink, RemoteLinkLive } from "./RemoteLink.ts";
+import {
+  RemoteLinkLocalConfig,
+  readRemoteLinkLocalConfig,
+  remoteLinkConfigPath,
+  writeRemoteLinkLocalConfig,
+} from "./RemoteLinkConfig.ts";
+import { Schema } from "effect";
 
 const baseLayer = Layer.provideMerge(
   RemoteLinkLive,
@@ -40,6 +47,37 @@ describe("RemoteLink", () => {
     const snapshot = await Effect.runPromise(readSnapshot);
     expect(snapshot.status).toBe("disabled");
     expect(snapshot.serverId).toBeNull();
+  });
+
+  it("writeRemoteLinkLocalConfig generates a config and round-trips through read", async () => {
+    const written = await Effect.runPromise(
+      writeRemoteLinkLocalConfig().pipe(Effect.provide(NodeServices.layer)),
+    );
+    expect(Schema.is(RemoteLinkLocalConfig)(written)).toBe(true);
+    expect(written.serverId).toMatch(/^[a-z0-9-]+$/);
+    expect(written.serverSecret).toMatch(/^[0-9a-f]{64}$/);
+
+    const readBack = await Effect.runPromise(
+      readRemoteLinkLocalConfig.pipe(Effect.provide(NodeServices.layer)),
+    );
+    if (readBack._tag !== "Some") throw new Error("expected config to round-trip");
+    expect(readBack.value).toEqual(written);
+
+    const filePath = await Effect.runPromise(
+      remoteLinkConfigPath().pipe(Effect.provide(NodeServices.layer)),
+    );
+    expect(filePath.startsWith(tempHome)).toBe(true);
+  });
+
+  it("writeRemoteLinkLocalConfig preserves an existing config when called again", async () => {
+    const first = await Effect.runPromise(
+      writeRemoteLinkLocalConfig().pipe(Effect.provide(NodeServices.layer)),
+    );
+    const second = await Effect.runPromise(
+      writeRemoteLinkLocalConfig().pipe(Effect.provide(NodeServices.layer)),
+    );
+    expect(second.serverId).toBe(first.serverId);
+    expect(second.serverSecret).toBe(first.serverSecret);
   });
 
   it("disabled when config file is malformed", async () => {
