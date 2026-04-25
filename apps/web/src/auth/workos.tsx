@@ -1,6 +1,8 @@
 import { AuthKitProvider, useAuth } from "@workos-inc/authkit-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { setAccessTokenRefresher } from "./tokenStore";
+
 const WORKOS_CLIENT_ID = (import.meta.env.VITE_WORKOS_CLIENT_ID as string | undefined)?.trim();
 const WORKOS_API_HOSTNAME = (
   import.meta.env.VITE_WORKOS_API_HOSTNAME as string | undefined
@@ -51,6 +53,10 @@ const DISABLED_STATE: TrunkAuthState = {
 
 function useTrunkAuthEnabled(): TrunkAuthState {
   const auth = useAuth();
+  useEffect(() => {
+    setAccessTokenRefresher(() => auth.getAccessToken().then((value) => value ?? null));
+    return () => setAccessTokenRefresher(null);
+  }, [auth]);
   return useMemo<TrunkAuthState>(
     () => ({
       status: auth.isLoading ? "loading" : auth.user ? "signed-in" : "signed-out",
