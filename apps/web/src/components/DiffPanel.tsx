@@ -590,7 +590,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
               isLoadingCheckpointDiff ? (
                 <DiffPanelLoadingState label="Loading checkpoint diff..." />
               ) : (
-                <div className="flex h-full items-center justify-center px-3 py-2 text-xs text-muted-foreground/70">
+                <div className="flex h-full items-center justify-center px-3 py-2 text-sm text-muted-foreground/70">
                   <p>
                     {hasNoNetChanges
                       ? "No net changes in this selection."
