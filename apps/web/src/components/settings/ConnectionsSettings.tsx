@@ -1180,8 +1180,8 @@ export function ConnectionsSettings() {
                         </AlertDialogTitle>
                         <AlertDialogDescription>
                           {pendingDesktopServerExposureMode === "network-accessible"
-                            ? "Spool will restart to expose this environment over the network."
-                            : "Spool will restart and limit this environment back to this machine."}
+                            ? "Trunk will restart to expose this environment over the network."
+                            : "Trunk will restart and limit this environment back to this machine."}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>

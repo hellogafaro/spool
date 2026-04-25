@@ -100,9 +100,9 @@ const makeCheckpointStore = Effect.gen(function* () {
         const commitEnv: NodeJS.ProcessEnv = {
           ...process.env,
           GIT_INDEX_FILE: tempIndexPath,
-          GIT_AUTHOR_NAME: "Spool",
+          GIT_AUTHOR_NAME: "Trunk",
           GIT_AUTHOR_EMAIL: "t3code@users.noreply.github.com",
-          GIT_COMMITTER_NAME: "Spool",
+          GIT_COMMITTER_NAME: "Trunk",
           GIT_COMMITTER_EMAIL: "t3code@users.noreply.github.com",
         };
 

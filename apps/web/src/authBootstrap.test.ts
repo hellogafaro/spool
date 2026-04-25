@@ -30,7 +30,7 @@ function installTestBrowser(url: string) {
   };
 
   vi.stubGlobal("window", testWindow);
-  vi.stubGlobal("document", { title: "Spool" });
+  vi.stubGlobal("document", { title: "Trunk" });
 
   return testWindow;
 }

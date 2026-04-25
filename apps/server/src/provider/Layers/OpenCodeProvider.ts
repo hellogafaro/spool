@@ -274,8 +274,8 @@ const makePendingOpenCodeProvider = (openCodeSettings: OpenCodeSettings): Server
         auth: { status: "unknown" },
         message:
           openCodeSettings.serverUrl.trim().length > 0
-            ? "OpenCode is disabled in Spool settings. A server URL is configured."
-            : "OpenCode is disabled in Spool settings.",
+            ? "OpenCode is disabled in Trunk settings. A server URL is configured."
+            : "OpenCode is disabled in Trunk settings.",
       },
     });
   }
@@ -356,8 +356,8 @@ export const OpenCodeProviderLive = Layer.effect(
             status: "warning",
             auth: { status: "unknown" },
             message: isExternalServer
-              ? "OpenCode is disabled in Spool settings. A server URL is configured."
-              : "OpenCode is disabled in Spool settings.",
+              ? "OpenCode is disabled in Trunk settings. A server URL is configured."
+              : "OpenCode is disabled in Trunk settings.",
           },
         });
       }
@@ -385,7 +385,7 @@ export const OpenCodeProviderLive = Layer.effect(
         if (!version) {
           return fallback(
             new Error(
-              `Unable to determine OpenCode version from \`opencode --version\` output. Spool requires OpenCode v${MINIMUM_OPENCODE_VERSION} or newer.`,
+              `Unable to determine OpenCode version from \`opencode --version\` output. Trunk requires OpenCode v${MINIMUM_OPENCODE_VERSION} or newer.`,
             ),
             null,
           );

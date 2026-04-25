@@ -39,9 +39,9 @@ describe("resolveDesktopAppBranding", () => {
         appVersion: "0.0.17-nightly.20260414.1",
       }),
     ).toEqual({
-      baseName: "Spool",
+      baseName: "Trunk",
       stageLabel: "Nightly",
-      displayName: "Spool",
+      displayName: "Trunk",
     });
   });
 });

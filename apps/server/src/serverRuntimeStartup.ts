@@ -441,7 +441,7 @@ export const makeServerRuntimeStartup = Effect.gen(function* () {
         yield* Effect.logDebug("startup phase: browser open check");
         const startupBrowserTarget = yield* resolveStartupBrowserTarget;
         if (serverConfig.mode !== "desktop") {
-          yield* Effect.logInfo("Authentication required. Open Spool using the pairing URL.").pipe(
+          yield* Effect.logInfo("Authentication required. Open Trunk using the pairing URL.").pipe(
             Effect.annotateLogs({ pairingUrl: startupBrowserTarget }),
           );
         }

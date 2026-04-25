@@ -315,7 +315,7 @@ const makeOpenCodeTextGeneration = Effect.gen(function* () {
               : {}),
           });
           const session = await client.session.create({
-            title: `Spool ${input.operation}`,
+            title: `Trunk ${input.operation}`,
             permission: [{ permission: "*", pattern: "*", action: "deny" }],
           });
           if (!session.data) {

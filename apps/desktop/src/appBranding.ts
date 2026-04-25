@@ -2,7 +2,7 @@ import type { DesktopAppBranding, DesktopAppStageLabel } from "@t3tools/contract
 
 import { isNightlyDesktopVersion } from "./updateChannels.ts";
 
-const APP_BASE_NAME = "Spool";
+const APP_BASE_NAME = "Trunk";
 
 export function resolveDesktopAppStageLabel(input: {
   readonly isDevelopment: boolean;

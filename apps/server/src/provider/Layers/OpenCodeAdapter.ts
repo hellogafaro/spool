@@ -1028,7 +1028,7 @@ export function makeOpenCodeAdapterLive(options?: OpenCodeAdapterLiveOptions) {
                 });
                 const openCodeSession = yield* runOpenCodeSdk("session.create", () =>
                   client.session.create({
-                    title: `Spool ${input.threadId}`,
+                    title: `Trunk ${input.threadId}`,
                     permission: buildOpenCodePermissionRules(input.runtimeMode),
                   }),
                 );

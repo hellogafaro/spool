@@ -2350,8 +2350,8 @@ const SidebarChromeHeader = memo(function SidebarChromeHeader({
               className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md outline-hidden ring-ring transition-colors hover:text-foreground focus-visible:ring-2"
               to="/"
             >
-              <SpoolLogo className="h-5 w-auto shrink-0 text-black dark:text-white" />
-              <span className="sr-only">Spool</span>
+              <SpoolLogo className="size-6 shrink-0 text-black dark:text-white" />
+              <span className="sr-only">Trunk</span>
             </Link>
           }
         />
