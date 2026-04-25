@@ -1,4 +1,4 @@
-import { API_PATHS, API_PROTOCOL_VERSION } from "./protocol.ts";
+import { API_PATHS, API_PROTOCOL_VERSION, type ControlMessage } from "./protocol.ts";
 
 interface Env {
   SERVER_ROOMS: DurableObjectNamespace;
@@ -24,6 +24,12 @@ const jsonHeaders = {
   "content-type": "application/json; charset=utf-8",
 };
 
+const WS_PATHS = new Set<string>([
+  API_PATHS.server,
+  API_PATHS.serverChannel,
+  API_PATHS.browser,
+]);
+
 export default {
   fetch(request: Request, env: Env): Response | Promise<Response> {
     const url = new URL(request.url);
@@ -36,7 +42,7 @@ export default {
       return Response.json(VERSION_PAYLOAD, { headers: jsonHeaders });
     }
 
-    if (url.pathname !== API_PATHS.server && url.pathname !== API_PATHS.browser) {
+    if (!WS_PATHS.has(url.pathname)) {
       return new Response("not found\n", { status: 404, headers: textHeaders });
     }
 
@@ -49,7 +55,10 @@ export default {
       return new Response("serverId required\n", { status: 400, headers: textHeaders });
     }
 
-    if (url.pathname === API_PATHS.server && !request.headers.get("x-trunk-server-proof")) {
+    if (
+      (url.pathname === API_PATHS.server || url.pathname === API_PATHS.serverChannel) &&
+      !request.headers.get("x-trunk-server-proof")
+    ) {
       return new Response("server proof required\n", { status: 401, headers: textHeaders });
     }
 
@@ -57,14 +66,23 @@ export default {
       return new Response("authorization required\n", { status: 401, headers: textHeaders });
     }
 
+    if (url.pathname === API_PATHS.serverChannel && !url.searchParams.get("channelId")?.trim()) {
+      return new Response("channelId required\n", { status: 400, headers: textHeaders });
+    }
+
     const id = env.SERVER_ROOMS.idFromName(serverId);
     return env.SERVER_ROOMS.get(id).fetch(request);
   },
 };
 
+interface PendingBrowser {
+  readonly socket: WebSocket;
+  readonly buffered: Array<string | ArrayBuffer>;
+}
+
 export class ServerRoom implements DurableObject {
   private serverSocket: WebSocket | null = null;
-  private readonly browsers = new Set<WebSocket>();
+  private readonly pendingBrowsers = new Map<string, PendingBrowser>();
 
   constructor(
     private readonly state: DurableObjectState,
@@ -86,6 +104,9 @@ export class ServerRoom implements DurableObject {
       this.acceptServer(server);
     } else if (url.pathname === API_PATHS.browser) {
       this.acceptBrowser(server);
+    } else if (url.pathname === API_PATHS.serverChannel) {
+      const channelId = url.searchParams.get("channelId")?.trim() ?? "";
+      this.acceptServerChannel(server, channelId);
     } else {
       server.close(1008, "unsupported route");
     }
@@ -100,23 +121,15 @@ export class ServerRoom implements DurableObject {
     this.serverSocket?.close(1012, "server replaced");
     this.serverSocket = socket;
 
-    socket.addEventListener("message", (event) => {
-      for (const browser of this.browsers) {
-        if (browser.readyState === WebSocket.OPEN) {
-          browser.send(event.data);
-        }
-      }
-    });
-
     socket.addEventListener("close", () => {
       if (this.serverSocket !== socket) {
         return;
       }
       this.serverSocket = null;
-      for (const browser of this.browsers) {
-        browser.close(1013, "server offline");
+      for (const pending of this.pendingBrowsers.values()) {
+        pending.socket.close(1013, "server offline");
       }
-      this.browsers.clear();
+      this.pendingBrowsers.clear();
     });
 
     socket.addEventListener("error", () => {
@@ -125,28 +138,101 @@ export class ServerRoom implements DurableObject {
   }
 
   private acceptBrowser(socket: WebSocket): void {
-    if (!this.serverSocket || this.serverSocket.readyState !== WebSocket.OPEN) {
+    const server = this.serverSocket;
+    if (!server || server.readyState !== WebSocket.OPEN) {
       socket.close(1013, "server offline");
       return;
     }
 
-    this.browsers.add(socket);
+    const channelId = crypto.randomUUID();
+    const pending: PendingBrowser = { socket, buffered: [] };
+    this.pendingBrowsers.set(channelId, pending);
 
     socket.addEventListener("message", (event) => {
-      if (!this.serverSocket || this.serverSocket.readyState !== WebSocket.OPEN) {
-        socket.close(1013, "server offline");
-        return;
+      const current = this.pendingBrowsers.get(channelId);
+      if (current === pending) {
+        pending.buffered.push(event.data as string | ArrayBuffer);
       }
-      this.serverSocket.send(event.data);
     });
 
     socket.addEventListener("close", () => {
-      this.browsers.delete(socket);
+      if (this.pendingBrowsers.get(channelId) === pending) {
+        this.pendingBrowsers.delete(channelId);
+      }
     });
 
     socket.addEventListener("error", () => {
-      this.browsers.delete(socket);
+      if (this.pendingBrowsers.get(channelId) === pending) {
+        this.pendingBrowsers.delete(channelId);
+      }
       socket.close(1011, "browser error");
     });
+
+    const signal: ControlMessage = { type: "dial", channelId };
+    try {
+      server.send(JSON.stringify(signal));
+    } catch {
+      this.pendingBrowsers.delete(channelId);
+      socket.close(1011, "failed to signal server");
+    }
   }
+
+  private acceptServerChannel(serverChannel: WebSocket, channelId: string): void {
+    const pending = this.pendingBrowsers.get(channelId);
+    if (!pending) {
+      serverChannel.close(4404, "unknown channel");
+      return;
+    }
+    this.pendingBrowsers.delete(channelId);
+
+    const browser = pending.socket;
+    if (browser.readyState !== WebSocket.OPEN) {
+      serverChannel.close(1013, "browser gone");
+      return;
+    }
+
+    const removeBrowserBuffer = () => {
+      pending.buffered.length = 0;
+    };
+
+    bridge(browser, serverChannel, () => {
+      removeBrowserBuffer();
+    });
+
+    for (const frame of pending.buffered) {
+      try {
+        serverChannel.send(frame);
+      } catch {
+        // server channel closed mid-flush; bridge cleanup will handle the rest.
+        break;
+      }
+    }
+    removeBrowserBuffer();
+  }
+}
+
+function bridge(a: WebSocket, b: WebSocket, onClose: () => void): void {
+  const forward = (from: WebSocket, to: WebSocket) => {
+    from.addEventListener("message", (event) => {
+      if (to.readyState === WebSocket.OPEN) {
+        to.send(event.data);
+      }
+    });
+  };
+
+  let closed = false;
+  const closeBoth = (code: number, reason: string) => {
+    if (closed) return;
+    closed = true;
+    onClose();
+    if (a.readyState === WebSocket.OPEN) a.close(code, reason);
+    if (b.readyState === WebSocket.OPEN) b.close(code, reason);
+  };
+
+  forward(a, b);
+  forward(b, a);
+  a.addEventListener("close", () => closeBoth(1001, "peer closed"));
+  b.addEventListener("close", () => closeBoth(1001, "peer closed"));
+  a.addEventListener("error", () => closeBoth(1011, "peer error"));
+  b.addEventListener("error", () => closeBoth(1011, "peer error"));
 }

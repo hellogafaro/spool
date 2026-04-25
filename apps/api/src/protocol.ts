@@ -4,7 +4,15 @@ export const API_PATHS = {
   browser: "/browser",
   health: "/health",
   server: "/server",
+  serverChannel: "/server-channel",
   version: "/version",
 } as const;
 
 export type ApiPath = (typeof API_PATHS)[keyof typeof API_PATHS];
+
+export interface DialSignal {
+  readonly type: "dial";
+  readonly channelId: string;
+}
+
+export type ControlMessage = DialSignal;

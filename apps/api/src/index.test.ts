@@ -1,6 +1,6 @@
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { API_PATHS, API_PROTOCOL_VERSION } from "./protocol.ts";
+import { API_PATHS, API_PROTOCOL_VERSION, type ControlMessage } from "./protocol.ts";
 
 const ORIGIN = "https://api.test.local";
 
@@ -41,6 +41,24 @@ function nextClose(socket: WebSocket): Promise<CloseEvent> {
   return new Promise((resolve) => {
     socket.addEventListener("close", (event) => resolve(event as CloseEvent), { once: true });
   });
+}
+
+async function pairBrowserToServer(
+  serverId: string,
+  controlServer: WebSocket,
+  authHeader: string,
+): Promise<{ browser: WebSocket; serverChannel: WebSocket; channelId: string }> {
+  const dialPromise = nextMessage(controlServer);
+  const browser = await openSocket(API_PATHS.browser, { serverId }, { authorization: authHeader });
+  const dialEvent = await dialPromise;
+  const dial = JSON.parse(String(dialEvent.data)) as ControlMessage;
+  expect(dial.type).toBe("dial");
+  const serverChannel = await openSocket(
+    API_PATHS.serverChannel,
+    { serverId, channelId: dial.channelId },
+    { "x-trunk-server-proof": "x" },
+  );
+  return { browser, serverChannel, channelId: dial.channelId };
 }
 
 describe("HTTP routes", () => {
@@ -84,6 +102,20 @@ describe("HTTP routes", () => {
     expect(r.status).toBe(401);
   });
 
+  it("401s /server-channel missing proof header", async () => {
+    const r = await SELF.fetch(url(API_PATHS.serverChannel, { serverId: "abc", channelId: "x" }), {
+      headers: { upgrade: "websocket" },
+    });
+    expect(r.status).toBe(401);
+  });
+
+  it("400s /server-channel missing channelId", async () => {
+    const r = await SELF.fetch(url(API_PATHS.serverChannel, { serverId: "abc" }), {
+      headers: { upgrade: "websocket", "x-trunk-server-proof": "x" },
+    });
+    expect(r.status).toBe(400);
+  });
+
   it("401s /browser missing authorization header", async () => {
     const r = await SELF.fetch(url(API_PATHS.browser, { serverId: "abc" }), {
       headers: { upgrade: "websocket" },
@@ -92,7 +124,7 @@ describe("HTTP routes", () => {
   });
 });
 
-describe("DO routing", () => {
+describe("dial-back routing", () => {
   it("rejects browser when no server is connected", async () => {
     const browser = await openSocket(
       API_PATHS.browser,
@@ -103,64 +135,209 @@ describe("DO routing", () => {
     expect(close.code).toBe(1013);
   });
 
-  it("forwards browser->server and server->browser frames", async () => {
-    const serverId = "room-fanout";
-    const server = await openSocket(
+  it("signals server with a channel id when a browser connects", async () => {
+    const serverId = "room-signal";
+    const control = await openSocket(
       API_PATHS.server,
       { serverId },
       { "x-trunk-server-proof": "x" },
     );
+    const dialPromise = nextMessage(control);
     const browser = await openSocket(
       API_PATHS.browser,
       { serverId },
       { authorization: "Bearer x" },
     );
 
-    const serverGot = nextMessage(server);
+    const dialEvent = await dialPromise;
+    const dial = JSON.parse(String(dialEvent.data)) as ControlMessage;
+    expect(dial.type).toBe("dial");
+    expect(dial.channelId).toMatch(/^[0-9a-f-]{36}$/);
+
+    browser.close();
+    control.close();
+  });
+
+  it("bridges bytes once server dials back", async () => {
+    const serverId = "room-bridge";
+    const control = await openSocket(
+      API_PATHS.server,
+      { serverId },
+      { "x-trunk-server-proof": "x" },
+    );
+
+    const { browser, serverChannel } = await pairBrowserToServer(serverId, control, "Bearer x");
+
+    const serverGot = nextMessage(serverChannel);
     browser.send("hello-server");
     expect((await serverGot).data).toBe("hello-server");
 
     const browserGot = nextMessage(browser);
-    server.send("hello-browser");
+    serverChannel.send("hello-browser");
     expect((await browserGot).data).toBe("hello-browser");
 
-    server.close();
+    serverChannel.close();
     browser.close();
+    control.close();
   });
 
-  it("server replace does not evict existing browsers", async () => {
-    const serverId = "room-replace";
-    const serverA = await openSocket(
+  it("flushes browser messages buffered before the server dials back", async () => {
+    const serverId = "room-buffered";
+    const control = await openSocket(
       API_PATHS.server,
       { serverId },
       { "x-trunk-server-proof": "x" },
     );
+
+    const dialPromise = nextMessage(control);
     const browser = await openSocket(
       API_PATHS.browser,
       { serverId },
       { authorization: "Bearer x" },
     );
 
-    const serverB = await openSocket(
+    browser.send("early-1");
+    browser.send("early-2");
+
+    const dialEvent = await dialPromise;
+    const dial = JSON.parse(String(dialEvent.data)) as ControlMessage;
+
+    const serverChannel = await openSocket(
+      API_PATHS.serverChannel,
+      { serverId, channelId: dial.channelId },
+      { "x-trunk-server-proof": "x" },
+    );
+
+    const collected: string[] = [];
+    await new Promise<void>((resolve, reject) => {
+      const handler = (event: Event) => {
+        collected.push(String((event as MessageEvent).data));
+        if (collected.length >= 2) {
+          serverChannel.removeEventListener("message", handler);
+          resolve();
+        }
+      };
+      serverChannel.addEventListener("message", handler);
+      setTimeout(() => reject(new Error("timeout waiting for buffered frames")), 1000);
+    });
+
+    expect(collected).toEqual(["early-1", "early-2"]);
+
+    serverChannel.close();
+    browser.close();
+    control.close();
+  });
+
+  it("rejects server-channel for unknown channel id", async () => {
+    const serverId = "room-unknown-channel";
+    const control = await openSocket(
+      API_PATHS.server,
+      { serverId },
+      { "x-trunk-server-proof": "x" },
+    );
+    const orphan = await openSocket(
+      API_PATHS.serverChannel,
+      { serverId, channelId: "00000000-0000-0000-0000-000000000000" },
+      { "x-trunk-server-proof": "x" },
+    );
+    const close = await nextClose(orphan);
+    expect(close.code).toBe(4404);
+    control.close();
+  });
+
+  it("each browser gets its own pair (multi-device)", async () => {
+    const serverId = "room-multi-device";
+    const control = await openSocket(
       API_PATHS.server,
       { serverId },
       { "x-trunk-server-proof": "x" },
     );
 
-    const browserGot = nextMessage(browser);
-    serverB.send("from-replacement");
-    expect((await browserGot).data).toBe("from-replacement");
+    const dialAPromise = nextMessage(control);
+    const browserA = await openSocket(
+      API_PATHS.browser,
+      { serverId },
+      { authorization: "Bearer a" },
+    );
+    const dialA = JSON.parse(String((await dialAPromise).data)) as ControlMessage;
+    const channelA = await openSocket(
+      API_PATHS.serverChannel,
+      { serverId, channelId: dialA.channelId },
+      { "x-trunk-server-proof": "x" },
+    );
 
-    expect(browser.readyState).toBe(WebSocket.OPEN);
+    const dialBPromise = nextMessage(control);
+    const browserB = await openSocket(
+      API_PATHS.browser,
+      { serverId },
+      { authorization: "Bearer b" },
+    );
+    const dialB = JSON.parse(String((await dialBPromise).data)) as ControlMessage;
+    const channelB = await openSocket(
+      API_PATHS.serverChannel,
+      { serverId, channelId: dialB.channelId },
+      { "x-trunk-server-proof": "x" },
+    );
 
-    void serverA;
-    serverB.close();
-    browser.close();
+    expect(dialA.channelId).not.toBe(dialB.channelId);
+
+    const gotA = nextMessage(channelA);
+    browserA.send("from-a");
+    expect((await gotA).data).toBe("from-a");
+
+    const gotB = nextMessage(channelB);
+    browserB.send("from-b");
+    expect((await gotB).data).toBe("from-b");
+
+    expect(browserA.readyState).toBe(WebSocket.OPEN);
+    expect(browserB.readyState).toBe(WebSocket.OPEN);
+
+    channelA.close();
+    channelB.close();
+    browserA.close();
+    browserB.close();
+    control.close();
   });
 
-  it("evicts browsers when active server disconnects", async () => {
+  it("isolates rooms by serverId", async () => {
+    const controlA = await openSocket(
+      API_PATHS.server,
+      { serverId: "room-a" },
+      { "x-trunk-server-proof": "x" },
+    );
+    const controlB = await openSocket(
+      API_PATHS.server,
+      { serverId: "room-b" },
+      { "x-trunk-server-proof": "x" },
+    );
+
+    const dialPromise = nextMessage(controlA);
+    const browserA = await openSocket(
+      API_PATHS.browser,
+      { serverId: "room-a" },
+      { authorization: "Bearer a" },
+    );
+
+    const dialEvent = await dialPromise;
+    const dial = JSON.parse(String(dialEvent.data)) as ControlMessage;
+
+    let bGotMessage = false;
+    controlB.addEventListener("message", () => {
+      bGotMessage = true;
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(bGotMessage).toBe(false);
+
+    expect(dial.type).toBe("dial");
+
+    browserA.close();
+    controlA.close();
+    controlB.close();
+  });
+
+  it("evicts pending browsers when control server disconnects", async () => {
     const serverId = "room-evict";
-    const server = await openSocket(
+    const control = await openSocket(
       API_PATHS.server,
       { serverId },
       { "x-trunk-server-proof": "x" },
@@ -172,41 +349,8 @@ describe("DO routing", () => {
     );
 
     const closed = nextClose(browser);
-    server.close();
+    control.close();
     const event = await closed;
     expect(event.code).toBe(1013);
-  });
-
-  it("isolates rooms by serverId", async () => {
-    const serverA = await openSocket(
-      API_PATHS.server,
-      { serverId: "room-a" },
-      { "x-trunk-server-proof": "x" },
-    );
-    const serverB = await openSocket(
-      API_PATHS.server,
-      { serverId: "room-b" },
-      { "x-trunk-server-proof": "x" },
-    );
-    const browserA = await openSocket(
-      API_PATHS.browser,
-      { serverId: "room-a" },
-      { authorization: "Bearer x" },
-    );
-
-    const got = nextMessage(serverA);
-    browserA.send("ping-a");
-    expect((await got).data).toBe("ping-a");
-
-    let bGotMessage = false;
-    serverB.addEventListener("message", () => {
-      bGotMessage = true;
-    });
-    await new Promise((r) => setTimeout(r, 50));
-    expect(bGotMessage).toBe(false);
-
-    serverA.close();
-    serverB.close();
-    browserA.close();
   });
 });
