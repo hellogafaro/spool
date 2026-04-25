@@ -1,0 +1,23 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "trunk-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-04-25",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "SERVER_ROOMS",
+        "class_name": "ServerRoom",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["ServerRoom"],
+    },
+  ],
+  "observability": {
+    "enabled": true,
+  },
+}

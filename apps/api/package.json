@@ -1,0 +1,16 @@
+{
+  "name": "@t3tools/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260312.1",
+    "typescript": "catalog:",
+    "wrangler": "^4.69.0"
+  }
+}
