@@ -81,7 +81,7 @@ End-to-end encryption is **deferred**. The relay is byte-opaque already, so laye
 Today (MVP):
 
 1. User installs Trunk on their machine.
-2. User runs `bun run apps/server/scripts/trunk-pair.ts` (eventually `trunk pair`). Generates `serverId` + `serverSecret`, writes `~/.trunk/config.json`, prints `wss://api.trunk.codes/?serverId=…`.
+2. User runs `trunk pair`. Generates `serverId` + `serverSecret`, writes `~/.trunk/config.json`, prints `wss://api.trunk.codes/?serverId=…`.
 3. User runs `trunk session issue --role owner` to mint a bearer token.
 4. User opens `app.trunk.codes`, adds an environment with the printed URL and the bearer token.
 5. Browser connects → API generates channelId → signals server → server dials back → bridge → T3 authenticates → session live.
@@ -113,7 +113,7 @@ No public ports, no DNS, no router config, no Caddy, no Cloudflare Tunnel.
 MVP-target commands on the `trunk` CLI:
 
 - `trunk server` — run the local server (existing T3 entry point).
-- `trunk pair` — bootstrap `~/.trunk/config.json`. Wraps the script above.
+- `trunk pair` — bootstrap `~/.trunk/config.json` and print the relay URL.
 - `trunk status` — show local server state and remote-link snapshot.
 - `trunk session issue` — already exists in T3; documented as the bearer-token mint.
 - `trunk update` — update Trunk + bundled CLIs.
@@ -139,7 +139,7 @@ MVP-target commands on the `trunk` CLI:
 | 2 | `apps/api` zero-storage DO routing skeleton | Done (`bea0bbc1`, `1c17493f`). |
 | 3 | Server outbound `RemoteLink` with reconnect | Done (`52523f49`). |
 | 4 | Dial-back relay so each browser gets its own pair (multi-device) | Done (`a9289187`, `c9abb866`, `a3e53044`). |
-| 4a | `trunk pair` bootstrap script | Done (`e77ed108`). |
+| 4a | `trunk pair` CLI subcommand for bootstrapping the local config | Done (`e77ed108`). |
 | 5 | Real WorkOS verification at the API edge (browser auth + server proof) | Not started. |
 | 6 | WorkOS-backed collaboration (multi-user per server) | Not started. |
 | 7 | Installer + service registration | Not started. |
@@ -160,7 +160,6 @@ MVP-target commands on the `trunk` CLI:
 
 ## Open Decisions
 
-- Whether to inline `trunk pair` as a Command-framework subcommand now or keep the script-based flow until installer work begins.
 - WorkOS AuthKit integration shape — still a hosted-UI redirect from `app.trunk.codes`, plus a CLI device-flow for server pairing.
 - Whether to add HTTP forwarding through the API for the `/api/auth/*` pairing endpoints, or keep pairing fully WS-mediated.
 - Compatibility / protocol version handshake between app, API, and server.

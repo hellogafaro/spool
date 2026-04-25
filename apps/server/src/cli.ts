@@ -1109,6 +1109,32 @@ const runServerCommand = (
     return yield* runServer.pipe(Effect.provideService(ServerConfig, config));
   });
 
+const pairCommand = Command.make("pair").pipe(
+  Command.withDescription(
+    "Bootstrap ~/.trunk/config.json and print the URL to point a Trunk web app at this server.",
+  ),
+  Command.withHandler(() =>
+    Effect.gen(function* () {
+      const { remoteLinkConfigPath, writeRemoteLinkLocalConfig } = yield* Effect.promise(
+        () => import("./remoteLink/RemoteLinkConfig.ts"),
+      );
+      const config = yield* writeRemoteLinkLocalConfig();
+      const filePath = yield* remoteLinkConfigPath();
+      yield* Console.log("");
+      yield* Console.log("Trunk server pairing complete.");
+      yield* Console.log("");
+      yield* Console.log(`  config:    ${filePath}`);
+      yield* Console.log(`  serverId:  ${config.serverId}`);
+      yield* Console.log("");
+      yield* Console.log("Point your Trunk web app at:");
+      yield* Console.log(`  wss://api.trunk.codes/?serverId=${config.serverId}`);
+      yield* Console.log("");
+      yield* Console.log("Issue a bearer token with: trunk auth session issue --role owner");
+      yield* Console.log("");
+    }),
+  ),
+);
+
 const startCommand = Command.make("start", { ...sharedServerCommandFlags }).pipe(
   Command.withDescription("Run the Trunk server."),
   Command.withHandler((flags) => runServerCommand(flags)),
@@ -1129,5 +1155,11 @@ const serveCommand = Command.make("serve", { ...sharedServerCommandFlags }).pipe
 export const cli = Command.make("t3", { ...sharedServerCommandFlags }).pipe(
   Command.withDescription("Run the Trunk server."),
   Command.withHandler((flags) => runServerCommand(flags)),
-  Command.withSubcommands([startCommand, serveCommand, authCommand, projectCommand]),
+  Command.withSubcommands([
+    startCommand,
+    serveCommand,
+    authCommand,
+    pairCommand,
+    projectCommand,
+  ]),
 );
