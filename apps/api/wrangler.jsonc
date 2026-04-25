@@ -2,7 +2,7 @@
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "trunk-api",
   "main": "src/index.ts",
-  "compatibility_date": "2026-04-25",
+  "compatibility_date": "2025-09-06",
   "durable_objects": {
     "bindings": [
       {

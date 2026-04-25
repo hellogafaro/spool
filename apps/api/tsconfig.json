@@ -9,5 +9,5 @@
     "lib": ["ES2023", "WebWorker"],
     "types": ["@cloudflare/workers-types"]
   },
-  "include": ["src"]
+  "include": ["src", "vitest.shims.d.ts"]
 }

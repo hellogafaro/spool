@@ -109,9 +109,10 @@ export class ServerRoom implements DurableObject {
     });
 
     socket.addEventListener("close", () => {
-      if (this.serverSocket === socket) {
-        this.serverSocket = null;
+      if (this.serverSocket !== socket) {
+        return;
       }
+      this.serverSocket = null;
       for (const browser of this.browsers) {
         browser.close(1013, "server offline");
       }
