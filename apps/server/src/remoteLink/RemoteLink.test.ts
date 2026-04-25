@@ -4,12 +4,21 @@ import * as OS from "node:os";
 import * as NFS from "node:fs/promises";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { ServerConfig } from "../config.ts";
 import { RemoteLink, RemoteLinkLive } from "./RemoteLink.ts";
+
+const baseLayer = Layer.provideMerge(
+  RemoteLinkLive,
+  Layer.provideMerge(
+    ServerConfig.layerTest(process.cwd(), { prefix: "trunk-remote-link-test-config-" }),
+    NodeServices.layer,
+  ),
+);
 
 const readSnapshot = Effect.gen(function* () {
   const link = yield* RemoteLink;
   return yield* link.snapshot;
-}).pipe(Effect.provide(Layer.provideMerge(RemoteLinkLive, NodeServices.layer)), Effect.scoped);
+}).pipe(Effect.provide(baseLayer), Effect.scoped);
 
 describe("RemoteLink", () => {
   let tempHome: string;
