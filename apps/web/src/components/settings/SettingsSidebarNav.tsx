@@ -3,6 +3,7 @@ import {
   ArchiveBoxIcon,
   ArrowLeftIcon,
   Cog8ToothIcon,
+  CpuChipIcon,
   LinkIcon,
   ServerStackIcon,
 } from "@heroicons/react/16/solid";
@@ -19,6 +20,7 @@ import {
 export type SettingsSectionPath =
   | "/settings/general"
   | "/settings/connections"
+  | "/settings/providers"
   | "/settings/archived";
 
 function isWorkOsConfigured(): boolean {
@@ -35,6 +37,7 @@ export const SETTINGS_NAV_ITEMS: ReadonlyArray<{
 }> = [
   { label: "General", to: "/settings/general", icon: Cog8ToothIcon },
   { label: CONNECTIONS_LABEL, to: "/settings/connections", icon: CONNECTIONS_ICON },
+  { label: "Providers", to: "/settings/providers", icon: CpuChipIcon },
   { label: "Archive", to: "/settings/archived", icon: ArchiveBoxIcon },
 ];
 
