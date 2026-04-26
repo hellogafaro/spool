@@ -5,8 +5,8 @@ import { createRouter, RouterHistory } from "@tanstack/react-router";
 import { AppAtomRegistryProvider } from "./rpc/atomRegistry";
 import { routeTree } from "./routeTree.gen";
 
-export function getRouter(history: RouterHistory) {
-  const queryClient = new QueryClient();
+export function getRouter(history: RouterHistory, externalQueryClient?: QueryClient) {
+  const queryClient = externalQueryClient ?? new QueryClient();
 
   return createRouter({
     routeTree,
