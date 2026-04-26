@@ -1,26 +1,70 @@
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { useAuth } from "@workos-inc/authkit-react";
+import {
+  createFileRoute,
+  redirect,
+  useNavigate,
+  useSearch,
+} from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
 
+import { PairingApiError, claimEnvironment } from "../auth/pairingApi";
+import { writeActiveEnvironmentId } from "../auth/tokenStore";
+import { useClaimedEnvironments } from "../auth/useClaimedEnvironments";
+import { isWorkOsConfigured } from "../auth/workos";
+import { APP_DISPLAY_NAME } from "../branding";
 import { PairingPendingSurface, PairingRouteSurface } from "../components/auth/PairingRouteSurface";
+import { Button } from "../components/ui/button";
+import { Spinner } from "../components/ui/spinner";
+
+type PairSearch = Partial<{ readonly environmentId: string }>;
 
 export const Route = createFileRoute("/pair")({
-  beforeLoad: async ({ context }) => {
+  validateSearch: (raw): PairSearch => {
+    if (typeof raw.environmentId === "string" && raw.environmentId.length > 0) {
+      return { environmentId: raw.environmentId };
+    }
+    return {};
+  },
+  beforeLoad: async ({ context, search }) => {
+    if (isWorkOsConfigured) {
+      // SaaS mode: /pair always renders the env-pair flow. WorkOS sign-in
+      // already gated us into the app, so we don't need T3's authGateState here.
+      return {};
+    }
     const { authGateState } = context;
-    if (authGateState.status === "authenticated") {
+    if (!search.environmentId && authGateState.status === "authenticated") {
       throw redirect({ to: "/", replace: true });
     }
-    return {
-      authGateState,
-    };
+    return {};
   },
   component: PairRouteView,
   pendingComponent: PairRoutePendingView,
 });
 
 function PairRouteView() {
-  const { authGateState } = Route.useRouteContext();
+  if (isWorkOsConfigured) {
+    return <EnvironmentPairView />;
+  }
+  return <LegacyT3PairView />;
+}
+
+function PairRoutePendingView() {
+  return <PairingPendingSurface />;
+}
+
+function LegacyT3PairView() {
+  const parentContext = Route.useRouteContext();
+  const authGateState = (parentContext as { authGateState?: unknown })
+    .authGateState as
+    | {
+        readonly status: "authenticated" | "requires-auth";
+        readonly auth?: Parameters<typeof PairingRouteSurface>[0]["auth"];
+        readonly errorMessage?: string;
+      }
+    | undefined;
   const navigate = useNavigate();
 
-  if (!authGateState) {
+  if (!authGateState || authGateState.status === "authenticated" || !authGateState.auth) {
     return null;
   }
 
@@ -35,6 +79,117 @@ function PairRouteView() {
   );
 }
 
-function PairRoutePendingView() {
-  return <PairingPendingSurface />;
+type Status =
+  | { kind: "idle" }
+  | { kind: "claiming" }
+  | { kind: "claimed" }
+  | { kind: "error"; message: string };
+
+function EnvironmentPairView() {
+  const auth = useAuth();
+  const search = useSearch({ from: "/pair" });
+  const navigate = useNavigate();
+  const environments = useClaimedEnvironments();
+
+  const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const triggeredRef = useRef(false);
+
+  const environmentId = search.environmentId;
+
+  useEffect(() => {
+    if (!environmentId || !auth.user || triggeredRef.current) return;
+    triggeredRef.current = true;
+    setStatus({ kind: "claiming" });
+    void (async () => {
+      try {
+        const token = await auth.getAccessToken();
+        if (!token) {
+          setStatus({ kind: "error", message: "Couldn't get an access token. Try again." });
+          return;
+        }
+        await claimEnvironment({ environmentId, accessToken: token });
+        writeActiveEnvironmentId(environmentId);
+        await environments.refetch();
+        setStatus({ kind: "claimed" });
+      } catch (error) {
+        setStatus({ kind: "error", message: friendlyError(error) });
+      }
+    })();
+  }, [environmentId, auth, environments]);
+
+  useEffect(() => {
+    if (status.kind === "claimed") {
+      const timer = window.setTimeout(() => void navigate({ to: "/", replace: true }), 800);
+      return () => window.clearTimeout(timer);
+    }
+    return undefined;
+  }, [status, navigate]);
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10 text-foreground">
+      <section className="w-full max-w-md space-y-5 rounded-2xl border border-border/80 bg-card/90 p-6 shadow-xl shadow-black/10 backdrop-blur-md">
+        <header className="space-y-1">
+          <p className="text-[11px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
+            {APP_DISPLAY_NAME}
+          </p>
+          <h1 className="text-2xl font-semibold tracking-tight">Pair environment</h1>
+          {environmentId ? (
+            <p className="text-sm text-muted-foreground">
+              <span className="font-mono text-foreground">{environmentId}</span>
+            </p>
+          ) : null}
+        </header>
+
+        <Body status={status} environmentId={environmentId} />
+      </section>
+    </div>
+  );
+}
+
+function Body({
+  status,
+  environmentId,
+}: {
+  status: Status;
+  environmentId: string | undefined;
+}) {
+  if (!environmentId) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        This link is missing an environmentId. Open the link your environment printed.
+      </p>
+    );
+  }
+
+  if (status.kind === "claiming" || status.kind === "idle") {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Spinner className="size-4" />
+        Pairing this environment to your account…
+      </div>
+    );
+  }
+
+  if (status.kind === "claimed") {
+    return <p className="text-sm text-foreground">Done. Taking you to the chat…</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-destructive">{status.message}</p>
+      <Button onClick={() => window.location.reload()} size="sm" variant="outline">
+        Try again
+      </Button>
+    </div>
+  );
+}
+
+function friendlyError(error: unknown): string {
+  if (error instanceof PairingApiError) {
+    if (error.status === 401) return "Your session expired. Sign in again.";
+    if (error.status === 409) return "That environment is already paired with another account.";
+    return error.message;
+  }
+  if (error instanceof Error) return error.message;
+  return "Couldn't pair that environment.";
 }

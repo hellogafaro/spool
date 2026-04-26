@@ -1096,6 +1096,36 @@ const projectCommand = Command.make("project").pipe(
   Command.withSubcommands([projectAddCommand, projectRemoveCommand, projectRenameCommand]),
 );
 
+const DEFAULT_TRUNK_APP_URL = "https://app.trunk.codes";
+
+const ensurePairing = Effect.gen(function* () {
+  const { readRemoteLinkLocalConfig, remoteLinkConfigPath, writeRemoteLinkLocalConfig } =
+    yield* Effect.promise(() => import("./remoteLink/RemoteLinkConfig.ts"));
+
+  const existing = yield* readRemoteLinkLocalConfig;
+  if (existing._tag === "Some") {
+    return;
+  }
+
+  const config = yield* writeRemoteLinkLocalConfig();
+  const filePath = yield* remoteLinkConfigPath();
+  const appUrl = (process.env.TRUNK_APP_URL?.trim() || DEFAULT_TRUNK_APP_URL).replace(/\/$/, "");
+  const pairUrl = `${appUrl}/pair?environmentId=${config.environmentId}`;
+
+  yield* Console.log("");
+  yield* Console.log("============================================================");
+  yield* Console.log(" Trunk environment is ready — pair it with your account:");
+  yield* Console.log("");
+  yield* Console.log(`   ${pairUrl}`);
+  yield* Console.log("");
+  yield* Console.log(" Open that URL on any device, sign in, and you're done.");
+  yield* Console.log("============================================================");
+  yield* Console.log("");
+  yield* Console.log(`  config:         ${filePath}`);
+  yield* Console.log(`  environmentId:  ${config.environmentId}`);
+  yield* Console.log("");
+});
+
 const runServerCommand = (
   flags: CliServerFlags,
   options?: {
@@ -1104,78 +1134,17 @@ const runServerCommand = (
   },
 ) =>
   Effect.gen(function* () {
+    yield* ensurePairing;
     const logLevel = yield* GlobalFlag.LogLevel;
     const config = yield* resolveServerConfig(flags, logLevel, options);
     return yield* runServer.pipe(Effect.provideService(ServerConfig, config));
   });
 
-const pairNoClaimFlag = Flag.boolean("no-claim").pipe(
-  Flag.withDescription("Write the local config but skip the device-flow claim. Useful for tests."),
-  Flag.optional,
-);
-
-const pairCommand = Command.make("pair", { noClaim: pairNoClaimFlag }).pipe(
+const pairCommand = Command.make("pair").pipe(
   Command.withDescription(
-    "Bootstrap ~/.trunk/config.json and claim this environment against your Trunk account via the WorkOS device flow.",
+    "Bootstrap ~/.trunk/config.json and print the one-click URL to claim this environment against your Trunk account.",
   ),
-  Command.withHandler((flags) =>
-    Effect.gen(function* () {
-      const { remoteLinkConfigPath, writeRemoteLinkLocalConfig } = yield* Effect.promise(
-        () => import("./remoteLink/RemoteLinkConfig.ts"),
-      );
-      const { startDeviceFlow, completeDeviceFlow } = yield* Effect.promise(
-        () => import("./remoteLink/deviceFlow.ts"),
-      );
-
-      const DEFAULT_WORKOS_CLIENT_ID = "client_01KQ3733ZKJQMKVP147AVNFFK1";
-      const DEFAULT_TRUNK_API_URL = "https://api.trunk.codes";
-      const clientId =
-        process.env.TRUNK_WORKOS_CLIENT_ID?.trim() ||
-        DEFAULT_WORKOS_CLIENT_ID;
-      const trunkApiUrl = process.env.TRUNK_API_URL?.trim() || DEFAULT_TRUNK_API_URL;
-
-      const config = yield* writeRemoteLinkLocalConfig();
-      const filePath = yield* remoteLinkConfigPath();
-
-      yield* Console.log("");
-      yield* Console.log("Trunk environment ready.");
-      yield* Console.log("");
-      yield* Console.log(`  config:         ${filePath}`);
-      yield* Console.log(`  environmentId:  ${config.environmentId}`);
-      yield* Console.log("");
-
-      const skipClaim = Option.match(flags.noClaim, {
-        onNone: () => process.env.TRUNK_PAIR_NO_CLAIM === "1",
-        onSome: (value) => value,
-      });
-      if (skipClaim) {
-        yield* Console.log("Skipping device-flow claim (--no-claim).");
-        return;
-      }
-
-      const flowConfig = { clientId, trunkApiUrl };
-      const device = yield* startDeviceFlow(flowConfig).pipe(
-        Effect.mapError((cause) => new Error(cause.message)),
-      );
-
-      yield* Console.log("Sign in to Trunk to claim this environment:");
-      yield* Console.log("");
-      yield* Console.log(`  ${device.verification_uri_complete ?? device.verification_uri}`);
-      if (!device.verification_uri_complete) {
-        yield* Console.log(`  code:  ${device.user_code}`);
-      }
-      yield* Console.log("");
-      yield* Console.log("Waiting for sign-in...");
-
-      yield* completeDeviceFlow(flowConfig, device, config.environmentId).pipe(
-        Effect.mapError((cause) => new Error(cause.message)),
-      );
-
-      yield* Console.log("");
-      yield* Console.log("Environment claimed. Open https://app.trunk.codes to use it.");
-      yield* Console.log("");
-    }),
-  ),
+  Command.withHandler(() => ensurePairing),
 );
 
 const startCommand = Command.make("start", { ...sharedServerCommandFlags }).pipe(

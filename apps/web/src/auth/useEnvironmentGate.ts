@@ -22,7 +22,7 @@ export function useEnvironmentGate(): { isReady: boolean } {
     const ids = environments.data.environmentIds;
     if (ids.length === 0) {
       writeActiveEnvironmentId(null);
-      if (pathname !== "/onboarding") {
+      if (pathname !== "/onboarding" && pathname !== "/pair") {
         void navigate({ to: "/onboarding", replace: true });
       }
       return;
