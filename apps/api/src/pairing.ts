@@ -180,15 +180,22 @@ export async function handlePairingRequest(
     return withCors(new Response("environmentId required\n", { status: 400 }));
   }
 
+  let claimed = false;
   if (options.claimEnvironmentOwner) {
     const claim = await options.claimEnvironmentOwner(body.environmentId, auth.auth.userId);
     if (!claim.ok) {
       return withCors(new Response(`${claim.reason}\n`, { status: claim.status }));
     }
+    claimed = true;
   }
 
   const result = await options.writer.addEnvironmentId(auth.auth.userId, body.environmentId);
   if (!result.ok) {
+    if (claimed && options.releaseEnvironmentOwner) {
+      // Best-effort: roll back the DO claim so the env isn't permanently locked
+      // to a user whose metadata write failed.
+      await options.releaseEnvironmentOwner(body.environmentId, auth.auth.userId).catch(() => {});
+    }
     return withCors(new Response(`${result.reason}\n`, { status: result.status }));
   }
 

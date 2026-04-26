@@ -49,17 +49,18 @@ function EnvironmentRequiredGate({ children }: SignedOutGateProps) {
 
   useEffect(() => {
     if (!environments.data) return;
-    if (environments.data.length === 0) {
+    const ids = environments.data.environmentIds;
+    if (ids.length === 0) {
       writeActiveEnvironmentId(null);
       return;
     }
     const stored = readActiveEnvironmentId();
-    if (!stored || !environments.data.includes(stored)) {
-      writeActiveEnvironmentId(environments.data[0] ?? null);
+    if (!stored || !ids.includes(stored)) {
+      writeActiveEnvironmentId(ids[0] ?? null);
     }
   }, [environments.data]);
 
-  if (environments.isLoading || !environments.data) {
+  if (environments.isLoading || (!environments.data && !environments.error)) {
     return (
       <CenteredCard>
         <Spinner className="size-4" />
@@ -68,7 +69,21 @@ function EnvironmentRequiredGate({ children }: SignedOutGateProps) {
     );
   }
 
-  if (environments.data.length === 0) {
+  if (environments.error) {
+    return (
+      <CenteredCard>
+        <p className="text-sm font-medium text-foreground">Couldn't reach Trunk</p>
+        <p className="text-xs text-muted-foreground">
+          {environments.error.message}. Retrying automatically.
+        </p>
+        <Button size="sm" variant="outline" onClick={() => void environments.refetch()}>
+          Retry now
+        </Button>
+      </CenteredCard>
+    );
+  }
+
+  if (!environments.data || environments.data.environmentIds.length === 0) {
     return <NoEnvironmentSplash onRefresh={() => void environments.refetch()} />;
   }
 

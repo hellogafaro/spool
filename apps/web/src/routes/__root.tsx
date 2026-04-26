@@ -13,6 +13,7 @@ import { QueryClient, useQueryClient } from "@tanstack/react-query";
 import { APP_DISPLAY_NAME } from "../branding";
 import { AppSidebarLayout } from "../components/AppSidebarLayout";
 import { CommandPalette } from "../components/CommandPalette";
+import { EnvironmentConnectionBanner } from "../components/EnvironmentConnectionBanner";
 import {
   SlowRpcAckToastCoordinator,
   WebSocketConnectionCoordinator,
@@ -104,6 +105,7 @@ function RootRouteView() {
         <WebSocketConnectionCoordinator />
         <SlowRpcAckToastCoordinator />
         <WebSocketConnectionSurface>
+          <EnvironmentConnectionBanner />
           <CommandPalette>
             <AppSidebarLayout>
               <Outlet />

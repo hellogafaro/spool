@@ -96,6 +96,19 @@ function readEnvironmentIdsFromMetadata(metadata: Record<string, unknown> | null
   return value.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
 }
 
+async function fetchEnvironmentOnline(env: Env, environmentId: string): Promise<boolean> {
+  try {
+    const id = env.ENVIRONMENT_ROOMS.idFromName(environmentId);
+    const stub = env.ENVIRONMENT_ROOMS.get(id);
+    const response = await stub.fetch("http://do/internal/status", { method: "GET" });
+    if (!response.ok) return false;
+    const body = (await response.json()) as { online?: boolean };
+    return Boolean(body.online);
+  } catch {
+    return false;
+  }
+}
+
 async function handleMeRequest(request: Request, url: URL, env: Env): Promise<Response> {
   if (request.method === "OPTIONS") {
     return withMeCors(new Response(null, { status: 204 }));
@@ -133,12 +146,55 @@ async function handleMeRequest(request: Request, url: URL, env: Env): Promise<Re
     const reason = error instanceof Error ? error.message : "workos lookup failed";
     return withMeCors(new Response(reason, { status: 503 }));
   }
+  const environmentIds = readEnvironmentIdsFromMetadata(metadata);
+  const environments = await Promise.all(
+    environmentIds.map(async (environmentId) => ({
+      environmentId,
+      online: await fetchEnvironmentOnline(env, environmentId),
+    })),
+  );
   return withMeCors(
     Response.json({
       userId: auth.auth.userId,
-      environmentIds: readEnvironmentIdsFromMetadata(metadata),
+      environmentIds,
+      environments,
     }),
   );
+}
+
+interface TokenBucket {
+  tokens: number;
+  updatedAt: number;
+}
+
+const rateLimitBuckets = new Map<string, TokenBucket>();
+const RATE_LIMIT_WINDOW_MS = 60_000;
+
+/**
+ * Per-isolate token bucket. Imperfect (each Worker isolate keeps its own
+ * counters), but enough to deter casual abuse without standing up a DO
+ * just for rate limiting. CF's WAF/Rate Limiting Rules cover real
+ * attacks at the zone level.
+ */
+function rateLimit(key: string, capacity: number): boolean {
+  const now = Date.now();
+  const refillPerMs = capacity / RATE_LIMIT_WINDOW_MS;
+  const bucket = rateLimitBuckets.get(key) ?? { tokens: capacity, updatedAt: now };
+  const elapsed = now - bucket.updatedAt;
+  bucket.tokens = Math.min(capacity, bucket.tokens + elapsed * refillPerMs);
+  bucket.updatedAt = now;
+  if (bucket.tokens < 1) {
+    rateLimitBuckets.set(key, bucket);
+    return false;
+  }
+  bucket.tokens -= 1;
+  rateLimitBuckets.set(key, bucket);
+  return true;
+}
+
+function rateLimitKey(request: Request, scope: string): string {
+  const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
+  return `${scope}:${ip}`;
 }
 
 function resolvePairingWriter(env: Env): PairingWriter | null {
@@ -165,10 +221,16 @@ export default {
     }
 
     if (url.pathname === API_PATHS.me) {
+      if (!rateLimit(rateLimitKey(request, "me"), 60)) {
+        return new Response("rate limited\n", { status: 429, headers: textHeaders });
+      }
       return handleMeRequest(request, url, env);
     }
 
     if (url.pathname === API_PATHS.pairing) {
+      if (!rateLimit(rateLimitKey(request, "pairing"), 20)) {
+        return new Response("rate limited\n", { status: 429, headers: textHeaders });
+      }
       const writer = resolvePairingWriter(env);
       if (!writer) {
         return new Response("pairing not configured\n", {
@@ -226,11 +288,14 @@ export default {
       return new Response("environmentId required\n", { status: 400, headers: textHeaders });
     }
 
-    if (
-      (url.pathname === API_PATHS.environment || url.pathname === API_PATHS.channel) &&
-      !request.headers.get(ENVIRONMENT_PROOF_HEADER)
-    ) {
-      return new Response("environment proof required\n", { status: 401, headers: textHeaders });
+    if (url.pathname === API_PATHS.environment || url.pathname === API_PATHS.channel) {
+      const proof = request.headers.get(ENVIRONMENT_PROOF_HEADER);
+      if (!proof) {
+        return new Response("environment proof required\n", {
+          status: 401,
+          headers: textHeaders,
+        });
+      }
     }
 
     if (url.pathname === API_PATHS.browser) {
@@ -287,6 +352,17 @@ export class EnvironmentRoom implements DurableObject {
     if (url.pathname === "/internal/release") {
       return this.handleRelease(url);
     }
+    if (url.pathname === "/internal/status") {
+      return this.handleStatus();
+    }
+
+    if (url.pathname === API_PATHS.environment || url.pathname === API_PATHS.channel) {
+      const proof = request.headers.get("x-trunk-environment-proof") ?? "";
+      const proofOk = await this.verifyOrAdoptProof(proof);
+      if (!proofOk) {
+        return new Response("environment proof mismatch\n", { status: 401 });
+      }
+    }
 
     const pair = new WebSocketPair();
     const client = pair[0];
@@ -311,6 +387,16 @@ export class EnvironmentRoom implements DurableObject {
     });
   }
 
+  private async verifyOrAdoptProof(proof: string): Promise<boolean> {
+    if (!proof) return false;
+    const stored = (await this.state.storage.get<string>("envSecret")) ?? null;
+    if (!stored) {
+      await this.state.storage.put("envSecret", proof);
+      return true;
+    }
+    return stored === proof;
+  }
+
   private async handleClaim(url: URL): Promise<Response> {
     const userId = url.searchParams.get("userId")?.trim();
     if (!userId) return new Response("userId required\n", { status: 400 });
@@ -324,12 +410,18 @@ export class EnvironmentRoom implements DurableObject {
     return new Response("ok\n", { status: 200 });
   }
 
+  private async handleStatus(): Promise<Response> {
+    const online = this.environmentSocket?.readyState === WebSocket.OPEN;
+    return Response.json({ online });
+  }
+
   private async handleRelease(url: URL): Promise<Response> {
     const userId = url.searchParams.get("userId")?.trim();
     if (!userId) return new Response("userId required\n", { status: 400 });
     const existing = (await this.state.storage.get<string>("ownerUserId")) ?? null;
     if (existing === userId) {
       await this.state.storage.delete("ownerUserId");
+      await this.state.storage.delete("envSecret");
     }
     return new Response("ok\n", { status: 200 });
   }

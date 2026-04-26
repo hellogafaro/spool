@@ -71,11 +71,11 @@ export function EnvironmentsSettings() {
               <Spinner className="size-3.5" />
               Loading environments…
             </div>
-          ) : environments.data.length === 0 ? (
+          ) : environments.data.environmentIds.length === 0 ? (
             <EmptyState />
           ) : (
             <ul className="space-y-2">
-              {environments.data.map((id) => {
+              {environments.data.environments.map(({ environmentId: id, online }) => {
                 const isActive = id === activeId;
                 return (
                   <li
@@ -83,9 +83,17 @@ export function EnvironmentsSettings() {
                     className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-card/60 px-3 py-2"
                   >
                     <div className="min-w-0">
-                      <p className="truncate font-mono text-sm text-foreground">{id}</p>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`inline-block size-1.5 rounded-full ${
+                            online ? "bg-emerald-500" : "bg-muted-foreground/40"
+                          }`}
+                          aria-hidden
+                        />
+                        <p className="truncate font-mono text-sm text-foreground">{id}</p>
+                      </div>
                       <p className="text-xs text-muted-foreground">
-                        {isActive ? "Active" : "Claimed"}
+                        {online ? (isActive ? "Active · Online" : "Online") : "Offline"}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
