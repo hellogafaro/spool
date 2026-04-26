@@ -4,7 +4,7 @@ import {
   fetchClaimedEnvironments,
   type ClaimedEnvironmentsSnapshot,
 } from "./pairingApi";
-import { useTrunkAuth } from "./workos";
+import { useAuth } from "./workos";
 
 export const CLAIMED_ENVIRONMENTS_QUERY_KEY = ["trunk", "claimedEnvironments"] as const;
 
@@ -14,7 +14,7 @@ const EMPTY_SNAPSHOT: ClaimedEnvironmentsSnapshot = {
 };
 
 export function useClaimedEnvironments(): UseQueryResult<ClaimedEnvironmentsSnapshot, Error> {
-  const auth = useTrunkAuth();
+  const auth = useAuth();
   const isSignedIn = auth.status === "signed-in";
 
   return useQuery<ClaimedEnvironmentsSnapshot, Error>({

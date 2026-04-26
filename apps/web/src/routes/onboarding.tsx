@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 import { useClaimedEnvironments } from "../auth/useClaimedEnvironments";
-import { useTrunkAuth } from "../auth/workos";
+import { useAuth } from "../auth/workos";
 import { APP_DISPLAY_NAME } from "../branding";
 import { InstallationGuide } from "../components/onboarding/InstallationGuide";
 import { Button } from "../components/ui/button";
@@ -13,7 +13,7 @@ export const Route = createFileRoute("/onboarding")({
 });
 
 function OnboardingRouteView() {
-  const auth = useTrunkAuth();
+  const auth = useAuth();
   const environments = useClaimedEnvironments();
   const navigate = useNavigate();
 

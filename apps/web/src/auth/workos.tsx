@@ -1,4 +1,4 @@
-import { AuthKitProvider, useAuth } from "@workos-inc/authkit-react";
+import { AuthKitProvider, useAuth as useAuthKit } from "@workos-inc/authkit-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { setAccessTokenRefresher } from "./tokenStore";
@@ -10,16 +10,12 @@ const WORKOS_API_HOSTNAME = (
 
 export const isWorkOsConfigured = !!WORKOS_CLIENT_ID;
 
-interface TrunkAuthProviderProps {
-  readonly children: ReactNode;
-}
-
 /**
  * Wraps the app in WorkOS AuthKit and only renders children once the
  * user is signed in. Signed-out users are auto-redirected to AuthKit's
  * sign-in page. Pass-through when WorkOS isn't configured (local dev).
  */
-export function TrunkAuthProvider({ children }: TrunkAuthProviderProps): ReactNode {
+export function AuthProvider({ children }: { readonly children: ReactNode }): ReactNode {
   if (!isWorkOsConfigured || !WORKOS_CLIENT_ID) {
     return <>{children}</>;
   }
@@ -35,7 +31,7 @@ export function TrunkAuthProvider({ children }: TrunkAuthProviderProps): ReactNo
 }
 
 function SignedInOnly({ children }: { readonly children: ReactNode }) {
-  const auth = useTrunkAuth();
+  const auth = useAuth();
   const redirectedRef = useRef(false);
 
   useEffect(() => {
@@ -51,7 +47,7 @@ function SignedInOnly({ children }: { readonly children: ReactNode }) {
   return <>{children}</>;
 }
 
-export interface TrunkAuthState {
+export interface AuthState {
   readonly status: "disabled" | "loading" | "signed-out" | "signed-in";
   readonly userId: string | null;
   readonly email: string | null;
@@ -60,7 +56,7 @@ export interface TrunkAuthState {
   readonly getAccessToken: () => Promise<string | null>;
 }
 
-const DISABLED_STATE: TrunkAuthState = {
+const DISABLED_STATE: AuthState = {
   status: "disabled",
   userId: null,
   email: null,
@@ -73,13 +69,13 @@ const DISABLED_STATE: TrunkAuthState = {
   getAccessToken: async () => null,
 };
 
-function useTrunkAuthEnabled(): TrunkAuthState {
-  const auth = useAuth();
+function useAuthEnabled(): AuthState {
+  const auth = useAuthKit();
   useEffect(() => {
     setAccessTokenRefresher(() => auth.getAccessToken().then((value) => value ?? null));
     return () => setAccessTokenRefresher(null);
   }, [auth]);
-  return useMemo<TrunkAuthState>(
+  return useMemo<AuthState>(
     () => ({
       status: auth.isLoading ? "loading" : auth.user ? "signed-in" : "signed-out",
       userId: auth.user?.id ?? null,
@@ -92,13 +88,11 @@ function useTrunkAuthEnabled(): TrunkAuthState {
   );
 }
 
-function useTrunkAuthDisabled(): TrunkAuthState {
+function useAuthDisabled(): AuthState {
   return DISABLED_STATE;
 }
 
-export const useTrunkAuth: () => TrunkAuthState = isWorkOsConfigured
-  ? useTrunkAuthEnabled
-  : useTrunkAuthDisabled;
+export const useAuth: () => AuthState = isWorkOsConfigured ? useAuthEnabled : useAuthDisabled;
 
 /**
  * Returns the current access token and refreshes it lazily. Returns null
@@ -106,11 +100,11 @@ export const useTrunkAuth: () => TrunkAuthState = isWorkOsConfigured
  * to attach a token to a request should call refresh() right before they
  * fire the request so the token is fresh.
  */
-export function useTrunkAccessToken(): {
+export function useAccessToken(): {
   readonly token: string | null;
   readonly refresh: () => Promise<string | null>;
 } {
-  const { status, getAccessToken } = useTrunkAuth();
+  const { status, getAccessToken } = useAuth();
   const [token, setToken] = useState<string | null>(null);
   const inFlight = useRef<Promise<string | null> | null>(null);
 
