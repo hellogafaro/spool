@@ -131,7 +131,7 @@ describe("MessagesTimeline", () => {
     );
 
     expect(markup).toContain("Terminal 1 lines 1-5");
-    expect(markup).toContain("remixicon");
+    expect(markup).toContain('data-slot="tooltip-trigger"');
     expect(markup).toContain("yoo what&#x27;s ");
   }, 20_000);
 

@@ -93,6 +93,42 @@ describe("handlePairingRequest", () => {
     expect(writes).toEqual([{ userId: "user_test", environmentId: VALID_ID }]);
   });
 
+  it("returns 409 when claimEnvironmentOwner reports a collision", async () => {
+    const writer: PairingWriter = { addEnvironmentId: async () => ({ ok: true }) };
+    const { request, url } = makePostRequest({ environmentId: VALID_ID });
+    const response = await handlePairingRequest(request, url, {
+      authVerifier: acceptingVerifier,
+      writer,
+      claimEnvironmentOwner: async () => ({
+        ok: false,
+        status: 409,
+        reason: "environment already claimed",
+      }),
+    });
+    expect(response.status).toBe(409);
+  });
+
+  it("does not call the writer when the claim check fails", async () => {
+    let writes = 0;
+    const writer: PairingWriter = {
+      addEnvironmentId: async () => {
+        writes += 1;
+        return { ok: true };
+      },
+    };
+    const { request, url } = makePostRequest({ environmentId: VALID_ID });
+    await handlePairingRequest(request, url, {
+      authVerifier: acceptingVerifier,
+      writer,
+      claimEnvironmentOwner: async () => ({
+        ok: false,
+        status: 409,
+        reason: "taken",
+      }),
+    });
+    expect(writes).toBe(0);
+  });
+
   it("502s when the upstream write fails", async () => {
     const writer: PairingWriter = {
       addEnvironmentId: async () => ({ ok: false, status: 502, reason: "boom" }),

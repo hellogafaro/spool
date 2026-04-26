@@ -179,6 +179,22 @@ export default {
       return handlePairingRequest(request, url, {
         authVerifier: resolveBrowserAuthVerifier(env),
         writer,
+        claimEnvironmentOwner: async (environmentId, userId) => {
+          const id = env.ENVIRONMENT_ROOMS.idFromName(environmentId);
+          const stub = env.ENVIRONMENT_ROOMS.get(id);
+          const claimUrl = new URL(`http://do/internal/claim?userId=${encodeURIComponent(userId)}`);
+          const response = await stub.fetch(claimUrl.toString(), { method: "POST" });
+          if (response.ok) return { ok: true } as const;
+          if (response.status === 409) {
+            return { ok: false, status: 409, reason: "environment already claimed" } as const;
+          }
+          const text = await response.text().catch(() => "");
+          return {
+            ok: false,
+            status: 502 as const,
+            reason: text.trim() || `claim check failed (${response.status})`,
+          };
+        },
       });
     }
 
@@ -247,8 +263,13 @@ export class EnvironmentRoom implements DurableObject {
     void this.env;
   }
 
-  fetch(request: Request): Response {
+  async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
+
+    if (url.pathname === "/internal/claim") {
+      return this.handleClaim(url);
+    }
+
     const pair = new WebSocketPair();
     const client = pair[0];
     const server = pair[1];
@@ -270,6 +291,19 @@ export class EnvironmentRoom implements DurableObject {
       status: 101,
       webSocket: client,
     });
+  }
+
+  private async handleClaim(url: URL): Promise<Response> {
+    const userId = url.searchParams.get("userId")?.trim();
+    if (!userId) return new Response("userId required\n", { status: 400 });
+    const existing = (await this.state.storage.get<string>("ownerUserId")) ?? null;
+    if (existing && existing !== userId) {
+      return new Response("environment already claimed\n", { status: 409 });
+    }
+    if (!existing) {
+      await this.state.storage.put("ownerUserId", userId);
+    }
+    return new Response("ok\n", { status: 200 });
   }
 
   private acceptEnvironment(socket: WebSocket): void {

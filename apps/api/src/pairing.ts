@@ -98,9 +98,19 @@ function parsePairingBody(raw: unknown): PairingRequestBody | null {
   return { environmentId: body.environmentId };
 }
 
+export type ClaimEnvironmentOwnerResult =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly status: 409 | 502; readonly reason: string };
+
+export type ClaimEnvironmentOwner = (
+  environmentId: string,
+  userId: string,
+) => Promise<ClaimEnvironmentOwnerResult>;
+
 export interface PairingHandlerOptions {
   readonly authVerifier: BrowserAuthVerifier;
   readonly writer: PairingWriter;
+  readonly claimEnvironmentOwner?: ClaimEnvironmentOwner;
 }
 
 const CORS_HEADERS: Record<string, string> = {
@@ -150,6 +160,13 @@ export async function handlePairingRequest(
   const body = parsePairingBody(raw);
   if (!body) {
     return withCors(new Response("environmentId required\n", { status: 400 }));
+  }
+
+  if (options.claimEnvironmentOwner) {
+    const claim = await options.claimEnvironmentOwner(body.environmentId, auth.auth.userId);
+    if (!claim.ok) {
+      return withCors(new Response(`${claim.reason}\n`, { status: claim.status }));
+    }
   }
 
   const result = await options.writer.addEnvironmentId(auth.auth.userId, body.environmentId);

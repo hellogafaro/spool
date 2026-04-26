@@ -1,47 +1,15 @@
-import { useEffect, useState } from "react";
-
-import { fetchClaimedEnvironmentIds } from "~/auth/pairingApi";
 import { readActiveEnvironmentId, writeActiveEnvironmentId } from "~/auth/tokenStore";
-import { useTrunkAuth } from "~/auth/workos";
+import { useClaimedEnvironments } from "~/auth/useClaimedEnvironments";
 import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
 import { SettingsPageContainer, SettingsSection } from "./settingsLayout";
 
 export function EnvironmentsSettings() {
-  const auth = useTrunkAuth();
-  const [environmentIds, setEnvironmentIds] = useState<string[] | null>(null);
-  const [activeId, setActiveId] = useState<string | null>(() => readActiveEnvironmentId());
-
-  useEffect(() => {
-    if (auth.status !== "signed-in") {
-      setEnvironmentIds([]);
-      return;
-    }
-    let cancelled = false;
-    void auth.getAccessToken().then((token) => {
-      if (!token) {
-        if (!cancelled) setEnvironmentIds([]);
-        return;
-      }
-      void fetchClaimedEnvironmentIds(token).then((ids) => {
-        if (cancelled) return;
-        setEnvironmentIds(ids);
-        if (ids.length === 0) return;
-        const stored = readActiveEnvironmentId();
-        if (!stored || !ids.includes(stored)) {
-          writeActiveEnvironmentId(ids[0] ?? null);
-          setActiveId(ids[0] ?? null);
-        }
-      });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [auth]);
+  const environments = useClaimedEnvironments();
+  const activeId = readActiveEnvironmentId();
 
   const handleSelect = (id: string) => {
     writeActiveEnvironmentId(id);
-    setActiveId(id);
     window.location.reload();
   };
 
@@ -49,20 +17,30 @@ export function EnvironmentsSettings() {
     <SettingsPageContainer>
       <SettingsSection title="Environments">
         <div className="space-y-3 px-4 py-4 sm:px-5">
-          <p className="text-xs leading-relaxed text-muted-foreground/80">
-            Servers you've claimed against this Trunk account. Connections are managed by the
-            Trunk CLI — no codes or domains to paste.
-          </p>
-          {environmentIds === null ? (
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-xs leading-relaxed text-muted-foreground/80">
+              Servers you've claimed against this Trunk account. Connections are managed by the
+              Trunk CLI — no codes or domains to paste.
+            </p>
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => void environments.refetch()}
+              disabled={environments.isFetching}
+            >
+              {environments.isFetching ? "Refreshing…" : "Refresh"}
+            </Button>
+          </div>
+          {environments.isLoading || !environments.data ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Spinner className="size-3.5" />
               Loading environments…
             </div>
-          ) : environmentIds.length === 0 ? (
+          ) : environments.data.length === 0 ? (
             <EmptyState />
           ) : (
             <ul className="space-y-2">
-              {environmentIds.map((id) => {
+              {environments.data.map((id) => {
                 const isActive = id === activeId;
                 return (
                   <li
@@ -98,19 +76,13 @@ export function EnvironmentsSettings() {
             Run the Trunk CLI on any machine you want to control. It opens a sign-in URL — click
             it, and the environment is claimed against this account automatically.
           </p>
+          <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Laptop</p>
+          <pre className="overflow-x-auto rounded-md border border-border/70 bg-background/40 px-3 py-2 font-mono text-xs">
+            curl -fsSL https://app.trunk.codes/install.sh | sh
+          </pre>
+          <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Container</p>
           <p>
-            One-click deploy:{" "}
-            <a
-              className="text-primary hover:underline"
-              href="https://railway.com/new/template?template=https%3A%2F%2Fgithub.com%2Fhellogafaro%2Ftrunk-server"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Deploy on Railway
-            </a>
-          </p>
-          <p>
-            Or use the container template:{" "}
+            Deploy{" "}
             <a
               className="text-primary hover:underline"
               href="https://github.com/hellogafaro/trunk-server"
@@ -118,7 +90,8 @@ export function EnvironmentsSettings() {
               rel="noreferrer"
             >
               github.com/hellogafaro/trunk-server
-            </a>
+            </a>{" "}
+            on Railway / Render / Fly with a <code>/data</code> volume.
           </p>
         </div>
       </SettingsSection>
@@ -129,8 +102,7 @@ export function EnvironmentsSettings() {
 function EmptyState() {
   return (
     <div className="rounded-lg border border-dashed border-border/70 bg-card/40 px-4 py-6 text-center text-sm text-muted-foreground">
-      You don't have any environments claimed yet. Run <code>trunk pair</code> on a machine and
-      click the URL it prints.
+      You don't have any environments claimed yet. Run the installer above on a machine.
     </div>
   );
 }
