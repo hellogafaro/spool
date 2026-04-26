@@ -1,9 +1,9 @@
+import { useAuth } from "@workos-inc/authkit-react";
 import { useState } from "react";
 
 import { unclaimEnvironment } from "~/auth/pairingApi";
 import { readActiveEnvironmentId, writeActiveEnvironmentId } from "~/auth/tokenStore";
 import { useClaimedEnvironments } from "~/auth/useClaimedEnvironments";
-import { useAuth } from "~/auth/workos";
 import { InstallationGuide } from "../onboarding/InstallationGuide";
 import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";

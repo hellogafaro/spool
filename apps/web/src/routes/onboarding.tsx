@@ -1,8 +1,8 @@
+import { useAuth } from "@workos-inc/authkit-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 import { useClaimedEnvironments } from "../auth/useClaimedEnvironments";
-import { useAuth } from "../auth/workos";
 import { APP_DISPLAY_NAME } from "../branding";
 import { InstallationGuide } from "../components/onboarding/InstallationGuide";
 import { Button } from "../components/ui/button";
@@ -41,10 +41,10 @@ function OnboardingRouteView() {
           <p className="text-sm text-muted-foreground">
             Trunk runs on a machine you control and streams here.
           </p>
-          {auth.email ? (
+          {auth.user?.email ? (
             <p className="pt-1 text-xs text-muted-foreground">
-              Signed in as <span className="font-medium text-foreground">{auth.email}</span>. If
-              your CLI claimed against a different account, sign out and try again.
+              Signed in as <span className="font-medium text-foreground">{auth.user.email}</span>.
+              If your CLI claimed against a different account, sign out and try again.
             </p>
           ) : null}
         </header>

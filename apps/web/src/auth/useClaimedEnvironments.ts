@@ -1,10 +1,10 @@
+import { useAuth } from "@workos-inc/authkit-react";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 
 import {
   fetchClaimedEnvironments,
   type ClaimedEnvironmentsSnapshot,
 } from "./pairingApi";
-import { useAuth } from "./workos";
 
 export const CLAIMED_ENVIRONMENTS_QUERY_KEY = ["trunk", "claimedEnvironments"] as const;
 
@@ -15,7 +15,7 @@ const EMPTY_SNAPSHOT: ClaimedEnvironmentsSnapshot = {
 
 export function useClaimedEnvironments(): UseQueryResult<ClaimedEnvironmentsSnapshot, Error> {
   const auth = useAuth();
-  const isSignedIn = auth.status === "signed-in";
+  const isSignedIn = !!auth.user;
 
   return useQuery<ClaimedEnvironmentsSnapshot, Error>({
     queryKey: CLAIMED_ENVIRONMENTS_QUERY_KEY,
