@@ -6,6 +6,7 @@ export type PairingWriteResult =
 
 export interface PairingWriter {
   addEnvironmentId(userId: string, environmentId: string): Promise<PairingWriteResult>;
+  removeEnvironmentId(userId: string, environmentId: string): Promise<PairingWriteResult>;
 }
 
 interface WorkOsPairingWriterOptions {
@@ -60,27 +61,34 @@ export function makeWorkOsPairingWriter(options: WorkOsPairingWriterOptions): Pa
     options.putMetadata ??
     ((userId, metadata) => defaultPutMetadata(options.apiKey, userId, metadata));
 
-  return {
-    async addEnvironmentId(userId, environmentId) {
-      let existing: Record<string, unknown> | null;
-      try {
-        existing = await fetchMetadata(userId);
-      } catch (error) {
-        const reason = error instanceof Error ? error.message : "metadata fetch failed";
-        return { ok: false, status: 503, reason };
-      }
+  const writeUpdatedIds = async (
+    userId: string,
+    update: (current: string[]) => string[],
+  ): Promise<PairingWriteResult> => {
+    let existing: Record<string, unknown> | null;
+    try {
+      existing = await fetchMetadata(userId);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "metadata fetch failed";
+      return { ok: false, status: 503, reason };
+    }
+    const next = { ...(existing ?? {}), environmentIds: update(readEnvironmentIds(existing)) };
+    try {
+      await putMetadata(userId, next);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "metadata write failed";
+      return { ok: false, status: 502, reason };
+    }
+    return { ok: true };
+  };
 
-      const current = readEnvironmentIds(existing);
-      const merged = current.includes(environmentId) ? current : [...current, environmentId];
-      const next = { ...(existing ?? {}), environmentIds: merged };
-      try {
-        await putMetadata(userId, next);
-      } catch (error) {
-        const reason = error instanceof Error ? error.message : "metadata write failed";
-        return { ok: false, status: 502, reason };
-      }
-      return { ok: true };
-    },
+  return {
+    addEnvironmentId: (userId, environmentId) =>
+      writeUpdatedIds(userId, (current) =>
+        current.includes(environmentId) ? current : [...current, environmentId],
+      ),
+    removeEnvironmentId: (userId, environmentId) =>
+      writeUpdatedIds(userId, (current) => current.filter((entry) => entry !== environmentId)),
   };
 }
 
@@ -107,10 +115,16 @@ export type ClaimEnvironmentOwner = (
   userId: string,
 ) => Promise<ClaimEnvironmentOwnerResult>;
 
+export type ReleaseEnvironmentOwner = (
+  environmentId: string,
+  userId: string,
+) => Promise<{ readonly ok: true } | { readonly ok: false; readonly status: 502; readonly reason: string }>;
+
 export interface PairingHandlerOptions {
   readonly authVerifier: BrowserAuthVerifier;
   readonly writer: PairingWriter;
   readonly claimEnvironmentOwner?: ClaimEnvironmentOwner;
+  readonly releaseEnvironmentOwner?: ReleaseEnvironmentOwner;
 }
 
 const CORS_HEADERS: Record<string, string> = {
@@ -136,11 +150,15 @@ export async function handlePairingRequest(
     return withCors(new Response(null, { status: 204 }));
   }
 
+  if (request.method === "DELETE") {
+    return handleDelete(request, url, options);
+  }
+
   if (request.method !== "POST") {
     return withCors(
       new Response("method not allowed\n", {
         status: 405,
-        headers: { allow: "POST, OPTIONS" },
+        headers: { allow: "POST, DELETE, OPTIONS" },
       }),
     );
   }
@@ -175,4 +193,34 @@ export async function handlePairingRequest(
   }
 
   return withCors(Response.json({ ok: true, environmentId: body.environmentId }));
+}
+
+async function handleDelete(
+  request: Request,
+  url: URL,
+  options: PairingHandlerOptions,
+): Promise<Response> {
+  const auth = await options.authVerifier(request, url);
+  if (!auth.ok) {
+    return withCors(new Response(`${auth.reason}\n`, { status: auth.status }));
+  }
+
+  const environmentId = url.searchParams.get("environmentId")?.trim();
+  if (!environmentId || !ENVIRONMENT_ID_PATTERN.test(environmentId)) {
+    return withCors(new Response("environmentId required\n", { status: 400 }));
+  }
+
+  const removeResult = await options.writer.removeEnvironmentId(auth.auth.userId, environmentId);
+  if (!removeResult.ok) {
+    return withCors(new Response(`${removeResult.reason}\n`, { status: removeResult.status }));
+  }
+
+  if (options.releaseEnvironmentOwner) {
+    const release = await options.releaseEnvironmentOwner(environmentId, auth.auth.userId);
+    if (!release.ok) {
+      return withCors(new Response(`${release.reason}\n`, { status: release.status }));
+    }
+  }
+
+  return withCors(Response.json({ ok: true, environmentId }));
 }

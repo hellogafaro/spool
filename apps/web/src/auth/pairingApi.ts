@@ -45,6 +45,28 @@ export async function claimEnvironment({
   }
 }
 
+export async function unclaimEnvironment({
+  environmentId,
+  accessToken,
+}: ClaimEnvironmentOptions): Promise<void> {
+  if (!TRUNK_API_URL) {
+    throw new PairingApiError(0, "VITE_TRUNK_API_URL is not configured");
+  }
+  const url = new URL(`${TRUNK_API_URL.replace(/\/$/, "")}/pairing`);
+  url.searchParams.set("environmentId", environmentId);
+  const response = await fetch(url.toString(), {
+    method: "DELETE",
+    headers: { authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new PairingApiError(
+      response.status,
+      text.trim() || `Unclaim failed with status ${response.status}`,
+    );
+  }
+}
+
 export async function fetchClaimedEnvironmentIds(accessToken: string): Promise<string[]> {
   if (!TRUNK_API_URL) {
     return [];

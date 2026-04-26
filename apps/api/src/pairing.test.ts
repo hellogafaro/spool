@@ -34,18 +34,18 @@ describe("handlePairingRequest", () => {
   it("rejects non-POST methods with 405", async () => {
     const url = new URL("https://api.test.local/pairing");
     const request = new Request(url.toString(), { method: "GET" });
-    const writer: PairingWriter = { addEnvironmentId: async () => ({ ok: true }) };
+    const writer: PairingWriter = { addEnvironmentId: async () => ({ ok: true }), removeEnvironmentId: async () => ({ ok: true }) };
     const response = await handlePairingRequest(request, url, {
       authVerifier: acceptingVerifier,
       writer,
     });
     expect(response.status).toBe(405);
-    expect(response.headers.get("allow")).toBe("POST, OPTIONS");
+    expect(response.headers.get("allow")).toBe("POST, DELETE, OPTIONS");
   });
 
   it("returns auth error when token verification fails", async () => {
     const { request, url } = makePostRequest({ environmentId: VALID_ID });
-    const writer: PairingWriter = { addEnvironmentId: async () => ({ ok: true }) };
+    const writer: PairingWriter = { addEnvironmentId: async () => ({ ok: true }), removeEnvironmentId: async () => ({ ok: true }) };
     const response = await handlePairingRequest(request, url, {
       authVerifier: rejectingVerifier,
       writer,
@@ -55,7 +55,7 @@ describe("handlePairingRequest", () => {
 
   it("400s on non-JSON body", async () => {
     const { request, url } = makePostRequest("not-json");
-    const writer: PairingWriter = { addEnvironmentId: async () => ({ ok: true }) };
+    const writer: PairingWriter = { addEnvironmentId: async () => ({ ok: true }), removeEnvironmentId: async () => ({ ok: true }) };
     const response = await handlePairingRequest(request, url, {
       authVerifier: acceptingVerifier,
       writer,
@@ -64,7 +64,7 @@ describe("handlePairingRequest", () => {
   });
 
   it("400s when environmentId is missing or invalid", async () => {
-    const writer: PairingWriter = { addEnvironmentId: async () => ({ ok: true }) };
+    const writer: PairingWriter = { addEnvironmentId: async () => ({ ok: true }), removeEnvironmentId: async () => ({ ok: true }) };
     for (const body of [{}, { environmentId: "" }, { environmentId: "Not-Valid!" }, { environmentId: "tooshort" }]) {
       const { request, url } = makePostRequest(body);
       const response = await handlePairingRequest(request, url, {
@@ -82,6 +82,7 @@ describe("handlePairingRequest", () => {
         writes.push({ userId, environmentId });
         return { ok: true };
       },
+      removeEnvironmentId: async () => ({ ok: true }),
     };
     const { request, url } = makePostRequest({ environmentId: VALID_ID });
     const response = await handlePairingRequest(request, url, {
@@ -94,7 +95,7 @@ describe("handlePairingRequest", () => {
   });
 
   it("returns 409 when claimEnvironmentOwner reports a collision", async () => {
-    const writer: PairingWriter = { addEnvironmentId: async () => ({ ok: true }) };
+    const writer: PairingWriter = { addEnvironmentId: async () => ({ ok: true }), removeEnvironmentId: async () => ({ ok: true }) };
     const { request, url } = makePostRequest({ environmentId: VALID_ID });
     const response = await handlePairingRequest(request, url, {
       authVerifier: acceptingVerifier,
@@ -115,6 +116,7 @@ describe("handlePairingRequest", () => {
         writes += 1;
         return { ok: true };
       },
+      removeEnvironmentId: async () => ({ ok: true }),
     };
     const { request, url } = makePostRequest({ environmentId: VALID_ID });
     await handlePairingRequest(request, url, {
@@ -129,9 +131,28 @@ describe("handlePairingRequest", () => {
     expect(writes).toBe(0);
   });
 
+  it("DELETE removes the environmentId", async () => {
+    const calls: Array<{ kind: "remove"; userId: string; environmentId: string }> = [];
+    const writer: PairingWriter = {
+      addEnvironmentId: async () => ({ ok: true }),
+      removeEnvironmentId: async (userId, environmentId) => {
+        calls.push({ kind: "remove", userId, environmentId });
+        return { ok: true };
+      },
+    };
+    const url = new URL(`https://api.test.local/pairing?environmentId=${VALID_ID}`);
+    const request = new Request(url.toString(), { method: "DELETE" });
+    const response = await handlePairingRequest(request, url, {
+      authVerifier: acceptingVerifier,
+      writer,
+    });
+    expect(response.status).toBe(200);
+    expect(calls).toEqual([{ kind: "remove", userId: "user_test", environmentId: VALID_ID }]);
+  });
+
   it("502s when the upstream write fails", async () => {
     const writer: PairingWriter = {
-      addEnvironmentId: async () => ({ ok: false, status: 502, reason: "boom" }),
+      addEnvironmentId: async () => ({ ok: false, status: 502, reason: "boom" }), removeEnvironmentId: async () => ({ ok: true }),
     };
     const { request, url } = makePostRequest({ environmentId: VALID_ID });
     const response = await handlePairingRequest(request, url, {

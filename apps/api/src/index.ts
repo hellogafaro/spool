@@ -195,6 +195,21 @@ export default {
             reason: text.trim() || `claim check failed (${response.status})`,
           };
         },
+        releaseEnvironmentOwner: async (environmentId, userId) => {
+          const id = env.ENVIRONMENT_ROOMS.idFromName(environmentId);
+          const stub = env.ENVIRONMENT_ROOMS.get(id);
+          const releaseUrl = new URL(
+            `http://do/internal/release?userId=${encodeURIComponent(userId)}`,
+          );
+          const response = await stub.fetch(releaseUrl.toString(), { method: "POST" });
+          if (response.ok) return { ok: true } as const;
+          const text = await response.text().catch(() => "");
+          return {
+            ok: false,
+            status: 502 as const,
+            reason: text.trim() || `release failed (${response.status})`,
+          };
+        },
       });
     }
 
@@ -269,6 +284,9 @@ export class EnvironmentRoom implements DurableObject {
     if (url.pathname === "/internal/claim") {
       return this.handleClaim(url);
     }
+    if (url.pathname === "/internal/release") {
+      return this.handleRelease(url);
+    }
 
     const pair = new WebSocketPair();
     const client = pair[0];
@@ -302,6 +320,16 @@ export class EnvironmentRoom implements DurableObject {
     }
     if (!existing) {
       await this.state.storage.put("ownerUserId", userId);
+    }
+    return new Response("ok\n", { status: 200 });
+  }
+
+  private async handleRelease(url: URL): Promise<Response> {
+    const userId = url.searchParams.get("userId")?.trim();
+    if (!userId) return new Response("userId required\n", { status: 400 });
+    const existing = (await this.state.storage.get<string>("ownerUserId")) ?? null;
+    if (existing === userId) {
+      await this.state.storage.delete("ownerUserId");
     }
     return new Response("ok\n", { status: 200 });
   }
