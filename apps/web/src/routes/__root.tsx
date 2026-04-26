@@ -50,6 +50,8 @@ import {
   startEnvironmentConnectionService,
 } from "../environments/runtime";
 import { configureClientTracing } from "../observability/clientTracing";
+import { isWorkOsConfigured } from "../auth/workos";
+import { useEnvironmentGate } from "../auth/useEnvironmentGate";
 import {
   ensurePrimaryEnvironmentReady,
   resolveInitialServerAuthGateState,
@@ -92,9 +94,29 @@ function RootRouteView() {
     return <Outlet />;
   }
 
+  if (pathname === "/onboarding") {
+    return <Outlet />;
+  }
+
   if (authGateState.status !== "authenticated") {
     return <Outlet />;
   }
+
+  if (isWorkOsConfigured) {
+    return <SaaSEnvironmentGuard />;
+  }
+  return <AuthenticatedShell />;
+}
+
+function SaaSEnvironmentGuard() {
+  const { isReady } = useEnvironmentGate();
+  if (!isReady) {
+    return null;
+  }
+  return <AuthenticatedShell />;
+}
+
+function AuthenticatedShell() {
   return (
     <ToastProvider>
       <AnchoredToastProvider>

@@ -14,6 +14,11 @@ interface TrunkAuthProviderProps {
   readonly children: ReactNode;
 }
 
+/**
+ * Wraps the app in WorkOS AuthKit and only renders children once the
+ * user is signed in. Signed-out users are auto-redirected to AuthKit's
+ * sign-in page. Pass-through when WorkOS isn't configured (local dev).
+ */
 export function TrunkAuthProvider({ children }: TrunkAuthProviderProps): ReactNode {
   if (!isWorkOsConfigured || !WORKOS_CLIENT_ID) {
     return <>{children}</>;
@@ -24,9 +29,26 @@ export function TrunkAuthProvider({ children }: TrunkAuthProviderProps): ReactNo
       {...(WORKOS_API_HOSTNAME ? { apiHostname: WORKOS_API_HOSTNAME } : {})}
       devMode={!WORKOS_API_HOSTNAME}
     >
-      {children}
+      <SignedInOnly>{children}</SignedInOnly>
     </AuthKitProvider>
   );
+}
+
+function SignedInOnly({ children }: { readonly children: ReactNode }) {
+  const auth = useTrunkAuth();
+  const redirectedRef = useRef(false);
+
+  useEffect(() => {
+    if (auth.status === "signed-out" && !redirectedRef.current) {
+      redirectedRef.current = true;
+      auth.signIn();
+    }
+  }, [auth]);
+
+  if (auth.status !== "signed-in") {
+    return null;
+  }
+  return <>{children}</>;
 }
 
 export interface TrunkAuthState {

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
-export type InstallPlatform = "macos" | "linux" | "windows" | "container";
+export type InstallPlatform = "local" | "container";
 
 export interface InstallStep {
   readonly title: string;
@@ -16,56 +16,11 @@ export interface InstallGuide {
 }
 
 const GUIDES: Record<InstallPlatform, InstallGuide> = {
-  macos: {
-    id: "macos",
-    label: "macOS",
-    subtitle: "Install on this Mac and use it as your dev environment.",
+  local: {
+    id: "local",
+    label: "Local machine",
+    subtitle: "macOS, Linux, or Windows (WSL). One curl line.",
     steps: [
-      {
-        title: "Install Trunk",
-        code: "curl -fsSL https://app.trunk.codes/install.sh | sh",
-      },
-      {
-        title: "Claim it against this account",
-        code: "trunk pair",
-        note: "Opens a sign-in URL automatically. Click → sign in → done.",
-      },
-      {
-        title: "Run it",
-        code: "trunk start",
-        note: "Leave it running while you use the app from any device.",
-      },
-    ],
-  },
-  linux: {
-    id: "linux",
-    label: "Linux",
-    subtitle: "Install on a VPS, dev box, or any Debian / Ubuntu machine.",
-    steps: [
-      {
-        title: "Install Trunk",
-        code: "curl -fsSL https://app.trunk.codes/install.sh | sh",
-      },
-      {
-        title: "Claim it against this account",
-        code: "trunk pair",
-        note: "The CLI prints a sign-in URL — open it in any browser.",
-      },
-      {
-        title: "Run it",
-        code: "trunk start",
-      },
-    ],
-  },
-  windows: {
-    id: "windows",
-    label: "Windows",
-    subtitle: "Use WSL — the installer works inside any WSL distribution.",
-    steps: [
-      {
-        title: "Open WSL (Ubuntu, Debian, etc.)",
-        note: "Trunk needs a POSIX shell. Run wsl in PowerShell to drop into your default distro.",
-      },
       {
         title: "Install Trunk",
         code: "curl -fsSL https://app.trunk.codes/install.sh | sh",
@@ -73,13 +28,14 @@ const GUIDES: Record<InstallPlatform, InstallGuide> = {
       {
         title: "Claim and run",
         code: "trunk pair && trunk start",
+        note: "trunk pair opens a sign-in URL — click it, sign in, done.",
       },
     ],
   },
   container: {
     id: "container",
     label: "Container",
-    subtitle: "Deploy on Railway, Render, Fly, or any Docker host.",
+    subtitle: "Railway, Render, Fly, or any Docker host.",
     steps: [
       {
         title: "Fork the template",
@@ -88,23 +44,14 @@ const GUIDES: Record<InstallPlatform, InstallGuide> = {
       },
       {
         title: "Watch the logs on first boot",
-        note: "The container prints a sign-in URL. Open it on any device — the env claims itself.",
-      },
-      {
-        title: "Done",
-        note: "It dials wss://api.trunk.codes outbound. No public port to expose.",
+        note: "Container prints a sign-in URL. Open it on any device — the env claims itself.",
       },
     ],
   },
 };
 
 export function detectInstallPlatform(): InstallPlatform {
-  if (typeof navigator === "undefined") return "macos";
-  const ua = navigator.userAgent.toLowerCase();
-  if (ua.includes("mac")) return "macos";
-  if (ua.includes("linux") && !ua.includes("android")) return "linux";
-  if (ua.includes("win")) return "windows";
-  return "macos";
+  return "local";
 }
 
 export interface InstallationGuideProps {
@@ -113,8 +60,7 @@ export interface InstallationGuideProps {
 }
 
 export function InstallationGuide({ footer, initialPlatform }: InstallationGuideProps) {
-  const detected = useMemo(() => initialPlatform ?? detectInstallPlatform(), [initialPlatform]);
-  const [platform, setPlatform] = useState<InstallPlatform>(detected);
+  const [platform, setPlatform] = useState<InstallPlatform>(initialPlatform ?? "local");
   const guide = GUIDES[platform];
 
   useEffect(() => {

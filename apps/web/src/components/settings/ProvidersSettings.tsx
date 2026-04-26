@@ -7,40 +7,40 @@ import { SettingsPageContainer, SettingsSection } from "./settingsLayout";
 
 interface ProviderRecipe {
   readonly id: string;
-  readonly label: string;
+  readonly fallbackLabel: string;
   readonly install: string;
   readonly authCommand: string;
   readonly authNote: string;
   readonly docs: string;
 }
 
-const RECIPES: Record<string, ProviderRecipe> = {
-  claudeAgent: {
+const RECIPES: ReadonlyArray<ProviderRecipe> = [
+  {
     id: "claudeAgent",
-    label: "Claude Code",
+    fallbackLabel: "Claude Code",
     install: "npm install -g @anthropic-ai/claude-code",
     authCommand: "claude login",
     authNote:
       "Browser-based OAuth. Or set ANTHROPIC_API_KEY in the environment for headless auth.",
     docs: "https://docs.claude.com/claude-code",
   },
-  codex: {
+  {
     id: "codex",
-    label: "Codex",
+    fallbackLabel: "Codex",
     install: "npm install -g @openai/codex",
     authCommand: "codex login",
     authNote: "Browser-based OAuth. Or set OPENAI_API_KEY in the environment for headless auth.",
     docs: "https://github.com/openai/codex",
   },
-  cursorAgent: {
+  {
     id: "cursorAgent",
-    label: "Cursor Agent",
+    fallbackLabel: "Cursor Agent",
     install: "curl -fsSL https://cursor.com/install -o- | bash",
     authCommand: "cursor-agent login",
     authNote: "Authenticate via your Cursor account.",
     docs: "https://docs.cursor.com",
   },
-};
+];
 
 export function ProvidersSettings() {
   const environments = useClaimedEnvironments();
@@ -52,11 +52,9 @@ export function ProvidersSettings() {
   );
 
   const known = useMemo(() => {
-    return Object.values(RECIPES).map((recipe) => {
-      const live = liveProviders.find(
-        (entry) => entry.provider.toString() === recipe.id || entry.provider === recipe.id,
-      );
-      return { recipe, live };
+    return RECIPES.map((recipe) => {
+      const live = liveProviders.find((entry) => entry.provider === recipe.id);
+      return { recipe, live, label: live?.displayName ?? recipe.fallbackLabel };
     });
   }, [liveProviders]);
 
@@ -76,14 +74,14 @@ export function ProvidersSettings() {
           ) : null}
 
           <ul className="space-y-3">
-            {known.map(({ recipe, live }) => (
+            {known.map(({ recipe, live, label }) => (
               <li
                 key={recipe.id}
                 className="space-y-3 rounded-lg border border-border/70 bg-background/40 px-3 py-3"
               >
                 <header className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground">{recipe.label}</p>
+                    <p className="text-sm font-medium text-foreground">{label}</p>
                     {live?.version ? (
                       <p className="text-xs text-muted-foreground">v{live.version}</p>
                     ) : null}

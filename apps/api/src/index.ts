@@ -168,41 +168,6 @@ async function handleMeRequest(request: Request, url: URL, env: Env): Promise<Re
   );
 }
 
-interface TokenBucket {
-  tokens: number;
-  updatedAt: number;
-}
-
-const rateLimitBuckets = new Map<string, TokenBucket>();
-const RATE_LIMIT_WINDOW_MS = 60_000;
-
-/**
- * Per-isolate token bucket. Imperfect (each Worker isolate keeps its own
- * counters), but enough to deter casual abuse without standing up a DO
- * just for rate limiting. CF's WAF/Rate Limiting Rules cover real
- * attacks at the zone level.
- */
-function rateLimit(key: string, capacity: number): boolean {
-  const now = Date.now();
-  const refillPerMs = capacity / RATE_LIMIT_WINDOW_MS;
-  const bucket = rateLimitBuckets.get(key) ?? { tokens: capacity, updatedAt: now };
-  const elapsed = now - bucket.updatedAt;
-  bucket.tokens = Math.min(capacity, bucket.tokens + elapsed * refillPerMs);
-  bucket.updatedAt = now;
-  if (bucket.tokens < 1) {
-    rateLimitBuckets.set(key, bucket);
-    return false;
-  }
-  bucket.tokens -= 1;
-  rateLimitBuckets.set(key, bucket);
-  return true;
-}
-
-function rateLimitKey(request: Request, scope: string): string {
-  const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
-  return `${scope}:${ip}`;
-}
-
 function resolvePairingWriter(env: Env): PairingWriter | null {
   if (!env.WORKOS_API_KEY || env.WORKOS_API_KEY.length === 0) return null;
   if (!cachedPairingWriter || cachedPairingWriter.apiKey !== env.WORKOS_API_KEY) {
@@ -227,16 +192,10 @@ export default {
     }
 
     if (url.pathname === API_PATHS.me) {
-      if (!rateLimit(rateLimitKey(request, "me"), 60)) {
-        return new Response("rate limited\n", { status: 429, headers: textHeaders });
-      }
       return handleMeRequest(request, url, env);
     }
 
     if (url.pathname === API_PATHS.pairing) {
-      if (!rateLimit(rateLimitKey(request, "pairing"), 20)) {
-        return new Response("rate limited\n", { status: 429, headers: textHeaders });
-      }
       const writer = resolvePairingWriter(env);
       if (!writer) {
         return new Response("pairing not configured\n", {
