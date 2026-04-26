@@ -1109,11 +1109,16 @@ const runServerCommand = (
     return yield* runServer.pipe(Effect.provideService(ServerConfig, config));
   });
 
-const pairCommand = Command.make("pair").pipe(
+const pairNoClaimFlag = Flag.boolean("no-claim").pipe(
+  Flag.withDescription("Write the local config but skip the device-flow claim. Useful for tests."),
+  Flag.optional,
+);
+
+const pairCommand = Command.make("pair", { noClaim: pairNoClaimFlag }).pipe(
   Command.withDescription(
     "Bootstrap ~/.trunk/config.json and claim this environment against your Trunk account via the WorkOS device flow.",
   ),
-  Command.withHandler(() =>
+  Command.withHandler((flags) =>
     Effect.gen(function* () {
       const { remoteLinkConfigPath, writeRemoteLinkLocalConfig } = yield* Effect.promise(
         () => import("./remoteLink/RemoteLinkConfig.ts"),
@@ -1138,6 +1143,15 @@ const pairCommand = Command.make("pair").pipe(
       yield* Console.log(`  config:         ${filePath}`);
       yield* Console.log(`  environmentId:  ${config.environmentId}`);
       yield* Console.log("");
+
+      const skipClaim = Option.match(flags.noClaim, {
+        onNone: () => process.env.TRUNK_PAIR_NO_CLAIM === "1",
+        onSome: (value) => value,
+      });
+      if (skipClaim) {
+        yield* Console.log("Skipping device-flow claim (--no-claim).");
+        return;
+      }
 
       const flowConfig = { clientId, trunkApiUrl };
       const device = yield* startDeviceFlow(flowConfig).pipe(
