@@ -96,16 +96,22 @@ function readEnvironmentIdsFromMetadata(metadata: Record<string, unknown> | null
   return value.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
 }
 
-async function fetchEnvironmentOnline(env: Env, environmentId: string): Promise<boolean> {
+async function fetchEnvironmentStatus(
+  env: Env,
+  environmentId: string,
+): Promise<{ online: boolean; lastSeenAt: string | null }> {
   try {
     const id = env.ENVIRONMENT_ROOMS.idFromName(environmentId);
     const stub = env.ENVIRONMENT_ROOMS.get(id);
     const response = await stub.fetch("http://do/internal/status", { method: "GET" });
-    if (!response.ok) return false;
-    const body = (await response.json()) as { online?: boolean };
-    return Boolean(body.online);
+    if (!response.ok) return { online: false, lastSeenAt: null };
+    const body = (await response.json()) as { online?: boolean; lastSeenAt?: string | null };
+    return {
+      online: Boolean(body.online),
+      lastSeenAt: typeof body.lastSeenAt === "string" ? body.lastSeenAt : null,
+    };
   } catch {
-    return false;
+    return { online: false, lastSeenAt: null };
   }
 }
 
@@ -148,10 +154,10 @@ async function handleMeRequest(request: Request, url: URL, env: Env): Promise<Re
   }
   const environmentIds = readEnvironmentIdsFromMetadata(metadata);
   const environments = await Promise.all(
-    environmentIds.map(async (environmentId) => ({
-      environmentId,
-      online: await fetchEnvironmentOnline(env, environmentId),
-    })),
+    environmentIds.map(async (environmentId) => {
+      const status = await fetchEnvironmentStatus(env, environmentId);
+      return { environmentId, ...status };
+    }),
   );
   return withMeCors(
     Response.json({
@@ -412,7 +418,12 @@ export class EnvironmentRoom implements DurableObject {
 
   private async handleStatus(): Promise<Response> {
     const online = this.environmentSocket?.readyState === WebSocket.OPEN;
-    return Response.json({ online });
+    if (online) {
+      // Update last-seen on every status check while online.
+      await this.state.storage.put("lastSeenAt", new Date().toISOString());
+    }
+    const lastSeenAt = (await this.state.storage.get<string>("lastSeenAt")) ?? null;
+    return Response.json({ online, lastSeenAt });
   }
 
   private async handleRelease(url: URL): Promise<Response> {

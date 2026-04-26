@@ -75,7 +75,7 @@ export function EnvironmentsSettings() {
             <EmptyState />
           ) : (
             <ul className="space-y-2">
-              {environments.data.environments.map(({ environmentId: id, online }) => {
+              {environments.data.environments.map(({ environmentId: id, online, lastSeenAt }) => {
                 const isActive = id === activeId;
                 return (
                   <li
@@ -93,7 +93,13 @@ export function EnvironmentsSettings() {
                         <p className="truncate font-mono text-sm text-foreground">{id}</p>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {online ? (isActive ? "Active · Online" : "Online") : "Offline"}
+                        {online
+                          ? isActive
+                            ? "Active · Online"
+                            : "Online"
+                          : lastSeenAt
+                            ? `Offline · last seen ${formatLastSeen(lastSeenAt)}`
+                            : "Offline"}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -130,6 +136,16 @@ export function EnvironmentsSettings() {
       </SettingsSection>
     </SettingsPageContainer>
   );
+}
+
+function formatLastSeen(iso: string): string {
+  const value = Date.parse(iso);
+  if (!Number.isFinite(value)) return "recently";
+  const diffSec = Math.max(0, Math.floor((Date.now() - value) / 1000));
+  if (diffSec < 60) return "just now";
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+  if (diffSec < 86_400) return `${Math.floor(diffSec / 3600)}h ago`;
+  return `${Math.floor(diffSec / 86_400)}d ago`;
 }
 
 function EmptyState() {

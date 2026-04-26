@@ -70,6 +70,7 @@ export async function unclaimEnvironment({
 export interface ClaimedEnvironmentSummary {
   readonly environmentId: string;
   readonly online: boolean;
+  readonly lastSeenAt?: string | null;
 }
 
 export interface ClaimedEnvironmentsSnapshot {
@@ -108,15 +109,22 @@ export async function fetchClaimedEnvironments(
         (entry): entry is string => typeof entry === "string" && entry.length > 0,
       )
     : [];
-  const environments = Array.isArray(body.environments)
-    ? body.environments
-        .map((entry) =>
-          entry && typeof entry === "object" && typeof entry.environmentId === "string"
-            ? { environmentId: entry.environmentId, online: Boolean(entry.online) }
-            : null,
-        )
-        .filter((entry): entry is ClaimedEnvironmentSummary => entry !== null)
-    : environmentIds.map((environmentId) => ({ environmentId, online: false }));
+  const environments: ClaimedEnvironmentSummary[] = Array.isArray(body.environments)
+    ? body.environments.flatMap((entry): ClaimedEnvironmentSummary[] => {
+        if (!entry || typeof entry !== "object" || typeof entry.environmentId !== "string") {
+          return [];
+        }
+        const lastSeenAt =
+          typeof (entry as { lastSeenAt?: unknown }).lastSeenAt === "string"
+            ? (entry as { lastSeenAt: string }).lastSeenAt
+            : null;
+        return [{ environmentId: entry.environmentId, online: Boolean(entry.online), lastSeenAt }];
+      })
+    : environmentIds.map((environmentId) => ({
+        environmentId,
+        online: false,
+        lastSeenAt: null,
+      }));
   return { environmentIds, environments };
 }
 
