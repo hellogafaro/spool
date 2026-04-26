@@ -39,7 +39,7 @@ const GUIDES: Record<InstallPlatform, InstallGuide> = {
     steps: [
       {
         title: "Fork the template",
-        code: "github.com/hellogafaro/trunk-server",
+        code: "github.com/hellogafaro/trunk-environment",
         note: "Mount a /data volume so the environmentId survives redeploys.",
       },
       {
