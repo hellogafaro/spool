@@ -1122,8 +1122,12 @@ const pairCommand = Command.make("pair").pipe(
         () => import("./remoteLink/deviceFlow.ts"),
       );
 
-      const clientId = process.env.TRUNK_WORKOS_CLIENT_ID?.trim();
-      const trunkApiUrl = process.env.TRUNK_API_URL?.trim() ?? "https://api.trunk.codes";
+      const DEFAULT_WORKOS_CLIENT_ID = "client_01KQ3733ZKJQMKVP147AVNFFK1";
+      const DEFAULT_TRUNK_API_URL = "https://api.trunk.codes";
+      const clientId =
+        process.env.TRUNK_WORKOS_CLIENT_ID?.trim() ||
+        DEFAULT_WORKOS_CLIENT_ID;
+      const trunkApiUrl = process.env.TRUNK_API_URL?.trim() || DEFAULT_TRUNK_API_URL;
 
       const config = yield* writeRemoteLinkLocalConfig();
       const filePath = yield* remoteLinkConfigPath();
@@ -1134,13 +1138,6 @@ const pairCommand = Command.make("pair").pipe(
       yield* Console.log(`  config:         ${filePath}`);
       yield* Console.log(`  environmentId:  ${config.environmentId}`);
       yield* Console.log("");
-
-      if (!clientId) {
-        yield* Console.log(
-          "TRUNK_WORKOS_CLIENT_ID not set — skipping device flow. The environment is configured but unclaimed.",
-        );
-        return;
-      }
 
       const flowConfig = { clientId, trunkApiUrl };
       const device = yield* startDeviceFlow(flowConfig).pipe(
