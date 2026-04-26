@@ -8,8 +8,8 @@
   "durable_objects": {
     "bindings": [
       {
-        "name": "SERVER_ROOMS",
-        "class_name": "ServerRoom",
+        "name": "ENVIRONMENT_ROOMS",
+        "class_name": "EnvironmentRoom",
       },
     ],
   },
@@ -18,14 +18,13 @@
       "tag": "v1",
       "new_sqlite_classes": ["ServerRoom"],
     },
+    {
+      "tag": "v2",
+      "renamed_classes": [{ "from": "ServerRoom", "to": "EnvironmentRoom" }],
+    },
   ],
   "observability": {
     "enabled": true,
   },
-  // WORKOS_CLIENT_ID is optional. When set, the Worker verifies the
-  // browser's bearer token against WorkOS's JWKS. When unset (e.g. in
-  // local dev or tests), the Worker falls back to presence-only auth.
-  // Override per-environment via `wrangler deploy --var WORKOS_CLIENT_ID=...`
-  // or via Cloudflare secrets in production.
   "vars": {},
 }

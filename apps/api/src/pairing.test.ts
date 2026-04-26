@@ -16,6 +16,8 @@ const rejectingVerifier: BrowserAuthVerifier = async () => ({
   reason: "no token",
 });
 
+const VALID_ID = "abcdefghjk23";
+
 function makePostRequest(body: unknown): { request: Request; url: URL } {
   const url = new URL("https://api.test.local/pairing");
   return {
@@ -32,7 +34,7 @@ describe("handlePairingRequest", () => {
   it("rejects non-POST methods with 405", async () => {
     const url = new URL("https://api.test.local/pairing");
     const request = new Request(url.toString(), { method: "GET" });
-    const writer: PairingWriter = { setServerId: async () => ({ ok: true }) };
+    const writer: PairingWriter = { addEnvironmentId: async () => ({ ok: true }) };
     const response = await handlePairingRequest(request, url, {
       authVerifier: acceptingVerifier,
       writer,
@@ -42,8 +44,8 @@ describe("handlePairingRequest", () => {
   });
 
   it("returns auth error when token verification fails", async () => {
-    const { request, url } = makePostRequest({ serverId: "happy-coffee-a7k9" });
-    const writer: PairingWriter = { setServerId: async () => ({ ok: true }) };
+    const { request, url } = makePostRequest({ environmentId: VALID_ID });
+    const writer: PairingWriter = { addEnvironmentId: async () => ({ ok: true }) };
     const response = await handlePairingRequest(request, url, {
       authVerifier: rejectingVerifier,
       writer,
@@ -53,7 +55,7 @@ describe("handlePairingRequest", () => {
 
   it("400s on non-JSON body", async () => {
     const { request, url } = makePostRequest("not-json");
-    const writer: PairingWriter = { setServerId: async () => ({ ok: true }) };
+    const writer: PairingWriter = { addEnvironmentId: async () => ({ ok: true }) };
     const response = await handlePairingRequest(request, url, {
       authVerifier: acceptingVerifier,
       writer,
@@ -61,9 +63,9 @@ describe("handlePairingRequest", () => {
     expect(response.status).toBe(400);
   });
 
-  it("400s when serverId is missing or invalid", async () => {
-    const writer: PairingWriter = { setServerId: async () => ({ ok: true }) };
-    for (const body of [{}, { serverId: "" }, { serverId: "Not Valid!" }]) {
+  it("400s when environmentId is missing or invalid", async () => {
+    const writer: PairingWriter = { addEnvironmentId: async () => ({ ok: true }) };
+    for (const body of [{}, { environmentId: "" }, { environmentId: "Not-Valid!" }, { environmentId: "tooshort" }]) {
       const { request, url } = makePostRequest(body);
       const response = await handlePairingRequest(request, url, {
         authVerifier: acceptingVerifier,
@@ -73,29 +75,29 @@ describe("handlePairingRequest", () => {
     }
   });
 
-  it("writes serverId for the authenticated user and returns ok", async () => {
-    const writes: Array<{ userId: string; serverId: string }> = [];
+  it("appends environmentId for the authenticated user and returns ok", async () => {
+    const writes: Array<{ userId: string; environmentId: string }> = [];
     const writer: PairingWriter = {
-      setServerId: async (userId, serverId) => {
-        writes.push({ userId, serverId });
+      addEnvironmentId: async (userId, environmentId) => {
+        writes.push({ userId, environmentId });
         return { ok: true };
       },
     };
-    const { request, url } = makePostRequest({ serverId: "happy-coffee-a7k9" });
+    const { request, url } = makePostRequest({ environmentId: VALID_ID });
     const response = await handlePairingRequest(request, url, {
       authVerifier: acceptingVerifier,
       writer,
     });
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ok: true, serverId: "happy-coffee-a7k9" });
-    expect(writes).toEqual([{ userId: "user_test", serverId: "happy-coffee-a7k9" }]);
+    expect(await response.json()).toEqual({ ok: true, environmentId: VALID_ID });
+    expect(writes).toEqual([{ userId: "user_test", environmentId: VALID_ID }]);
   });
 
   it("502s when the upstream write fails", async () => {
     const writer: PairingWriter = {
-      setServerId: async () => ({ ok: false, status: 502, reason: "boom" }),
+      addEnvironmentId: async () => ({ ok: false, status: 502, reason: "boom" }),
     };
-    const { request, url } = makePostRequest({ serverId: "happy-coffee-a7k9" });
+    const { request, url } = makePostRequest({ environmentId: VALID_ID });
     const response = await handlePairingRequest(request, url, {
       authVerifier: acceptingVerifier,
       writer,
@@ -105,18 +107,35 @@ describe("handlePairingRequest", () => {
 });
 
 describe("makeWorkOsPairingWriter", () => {
-  it("merges new serverId with existing metadata", async () => {
+  it("appends environmentId to existing metadata", async () => {
     let lastWrite: Record<string, unknown> | null = null;
     const writer = makeWorkOsPairingWriter({
       apiKey: "sk_test_x",
-      fetchMetadata: async () => ({ otherField: "preserved" }),
+      fetchMetadata: async () => ({ otherField: "preserved", environmentIds: ["existing12"] }),
       putMetadata: async (_userId, metadata) => {
         lastWrite = metadata;
       },
     });
-    const result = await writer.setServerId("user_x", "happy-coffee-a7k9");
+    const result = await writer.addEnvironmentId("user_x", VALID_ID);
     expect(result.ok).toBe(true);
-    expect(lastWrite).toEqual({ otherField: "preserved", serverId: "happy-coffee-a7k9" });
+    expect(lastWrite).toEqual({
+      otherField: "preserved",
+      environmentIds: ["existing12", VALID_ID],
+    });
+  });
+
+  it("is idempotent — does not duplicate an environmentId", async () => {
+    let lastWrite: Record<string, unknown> | null = null;
+    const writer = makeWorkOsPairingWriter({
+      apiKey: "sk_test_x",
+      fetchMetadata: async () => ({ environmentIds: [VALID_ID] }),
+      putMetadata: async (_userId, metadata) => {
+        lastWrite = metadata;
+      },
+    });
+    const result = await writer.addEnvironmentId("user_x", VALID_ID);
+    expect(result.ok).toBe(true);
+    expect(lastWrite).toEqual({ environmentIds: [VALID_ID] });
   });
 
   it("returns 503 when the read step fails", async () => {
@@ -127,7 +146,7 @@ describe("makeWorkOsPairingWriter", () => {
       },
       putMetadata: async () => undefined,
     });
-    const result = await writer.setServerId("user_x", "happy-coffee-a7k9");
+    const result = await writer.addEnvironmentId("user_x", VALID_ID);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.status).toBe(503);
   });
@@ -140,7 +159,7 @@ describe("makeWorkOsPairingWriter", () => {
         throw new Error("forbidden");
       },
     });
-    const result = await writer.setServerId("user_x", "happy-coffee-a7k9");
+    const result = await writer.addEnvironmentId("user_x", VALID_ID);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.status).toBe(502);
   });

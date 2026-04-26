@@ -5,16 +5,13 @@ export type PairingWriteResult =
   | { readonly ok: false; readonly status: 502 | 503; readonly reason: string };
 
 export interface PairingWriter {
-  setServerId(userId: string, serverId: string): Promise<PairingWriteResult>;
+  addEnvironmentId(userId: string, environmentId: string): Promise<PairingWriteResult>;
 }
 
 interface WorkOsPairingWriterOptions {
   readonly apiKey: string;
   readonly fetchMetadata?: (userId: string) => Promise<Record<string, unknown> | null>;
-  readonly putMetadata?: (
-    userId: string,
-    metadata: Record<string, unknown>,
-  ) => Promise<void>;
+  readonly putMetadata?: (userId: string, metadata: Record<string, unknown>) => Promise<void>;
 }
 
 async function defaultFetchMetadata(
@@ -49,6 +46,13 @@ async function defaultPutMetadata(
   }
 }
 
+function readEnvironmentIds(metadata: Record<string, unknown> | null): string[] {
+  if (!metadata) return [];
+  const value = metadata.environmentIds;
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
+}
+
 export function makeWorkOsPairingWriter(options: WorkOsPairingWriterOptions): PairingWriter {
   const fetchMetadata =
     options.fetchMetadata ?? ((userId) => defaultFetchMetadata(options.apiKey, userId));
@@ -57,7 +61,7 @@ export function makeWorkOsPairingWriter(options: WorkOsPairingWriterOptions): Pa
     ((userId, metadata) => defaultPutMetadata(options.apiKey, userId, metadata));
 
   return {
-    async setServerId(userId, serverId) {
+    async addEnvironmentId(userId, environmentId) {
       let existing: Record<string, unknown> | null;
       try {
         existing = await fetchMetadata(userId);
@@ -66,7 +70,9 @@ export function makeWorkOsPairingWriter(options: WorkOsPairingWriterOptions): Pa
         return { ok: false, status: 503, reason };
       }
 
-      const next = { ...(existing ?? {}), serverId };
+      const current = readEnvironmentIds(existing);
+      const merged = current.includes(environmentId) ? current : [...current, environmentId];
+      const next = { ...(existing ?? {}), environmentIds: merged };
       try {
         await putMetadata(userId, next);
       } catch (error) {
@@ -79,17 +85,17 @@ export function makeWorkOsPairingWriter(options: WorkOsPairingWriterOptions): Pa
 }
 
 export interface PairingRequestBody {
-  readonly serverId: string;
+  readonly environmentId: string;
 }
 
-const SERVER_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+const ENVIRONMENT_ID_PATTERN = /^[a-z0-9]{12}$/;
 
 function parsePairingBody(raw: unknown): PairingRequestBody | null {
   if (!raw || typeof raw !== "object") return null;
-  const body = raw as { serverId?: unknown };
-  if (typeof body.serverId !== "string") return null;
-  if (!SERVER_ID_PATTERN.test(body.serverId)) return null;
-  return { serverId: body.serverId };
+  const body = raw as { environmentId?: unknown };
+  if (typeof body.environmentId !== "string") return null;
+  if (!ENVIRONMENT_ID_PATTERN.test(body.environmentId)) return null;
+  return { environmentId: body.environmentId };
 }
 
 export interface PairingHandlerOptions {
@@ -143,13 +149,13 @@ export async function handlePairingRequest(
 
   const body = parsePairingBody(raw);
   if (!body) {
-    return withCors(new Response("serverId required\n", { status: 400 }));
+    return withCors(new Response("environmentId required\n", { status: 400 }));
   }
 
-  const result = await options.writer.setServerId(auth.auth.userId, body.serverId);
+  const result = await options.writer.addEnvironmentId(auth.auth.userId, body.environmentId);
   if (!result.ok) {
     return withCors(new Response(`${result.reason}\n`, { status: result.status }));
   }
 
-  return withCors(Response.json({ ok: true, serverId: body.serverId }));
+  return withCors(Response.json({ ok: true, environmentId: body.environmentId }));
 }

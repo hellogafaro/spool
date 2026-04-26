@@ -2,16 +2,15 @@ import { Effect, FileSystem, Option, Path, Schema } from "effect";
 import type { PlatformError } from "effect/PlatformError";
 import * as OS from "node:os";
 
-const ServerIdPattern = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+const ENVIRONMENT_ID_PATTERN = /^[a-z0-9]{12}$/;
+const ENVIRONMENT_ID_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
 
-export const RemoteLinkServerId = Schema.String.pipe(
-  Schema.check(Schema.isPattern(ServerIdPattern)),
-);
-export type RemoteLinkServerId = typeof RemoteLinkServerId.Type;
+export const EnvironmentId = Schema.String.pipe(Schema.check(Schema.isPattern(ENVIRONMENT_ID_PATTERN)));
+export type EnvironmentId = typeof EnvironmentId.Type;
 
 export const RemoteLinkLocalConfig = Schema.Struct({
-  serverId: RemoteLinkServerId,
-  serverSecret: Schema.String.pipe(Schema.check(Schema.isMinLength(1))),
+  environmentId: EnvironmentId,
+  environmentSecret: Schema.String.pipe(Schema.check(Schema.isMinLength(1))),
   userId: Schema.optional(Schema.String),
 });
 export type RemoteLinkLocalConfig = typeof RemoteLinkLocalConfig.Type;
@@ -23,9 +22,9 @@ export interface RemoteLinkRuntimeConfig {
   readonly local: RemoteLinkLocalConfig;
 }
 
-export function makeRemoteLinkServerUrl(config: RemoteLinkRuntimeConfig): URL {
-  const url = new URL("/server", config.apiUrl);
-  url.searchParams.set("serverId", config.local.serverId);
+export function makeRemoteLinkEnvironmentUrl(config: RemoteLinkRuntimeConfig): URL {
+  const url = new URL("/environment", config.apiUrl);
+  url.searchParams.set("environmentId", config.local.environmentId);
   return url;
 }
 
@@ -35,21 +34,17 @@ export const remoteLinkConfigPath = Effect.fn(function* () {
   return path.join(home, ".trunk", "config.json");
 });
 
-const SERVER_ID_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
-
-const generateServerId = (): RemoteLinkServerId => {
-  const adjectives = ["happy", "swift", "calm", "bright", "bold", "clever", "kind", "lively"];
-  const nouns = ["coffee", "ocean", "garden", "river", "forest", "summit", "harbor", "meadow"];
-  const adjective = adjectives[Math.floor(Math.random() * adjectives.length)] ?? "happy";
-  const noun = nouns[Math.floor(Math.random() * nouns.length)] ?? "coffee";
-  let suffix = "";
-  for (let index = 0; index < 4; index += 1) {
-    suffix += SERVER_ID_ALPHABET[Math.floor(Math.random() * SERVER_ID_ALPHABET.length)];
+const generateEnvironmentId = (): EnvironmentId => {
+  let id = "";
+  const bytes = new Uint8Array(12);
+  crypto.getRandomValues(bytes);
+  for (let index = 0; index < 12; index += 1) {
+    id += ENVIRONMENT_ID_ALPHABET[bytes[index]! % ENVIRONMENT_ID_ALPHABET.length];
   }
-  return `${adjective}-${noun}-${suffix}`;
+  return id;
 };
 
-const generateServerSecret = (): string => {
+const generateEnvironmentSecret = (): string => {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -65,14 +60,18 @@ export const writeRemoteLinkLocalConfig = (
 
     const existing = yield* readRemoteLinkLocalConfig;
     const config: RemoteLinkLocalConfig = {
-      serverId: overrides.serverId ?? Option.match(existing, {
-        onNone: () => generateServerId(),
-        onSome: (current) => current.serverId,
-      }),
-      serverSecret: overrides.serverSecret ?? Option.match(existing, {
-        onNone: () => generateServerSecret(),
-        onSome: (current) => current.serverSecret,
-      }),
+      environmentId:
+        overrides.environmentId ??
+        Option.match(existing, {
+          onNone: () => generateEnvironmentId(),
+          onSome: (current) => current.environmentId,
+        }),
+      environmentSecret:
+        overrides.environmentSecret ??
+        Option.match(existing, {
+          onNone: () => generateEnvironmentSecret(),
+          onSome: (current) => current.environmentSecret,
+        }),
       ...(overrides.userId !== undefined
         ? { userId: overrides.userId }
         : Option.match(existing, {

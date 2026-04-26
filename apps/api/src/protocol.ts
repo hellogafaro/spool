@@ -2,11 +2,11 @@ export const API_PROTOCOL_VERSION = 1;
 
 export const API_PATHS = {
   browser: "/ws",
+  channel: "/channel",
+  environment: "/environment",
   health: "/health",
   me: "/me",
   pairing: "/pairing",
-  server: "/server",
-  serverChannel: "/server-channel",
   version: "/version",
 } as const;
 
@@ -18,3 +18,5 @@ export interface DialSignal {
 }
 
 export type ControlMessage = DialSignal;
+
+export const ENVIRONMENT_PROOF_HEADER = "x-trunk-environment-proof";

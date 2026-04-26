@@ -24,9 +24,9 @@ export async function getCurrentAccessToken(): Promise<string | null> {
 }
 
 /**
- * Returns the URL with `?token=<accessToken>` appended when a token is
- * available, otherwise returns the original URL unchanged. Existing
- * query params on the input URL are preserved.
+ * Returns the URL with `?token=<accessToken>&environmentId=<id>` appended
+ * when both are available, otherwise returns the original URL unchanged.
+ * Existing query params are preserved.
  */
 export async function attachAccessTokenToUrl(rawUrl: string): Promise<string> {
   const token = await getCurrentAccessToken();
@@ -34,9 +34,9 @@ export async function attachAccessTokenToUrl(rawUrl: string): Promise<string> {
   try {
     const url = new URL(rawUrl);
     url.searchParams.set("token", token);
-    const serverId = readClaimedServerId();
-    if (serverId) {
-      url.searchParams.set("serverId", serverId);
+    const environmentId = readActiveEnvironmentId();
+    if (environmentId) {
+      url.searchParams.set("environmentId", environmentId);
     }
     return url.toString();
   } catch {
@@ -44,24 +44,24 @@ export async function attachAccessTokenToUrl(rawUrl: string): Promise<string> {
   }
 }
 
-const CLAIMED_SERVER_ID_KEY = "trunk:claimedServerId";
+const ACTIVE_ENVIRONMENT_ID_KEY = "trunk:activeEnvironmentId";
 
-export function readClaimedServerId(): string | null {
+export function readActiveEnvironmentId(): string | null {
   if (typeof window === "undefined") return null;
   try {
-    return window.localStorage.getItem(CLAIMED_SERVER_ID_KEY);
+    return window.localStorage.getItem(ACTIVE_ENVIRONMENT_ID_KEY);
   } catch {
     return null;
   }
 }
 
-export function writeClaimedServerId(serverId: string | null): void {
+export function writeActiveEnvironmentId(environmentId: string | null): void {
   if (typeof window === "undefined") return;
   try {
-    if (serverId) {
-      window.localStorage.setItem(CLAIMED_SERVER_ID_KEY, serverId);
+    if (environmentId) {
+      window.localStorage.setItem(ACTIVE_ENVIRONMENT_ID_KEY, environmentId);
     } else {
-      window.localStorage.removeItem(CLAIMED_SERVER_ID_KEY);
+      window.localStorage.removeItem(ACTIVE_ENVIRONMENT_ID_KEY);
     }
   } catch {
     // ignore: storage unavailable / quota exceeded

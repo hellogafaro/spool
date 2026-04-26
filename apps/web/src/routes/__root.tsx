@@ -59,19 +59,6 @@ export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
 }>()({
   beforeLoad: async () => {
-    if (typeof window !== "undefined" && window.location.pathname === "/connect-server") {
-      return {
-        authGateState: {
-          status: "requires-auth" as const,
-          auth: {
-            policy: "remote-reachable" as const,
-            bootstrapMethods: [],
-            sessionMethods: [],
-            sessionCookieName: "trunk-session",
-          },
-        },
-      };
-    }
     const [, authGateState] = await Promise.all([
       ensurePrimaryEnvironmentReady(),
       resolveInitialServerAuthGateState(),
@@ -100,7 +87,7 @@ function RootRouteView() {
     };
   }, [pathname]);
 
-  if (pathname === "/pair" || pathname === "/connect-server") {
+  if (pathname === "/pair") {
     return <Outlet />;
   }
 

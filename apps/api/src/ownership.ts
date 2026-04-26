@@ -3,7 +3,7 @@ export type OwnershipResult =
   | { readonly ok: false; readonly status: 403 | 503; readonly reason: string };
 
 export interface OwnershipChecker {
-  (userId: string, serverId: string): Promise<OwnershipResult>;
+  (userId: string, environmentId: string): Promise<OwnershipResult>;
 }
 
 interface CacheEntry {
@@ -46,8 +46,8 @@ export function makeWorkOsOwnershipChecker(options: WorkOsOwnershipOptions): Own
     options.fetchMetadata ?? ((userId) => fetchWorkOsUserMetadata(options.apiKey, userId));
   const cache = new Map<string, CacheEntry>();
 
-  return async (userId, serverId) => {
-    const cacheKey = `${userId}:${serverId}`;
+  return async (userId, environmentId) => {
+    const cacheKey = `${userId}:${environmentId}`;
     const cached = cache.get(cacheKey);
     if (cached && cached.expiresAt > now()) {
       return cached.result;
@@ -61,11 +61,14 @@ export function makeWorkOsOwnershipChecker(options: WorkOsOwnershipOptions): Own
       return { ok: false, status: 503, reason };
     }
 
-    const userServerId = typeof metadata?.serverId === "string" ? metadata.serverId : null;
-    const result: OwnershipResult =
-      userServerId === serverId
-        ? { ok: true }
-        : { ok: false, status: 403, reason: "user is not paired with this server" };
+    const environmentIds = Array.isArray(metadata?.environmentIds)
+      ? metadata.environmentIds.filter(
+          (entry): entry is string => typeof entry === "string" && entry.length > 0,
+        )
+      : [];
+    const result: OwnershipResult = environmentIds.includes(environmentId)
+      ? { ok: true }
+      : { ok: false, status: 403, reason: "user is not paired with this environment" };
 
     cache.set(cacheKey, { result, expiresAt: now() + ttlMs });
     return result;

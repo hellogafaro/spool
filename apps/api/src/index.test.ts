@@ -1,6 +1,11 @@
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { API_PATHS, API_PROTOCOL_VERSION, type ControlMessage } from "./protocol.ts";
+import {
+  API_PATHS,
+  API_PROTOCOL_VERSION,
+  ENVIRONMENT_PROOF_HEADER,
+  type ControlMessage,
+} from "./protocol.ts";
 
 const ORIGIN = "https://api.test.local";
 
@@ -43,22 +48,22 @@ function nextClose(socket: WebSocket): Promise<CloseEvent> {
   });
 }
 
-async function pairBrowserToServer(
-  serverId: string,
-  controlServer: WebSocket,
+async function pairBrowserToEnvironment(
+  environmentId: string,
+  control: WebSocket,
   authHeader: string,
-): Promise<{ browser: WebSocket; serverChannel: WebSocket; channelId: string }> {
-  const dialPromise = nextMessage(controlServer);
-  const browser = await openSocket(API_PATHS.browser, { serverId }, { authorization: authHeader });
+): Promise<{ browser: WebSocket; channel: WebSocket; channelId: string }> {
+  const dialPromise = nextMessage(control);
+  const browser = await openSocket(API_PATHS.browser, { environmentId }, { authorization: authHeader });
   const dialEvent = await dialPromise;
   const dial = JSON.parse(String(dialEvent.data)) as ControlMessage;
   expect(dial.type).toBe("dial");
-  const serverChannel = await openSocket(
-    API_PATHS.serverChannel,
-    { serverId, channelId: dial.channelId },
-    { "x-trunk-server-proof": "x" },
+  const channel = await openSocket(
+    API_PATHS.channel,
+    { environmentId, channelId: dial.channelId },
+    { [ENVIRONMENT_PROOF_HEADER]: "x" },
   );
-  return { browser, serverChannel, channelId: dial.channelId };
+  return { browser, channel, channelId: dial.channelId };
 }
 
 describe("HTTP routes", () => {
@@ -84,40 +89,41 @@ describe("HTTP routes", () => {
   });
 
   it("426s WS path without upgrade header", async () => {
-    const r = await SELF.fetch(url(API_PATHS.server, { serverId: "abc" }));
+    const r = await SELF.fetch(url(API_PATHS.environment, { environmentId: "abcdefghjk23" }));
     expect(r.status).toBe(426);
   });
 
-  it("400s WS path missing serverId", async () => {
-    const r = await SELF.fetch(url(API_PATHS.server), {
-      headers: { upgrade: "websocket", "x-trunk-server-proof": "x" },
+  it("400s WS path missing environmentId", async () => {
+    const r = await SELF.fetch(url(API_PATHS.environment), {
+      headers: { upgrade: "websocket", [ENVIRONMENT_PROOF_HEADER]: "x" },
     });
     expect(r.status).toBe(400);
   });
 
-  it("401s /server missing proof header", async () => {
-    const r = await SELF.fetch(url(API_PATHS.server, { serverId: "abc" }), {
+  it("401s /environment missing proof header", async () => {
+    const r = await SELF.fetch(url(API_PATHS.environment, { environmentId: "abcdefghjk23" }), {
       headers: { upgrade: "websocket" },
     });
     expect(r.status).toBe(401);
   });
 
-  it("401s /server-channel missing proof header", async () => {
-    const r = await SELF.fetch(url(API_PATHS.serverChannel, { serverId: "abc", channelId: "x" }), {
-      headers: { upgrade: "websocket" },
-    });
+  it("401s /channel missing proof header", async () => {
+    const r = await SELF.fetch(
+      url(API_PATHS.channel, { environmentId: "abcdefghjk23", channelId: "x" }),
+      { headers: { upgrade: "websocket" } },
+    );
     expect(r.status).toBe(401);
   });
 
-  it("400s /server-channel missing channelId", async () => {
-    const r = await SELF.fetch(url(API_PATHS.serverChannel, { serverId: "abc" }), {
-      headers: { upgrade: "websocket", "x-trunk-server-proof": "x" },
+  it("400s /channel missing channelId", async () => {
+    const r = await SELF.fetch(url(API_PATHS.channel, { environmentId: "abcdefghjk23" }), {
+      headers: { upgrade: "websocket", [ENVIRONMENT_PROOF_HEADER]: "x" },
     });
     expect(r.status).toBe(400);
   });
 
-  it("401s /browser missing authorization header", async () => {
-    const r = await SELF.fetch(url(API_PATHS.browser, { serverId: "abc" }), {
+  it("401s /ws missing authorization header", async () => {
+    const r = await SELF.fetch(url(API_PATHS.browser, { environmentId: "abcdefghjk23" }), {
       headers: { upgrade: "websocket" },
     });
     expect(r.status).toBe(401);
@@ -125,27 +131,27 @@ describe("HTTP routes", () => {
 });
 
 describe("dial-back routing", () => {
-  it("rejects browser when no server is connected", async () => {
+  it("rejects browser when no environment is connected", async () => {
     const browser = await openSocket(
       API_PATHS.browser,
-      { serverId: "room-no-server" },
+      { environmentId: "noenvabcdef2" },
       { authorization: "Bearer x" },
     );
     const close = await nextClose(browser);
     expect(close.code).toBe(1013);
   });
 
-  it("signals server with a channel id when a browser connects", async () => {
-    const serverId = "room-signal";
+  it("signals environment with a channel id when a browser connects", async () => {
+    const environmentId = "signalabcdef";
     const control = await openSocket(
-      API_PATHS.server,
-      { serverId },
-      { "x-trunk-server-proof": "x" },
+      API_PATHS.environment,
+      { environmentId },
+      { [ENVIRONMENT_PROOF_HEADER]: "x" },
     );
     const dialPromise = nextMessage(control);
     const browser = await openSocket(
       API_PATHS.browser,
-      { serverId },
+      { environmentId },
       { authorization: "Bearer x" },
     );
 
@@ -158,41 +164,41 @@ describe("dial-back routing", () => {
     control.close();
   });
 
-  it("bridges bytes once server dials back", async () => {
-    const serverId = "room-bridge";
+  it("bridges bytes once environment dials back", async () => {
+    const environmentId = "bridgeabcdef";
     const control = await openSocket(
-      API_PATHS.server,
-      { serverId },
-      { "x-trunk-server-proof": "x" },
+      API_PATHS.environment,
+      { environmentId },
+      { [ENVIRONMENT_PROOF_HEADER]: "x" },
     );
 
-    const { browser, serverChannel } = await pairBrowserToServer(serverId, control, "Bearer x");
+    const { browser, channel } = await pairBrowserToEnvironment(environmentId, control, "Bearer x");
 
-    const serverGot = nextMessage(serverChannel);
-    browser.send("hello-server");
-    expect((await serverGot).data).toBe("hello-server");
+    const envGot = nextMessage(channel);
+    browser.send("hello-environment");
+    expect((await envGot).data).toBe("hello-environment");
 
     const browserGot = nextMessage(browser);
-    serverChannel.send("hello-browser");
+    channel.send("hello-browser");
     expect((await browserGot).data).toBe("hello-browser");
 
-    serverChannel.close();
+    channel.close();
     browser.close();
     control.close();
   });
 
-  it("flushes browser messages buffered before the server dials back", async () => {
-    const serverId = "room-buffered";
+  it("flushes browser messages buffered before the environment dials back", async () => {
+    const environmentId = "buffrabcdef2";
     const control = await openSocket(
-      API_PATHS.server,
-      { serverId },
-      { "x-trunk-server-proof": "x" },
+      API_PATHS.environment,
+      { environmentId },
+      { [ENVIRONMENT_PROOF_HEADER]: "x" },
     );
 
     const dialPromise = nextMessage(control);
     const browser = await openSocket(
       API_PATHS.browser,
-      { serverId },
+      { environmentId },
       { authorization: "Bearer x" },
     );
 
@@ -202,10 +208,10 @@ describe("dial-back routing", () => {
     const dialEvent = await dialPromise;
     const dial = JSON.parse(String(dialEvent.data)) as ControlMessage;
 
-    const serverChannel = await openSocket(
-      API_PATHS.serverChannel,
-      { serverId, channelId: dial.channelId },
-      { "x-trunk-server-proof": "x" },
+    const channel = await openSocket(
+      API_PATHS.channel,
+      { environmentId, channelId: dial.channelId },
+      { [ENVIRONMENT_PROOF_HEADER]: "x" },
     );
 
     const collected: string[] = [];
@@ -213,32 +219,32 @@ describe("dial-back routing", () => {
       const handler = (event: Event) => {
         collected.push(String((event as MessageEvent).data));
         if (collected.length >= 2) {
-          serverChannel.removeEventListener("message", handler);
+          channel.removeEventListener("message", handler);
           resolve();
         }
       };
-      serverChannel.addEventListener("message", handler);
+      channel.addEventListener("message", handler);
       setTimeout(() => reject(new Error("timeout waiting for buffered frames")), 1000);
     });
 
     expect(collected).toEqual(["early-1", "early-2"]);
 
-    serverChannel.close();
+    channel.close();
     browser.close();
     control.close();
   });
 
-  it("rejects server-channel for unknown channel id", async () => {
-    const serverId = "room-unknown-channel";
+  it("rejects channel for unknown channel id", async () => {
+    const environmentId = "unkchabcdef2";
     const control = await openSocket(
-      API_PATHS.server,
-      { serverId },
-      { "x-trunk-server-proof": "x" },
+      API_PATHS.environment,
+      { environmentId },
+      { [ENVIRONMENT_PROOF_HEADER]: "x" },
     );
     const orphan = await openSocket(
-      API_PATHS.serverChannel,
-      { serverId, channelId: "00000000-0000-0000-0000-000000000000" },
-      { "x-trunk-server-proof": "x" },
+      API_PATHS.channel,
+      { environmentId, channelId: "00000000-0000-0000-0000-000000000000" },
+      { [ENVIRONMENT_PROOF_HEADER]: "x" },
     );
     const close = await nextClose(orphan);
     expect(close.code).toBe(4404);
@@ -246,37 +252,37 @@ describe("dial-back routing", () => {
   });
 
   it("each browser gets its own pair (multi-device)", async () => {
-    const serverId = "room-multi-device";
+    const environmentId = "multidevicen";
     const control = await openSocket(
-      API_PATHS.server,
-      { serverId },
-      { "x-trunk-server-proof": "x" },
+      API_PATHS.environment,
+      { environmentId },
+      { [ENVIRONMENT_PROOF_HEADER]: "x" },
     );
 
     const dialAPromise = nextMessage(control);
     const browserA = await openSocket(
       API_PATHS.browser,
-      { serverId },
+      { environmentId },
       { authorization: "Bearer a" },
     );
     const dialA = JSON.parse(String((await dialAPromise).data)) as ControlMessage;
     const channelA = await openSocket(
-      API_PATHS.serverChannel,
-      { serverId, channelId: dialA.channelId },
-      { "x-trunk-server-proof": "x" },
+      API_PATHS.channel,
+      { environmentId, channelId: dialA.channelId },
+      { [ENVIRONMENT_PROOF_HEADER]: "x" },
     );
 
     const dialBPromise = nextMessage(control);
     const browserB = await openSocket(
       API_PATHS.browser,
-      { serverId },
+      { environmentId },
       { authorization: "Bearer b" },
     );
     const dialB = JSON.parse(String((await dialBPromise).data)) as ControlMessage;
     const channelB = await openSocket(
-      API_PATHS.serverChannel,
-      { serverId, channelId: dialB.channelId },
-      { "x-trunk-server-proof": "x" },
+      API_PATHS.channel,
+      { environmentId, channelId: dialB.channelId },
+      { [ENVIRONMENT_PROOF_HEADER]: "x" },
     );
 
     expect(dialA.channelId).not.toBe(dialB.channelId);
@@ -299,22 +305,22 @@ describe("dial-back routing", () => {
     control.close();
   });
 
-  it("isolates rooms by serverId", async () => {
+  it("isolates rooms by environmentId", async () => {
     const controlA = await openSocket(
-      API_PATHS.server,
-      { serverId: "room-a" },
-      { "x-trunk-server-proof": "x" },
+      API_PATHS.environment,
+      { environmentId: "roomaaaaaaaa" },
+      { [ENVIRONMENT_PROOF_HEADER]: "x" },
     );
     const controlB = await openSocket(
-      API_PATHS.server,
-      { serverId: "room-b" },
-      { "x-trunk-server-proof": "x" },
+      API_PATHS.environment,
+      { environmentId: "roombbbbbbbb" },
+      { [ENVIRONMENT_PROOF_HEADER]: "x" },
     );
 
     const dialPromise = nextMessage(controlA);
     const browserA = await openSocket(
       API_PATHS.browser,
-      { serverId: "room-a" },
+      { environmentId: "roomaaaaaaaa" },
       { authorization: "Bearer a" },
     );
 
@@ -335,16 +341,16 @@ describe("dial-back routing", () => {
     controlB.close();
   });
 
-  it("evicts pending browsers when control server disconnects", async () => {
-    const serverId = "room-evict";
+  it("evicts pending browsers when control environment disconnects", async () => {
+    const environmentId = "evictabcdef2";
     const control = await openSocket(
-      API_PATHS.server,
-      { serverId },
-      { "x-trunk-server-proof": "x" },
+      API_PATHS.environment,
+      { environmentId },
+      { [ENVIRONMENT_PROOF_HEADER]: "x" },
     );
     const browser = await openSocket(
       API_PATHS.browser,
-      { serverId },
+      { environmentId },
       { authorization: "Bearer x" },
     );
 

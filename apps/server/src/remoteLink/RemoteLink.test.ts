@@ -46,7 +46,7 @@ describe("RemoteLink", () => {
   it("disabled when no config file exists", async () => {
     const snapshot = await Effect.runPromise(readSnapshot);
     expect(snapshot.status).toBe("disabled");
-    expect(snapshot.serverId).toBeNull();
+    expect(snapshot.environmentId).toBeNull();
   });
 
   it("writeRemoteLinkLocalConfig generates a config and round-trips through read", async () => {
@@ -54,8 +54,8 @@ describe("RemoteLink", () => {
       writeRemoteLinkLocalConfig().pipe(Effect.provide(NodeServices.layer)),
     );
     expect(Schema.is(RemoteLinkLocalConfig)(written)).toBe(true);
-    expect(written.serverId).toMatch(/^[a-z0-9-]+$/);
-    expect(written.serverSecret).toMatch(/^[0-9a-f]{64}$/);
+    expect(written.environmentId).toMatch(/^[a-z0-9]{12}$/);
+    expect(written.environmentSecret).toMatch(/^[0-9a-f]{64}$/);
 
     const readBack = await Effect.runPromise(
       readRemoteLinkLocalConfig.pipe(Effect.provide(NodeServices.layer)),
@@ -76,8 +76,8 @@ describe("RemoteLink", () => {
     const second = await Effect.runPromise(
       writeRemoteLinkLocalConfig().pipe(Effect.provide(NodeServices.layer)),
     );
-    expect(second.serverId).toBe(first.serverId);
-    expect(second.serverSecret).toBe(first.serverSecret);
+    expect(second.environmentId).toBe(first.environmentId);
+    expect(second.environmentSecret).toBe(first.environmentSecret);
   });
 
   it("disabled when config file is malformed", async () => {

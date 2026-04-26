@@ -2,7 +2,7 @@ export type RemoteLinkStatus = "disabled" | "connecting" | "connected" | "discon
 
 export interface RemoteLinkSnapshot {
   readonly status: RemoteLinkStatus;
-  readonly serverId: string | null;
+  readonly environmentId: string | null;
   readonly lastConnectedAt: Date | null;
   readonly lastDisconnectedAt: Date | null;
   readonly lastError: string | null;
@@ -10,7 +10,7 @@ export interface RemoteLinkSnapshot {
 
 export const DISABLED_REMOTE_LINK_SNAPSHOT: RemoteLinkSnapshot = {
   status: "disabled",
-  serverId: null,
+  environmentId: null,
   lastConnectedAt: null,
   lastDisconnectedAt: null,
   lastError: null,

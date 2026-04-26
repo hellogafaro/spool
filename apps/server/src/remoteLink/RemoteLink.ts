@@ -1,14 +1,14 @@
 /**
- * RemoteLink - Outbound link to the Trunk hosted API.
+ * RemoteLink - Outbound link from a Trunk environment to the hosted API.
  *
  * Reads `~/.trunk/config.json`. If absent the layer is a no-op and
  * snapshot stays "disabled" — keeps the local-only path untouched.
  *
  * When configured:
  * 1. Maintains a single outbound "control" WebSocket to
- *    `${TRUNK_API_URL}/server` with backoff reconnect.
+ *    `${TRUNK_API_URL}/environment` with backoff reconnect.
  * 2. On `{ type: "dial", channelId }` from the API, opens a new
- *    outbound WebSocket to `${TRUNK_API_URL}/server-channel?channelId=X`
+ *    outbound WebSocket to `${TRUNK_API_URL}/channel?channelId=X`
  *    and bridges it to a loopback WebSocket against the local server's
  *    own `/ws` endpoint, so each remote browser becomes a normal local
  *    HTTP upgrade for T3's existing multi-session handler.
@@ -36,9 +36,9 @@ export class RemoteLink extends Context.Service<RemoteLink, RemoteLinkShape>()(
   "trunk/remoteLink/RemoteLink",
 ) {}
 
-const PROOF_HEADER = "x-trunk-server-proof";
-const CONTROL_PATH = "/server";
-const CHANNEL_PATH = "/server-channel";
+const PROOF_HEADER = "x-trunk-environment-proof";
+const CONTROL_PATH = "/environment";
+const CHANNEL_PATH = "/channel";
 
 interface DialSignal {
   readonly type: "dial";
@@ -47,9 +47,9 @@ interface DialSignal {
 
 const resolveApiUrl = (): URL => new URL(process.env.TRUNK_API_URL ?? DEFAULT_REMOTE_LINK_API_URL);
 
-const buildChannelUrl = (apiUrl: URL, serverId: string, channelId: string): URL => {
+const buildChannelUrl = (apiUrl: URL, environmentId: string, channelId: string): URL => {
   const url = new URL(CHANNEL_PATH, apiUrl);
-  url.searchParams.set("serverId", serverId);
+  url.searchParams.set("environmentId", environmentId);
   url.searchParams.set("channelId", channelId);
   return url;
 };
@@ -57,6 +57,11 @@ const buildChannelUrl = (apiUrl: URL, serverId: string, channelId: string): URL 
 const openWithProof = (url: URL, secret: string): WebSocket =>
   new WebSocket(url, {
     headers: { [PROOF_HEADER]: secret },
+  } as unknown as string[]);
+
+const openLoopback = (loopbackUrl: string, trustToken: string): WebSocket =>
+  new WebSocket(loopbackUrl, {
+    headers: { [LOOPBACK_TRUST_HEADER]: trustToken },
   } as unknown as string[]);
 
 const bridgeChannel = (
@@ -100,11 +105,6 @@ const bridgeChannel = (
     return Effect.sync(() => teardown(1001, "scope closed"));
   });
 
-const openLoopback = (loopbackUrl: string, trustToken: string): WebSocket =>
-  new WebSocket(loopbackUrl, {
-    headers: { [LOOPBACK_TRUST_HEADER]: trustToken },
-  } as unknown as string[]);
-
 const handleDial = (
   apiUrl: URL,
   local: RemoteLinkLocalConfig,
@@ -113,7 +113,10 @@ const handleDial = (
   channelId: string,
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
-    const remote = openWithProof(buildChannelUrl(apiUrl, local.serverId, channelId), local.serverSecret);
+    const remote = openWithProof(
+      buildChannelUrl(apiUrl, local.environmentId, channelId),
+      local.environmentSecret,
+    );
     const loopback = openLoopback(loopbackUrl, trustToken);
     yield* bridgeChannel(remote, loopback);
   }).pipe(Effect.ignoreCause({ log: true }));
@@ -131,18 +134,18 @@ const connectControl = (
     ) => Ref.update(ref, (current) => ({ ...current, ...patch }));
 
     const controlUrl = new URL(CONTROL_PATH, apiUrl);
-    controlUrl.searchParams.set("serverId", local.serverId);
-    const socket = openWithProof(controlUrl, local.serverSecret);
+    controlUrl.searchParams.set("environmentId", local.environmentId);
+    const socket = openWithProof(controlUrl, local.environmentSecret);
 
     Effect.runFork(
-      setStatus({ status: "connecting", serverId: local.serverId, lastError: null }),
+      setStatus({ status: "connecting", environmentId: local.environmentId, lastError: null }),
     );
 
     socket.addEventListener("open", () => {
       Effect.runFork(
         setStatus({
           status: "connected",
-          serverId: local.serverId,
+          environmentId: local.environmentId,
           lastConnectedAt: new Date(),
           lastError: null,
         }),
@@ -168,7 +171,7 @@ const connectControl = (
       Effect.runFork(
         setStatus({
           status: "disconnected",
-          serverId: local.serverId,
+          environmentId: local.environmentId,
           lastDisconnectedAt: new Date(),
           lastError: error,
         }),

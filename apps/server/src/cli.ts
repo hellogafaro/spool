@@ -1111,25 +1111,57 @@ const runServerCommand = (
 
 const pairCommand = Command.make("pair").pipe(
   Command.withDescription(
-    "Bootstrap ~/.trunk/config.json and print the URL to point a Trunk web app at this server.",
+    "Bootstrap ~/.trunk/config.json and claim this environment against your Trunk account via the WorkOS device flow.",
   ),
   Command.withHandler(() =>
     Effect.gen(function* () {
       const { remoteLinkConfigPath, writeRemoteLinkLocalConfig } = yield* Effect.promise(
         () => import("./remoteLink/RemoteLinkConfig.ts"),
       );
+      const { startDeviceFlow, completeDeviceFlow } = yield* Effect.promise(
+        () => import("./remoteLink/deviceFlow.ts"),
+      );
+
+      const clientId = process.env.TRUNK_WORKOS_CLIENT_ID?.trim();
+      const trunkApiUrl = process.env.TRUNK_API_URL?.trim() ?? "https://api.trunk.codes";
+
       const config = yield* writeRemoteLinkLocalConfig();
       const filePath = yield* remoteLinkConfigPath();
+
       yield* Console.log("");
-      yield* Console.log("Trunk server pairing complete.");
+      yield* Console.log("Trunk environment ready.");
       yield* Console.log("");
-      yield* Console.log(`  config:    ${filePath}`);
-      yield* Console.log(`  serverId:  ${config.serverId}`);
+      yield* Console.log(`  config:         ${filePath}`);
+      yield* Console.log(`  environmentId:  ${config.environmentId}`);
       yield* Console.log("");
-      yield* Console.log("Point your Trunk web app at:");
-      yield* Console.log(`  wss://api.trunk.codes/?serverId=${config.serverId}`);
+
+      if (!clientId) {
+        yield* Console.log(
+          "TRUNK_WORKOS_CLIENT_ID not set — skipping device flow. The environment is configured but unclaimed.",
+        );
+        return;
+      }
+
+      const flowConfig = { clientId, trunkApiUrl };
+      const device = yield* startDeviceFlow(flowConfig).pipe(
+        Effect.mapError((cause) => new Error(cause.message)),
+      );
+
+      yield* Console.log("Sign in to Trunk to claim this environment:");
       yield* Console.log("");
-      yield* Console.log("Issue a bearer token with: trunk auth session issue --role owner");
+      yield* Console.log(`  ${device.verification_uri_complete ?? device.verification_uri}`);
+      if (!device.verification_uri_complete) {
+        yield* Console.log(`  code:  ${device.user_code}`);
+      }
+      yield* Console.log("");
+      yield* Console.log("Waiting for sign-in...");
+
+      yield* completeDeviceFlow(flowConfig, device, config.environmentId).pipe(
+        Effect.mapError((cause) => new Error(cause.message)),
+      );
+
+      yield* Console.log("");
+      yield* Console.log("Environment claimed. Open https://app.trunk.codes to use it.");
       yield* Console.log("");
     }),
   ),

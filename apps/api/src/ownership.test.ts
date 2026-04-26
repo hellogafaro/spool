@@ -1,32 +1,31 @@
 import { describe, expect, it } from "vitest";
-import {
-  allowAllOwnershipChecker,
-  makeWorkOsOwnershipChecker,
-} from "./ownership.ts";
+import { allowAllOwnershipChecker, makeWorkOsOwnershipChecker } from "./ownership.ts";
+
+const ENV = "abcdefghjk23";
 
 describe("allowAllOwnershipChecker", () => {
   it("always allows", async () => {
-    const result = await allowAllOwnershipChecker("user_a", "server_a");
+    const result = await allowAllOwnershipChecker("user_a", ENV);
     expect(result.ok).toBe(true);
   });
 });
 
 describe("makeWorkOsOwnershipChecker", () => {
-  it("allows when metadata.serverId matches", async () => {
+  it("allows when environmentId is in the user's environmentIds array", async () => {
     const checker = makeWorkOsOwnershipChecker({
       apiKey: "sk_test_x",
-      fetchMetadata: async () => ({ serverId: "happy-coffee-a7k9" }),
+      fetchMetadata: async () => ({ environmentIds: [ENV, "anotherenvi"] }),
     });
-    const result = await checker("user_abc", "happy-coffee-a7k9");
+    const result = await checker("user_abc", ENV);
     expect(result.ok).toBe(true);
   });
 
-  it("denies with 403 when metadata.serverId does not match", async () => {
+  it("denies with 403 when environmentId is not in the array", async () => {
     const checker = makeWorkOsOwnershipChecker({
       apiKey: "sk_test_x",
-      fetchMetadata: async () => ({ serverId: "different-server" }),
+      fetchMetadata: async () => ({ environmentIds: ["differntenv"] }),
     });
-    const result = await checker("user_abc", "happy-coffee-a7k9");
+    const result = await checker("user_abc", ENV);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.status).toBe(403);
   });
@@ -36,7 +35,7 @@ describe("makeWorkOsOwnershipChecker", () => {
       apiKey: "sk_test_x",
       fetchMetadata: async () => null,
     });
-    const result = await checker("user_abc", "happy-coffee-a7k9");
+    const result = await checker("user_abc", ENV);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.status).toBe(403);
   });
@@ -48,7 +47,7 @@ describe("makeWorkOsOwnershipChecker", () => {
         throw new Error("upstream down");
       },
     });
-    const result = await checker("user_abc", "happy-coffee-a7k9");
+    const result = await checker("user_abc", ENV);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.status).toBe(503);
   });
@@ -62,31 +61,31 @@ describe("makeWorkOsOwnershipChecker", () => {
       now: () => now,
       fetchMetadata: async () => {
         calls += 1;
-        return { serverId: "happy-coffee-a7k9" };
+        return { environmentIds: [ENV] };
       },
     });
 
-    expect((await checker("user_abc", "happy-coffee-a7k9")).ok).toBe(true);
-    expect((await checker("user_abc", "happy-coffee-a7k9")).ok).toBe(true);
+    expect((await checker("user_abc", ENV)).ok).toBe(true);
+    expect((await checker("user_abc", ENV)).ok).toBe(true);
     expect(calls).toBe(1);
 
     now += 5001;
-    expect((await checker("user_abc", "happy-coffee-a7k9")).ok).toBe(true);
+    expect((await checker("user_abc", ENV)).ok).toBe(true);
     expect(calls).toBe(2);
   });
 
-  it("caches per (userId, serverId) so separate pairs hit the upstream", async () => {
+  it("caches per (userId, environmentId) so separate pairs hit the upstream", async () => {
     let calls = 0;
     const checker = makeWorkOsOwnershipChecker({
       apiKey: "sk_test_x",
       fetchMetadata: async () => {
         calls += 1;
-        return { serverId: "matching" };
+        return { environmentIds: [ENV] };
       },
     });
 
-    await checker("user_a", "matching");
-    await checker("user_b", "matching");
+    await checker("user_a", ENV);
+    await checker("user_b", ENV);
     expect(calls).toBe(2);
   });
 });

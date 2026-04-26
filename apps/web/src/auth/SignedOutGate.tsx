@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 
-import { fetchClaimedServerId } from "./pairingApi";
-import { writeClaimedServerId } from "./tokenStore";
+import { fetchClaimedEnvironmentIds } from "./pairingApi";
+import { readActiveEnvironmentId, writeActiveEnvironmentId } from "./tokenStore";
 import { isWorkOsConfigured, useTrunkAuth } from "./workos";
 
 export interface SignedOutGateProps {
@@ -37,8 +37,14 @@ function SignedOutGateInner({ children }: SignedOutGateProps) {
     fetchedServerIdRef.current = true;
     void auth.getAccessToken().then((token) => {
       if (!token) return;
-      void fetchClaimedServerId(token).then((serverId) => {
-        writeClaimedServerId(serverId);
+      void fetchClaimedEnvironmentIds(token).then((environmentIds) => {
+        if (environmentIds.length === 0) {
+          writeActiveEnvironmentId(null);
+          return;
+        }
+        const current = readActiveEnvironmentId();
+        const next = current && environmentIds.includes(current) ? current : environmentIds[0]!;
+        writeActiveEnvironmentId(next);
       });
     });
   }, [auth]);

@@ -13,10 +13,15 @@ import {
   makeWorkOsPairingWriter,
   type PairingWriter,
 } from "./pairing.ts";
-import { API_PATHS, API_PROTOCOL_VERSION, type ControlMessage } from "./protocol.ts";
+import {
+  API_PATHS,
+  API_PROTOCOL_VERSION,
+  ENVIRONMENT_PROOF_HEADER,
+  type ControlMessage,
+} from "./protocol.ts";
 
 interface Env {
-  SERVER_ROOMS: DurableObjectNamespace;
+  ENVIRONMENT_ROOMS: DurableObjectNamespace;
   WORKOS_CLIENT_ID?: string;
   WORKOS_API_KEY?: string;
 }
@@ -42,9 +47,9 @@ const jsonHeaders = {
 };
 
 const WS_PATHS = new Set<string>([
-  API_PATHS.server,
-  API_PATHS.serverChannel,
   API_PATHS.browser,
+  API_PATHS.channel,
+  API_PATHS.environment,
 ]);
 
 function resolveBrowserAuthVerifier(env: Env): BrowserAuthVerifier {
@@ -84,6 +89,13 @@ function withMeCors(response: Response): Response {
   return response;
 }
 
+function readEnvironmentIdsFromMetadata(metadata: Record<string, unknown> | null): string[] {
+  if (!metadata) return [];
+  const value = metadata.environmentIds;
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
+}
+
 async function handleMeRequest(request: Request, url: URL, env: Env): Promise<Response> {
   if (request.method === "OPTIONS") {
     return withMeCors(new Response(null, { status: 204 }));
@@ -102,7 +114,7 @@ async function handleMeRequest(request: Request, url: URL, env: Env): Promise<Re
     return withMeCors(new Response(`${auth.reason}\n`, { status: auth.status }));
   }
   if (!env.WORKOS_API_KEY || env.WORKOS_API_KEY.length === 0) {
-    return withMeCors(Response.json({ userId: auth.auth.userId, serverId: null }));
+    return withMeCors(Response.json({ userId: auth.auth.userId, environmentIds: [] }));
   }
   let metadata: Record<string, unknown> | null = null;
   try {
@@ -111,7 +123,9 @@ async function handleMeRequest(request: Request, url: URL, env: Env): Promise<Re
       { headers: { authorization: `Bearer ${env.WORKOS_API_KEY}` } },
     );
     if (!workosResponse.ok) {
-      return withMeCors(new Response(`workos lookup failed (${workosResponse.status})`, { status: 502 }));
+      return withMeCors(
+        new Response(`workos lookup failed (${workosResponse.status})`, { status: 502 }),
+      );
     }
     const body = (await workosResponse.json()) as { metadata?: Record<string, unknown> | null };
     metadata = body.metadata ?? null;
@@ -119,8 +133,12 @@ async function handleMeRequest(request: Request, url: URL, env: Env): Promise<Re
     const reason = error instanceof Error ? error.message : "workos lookup failed";
     return withMeCors(new Response(reason, { status: 503 }));
   }
-  const serverId = typeof metadata?.serverId === "string" ? metadata.serverId : null;
-  return withMeCors(Response.json({ userId: auth.auth.userId, serverId }));
+  return withMeCors(
+    Response.json({
+      userId: auth.auth.userId,
+      environmentIds: readEnvironmentIdsFromMetadata(metadata),
+    }),
+  );
 }
 
 function resolvePairingWriter(env: Env): PairingWriter | null {
@@ -172,16 +190,16 @@ export default {
       return new Response("websocket upgrade required\n", { status: 426, headers: textHeaders });
     }
 
-    const serverId = url.searchParams.get("serverId")?.trim();
-    if (!serverId) {
-      return new Response("serverId required\n", { status: 400, headers: textHeaders });
+    const environmentId = url.searchParams.get("environmentId")?.trim();
+    if (!environmentId) {
+      return new Response("environmentId required\n", { status: 400, headers: textHeaders });
     }
 
     if (
-      (url.pathname === API_PATHS.server || url.pathname === API_PATHS.serverChannel) &&
-      !request.headers.get("x-trunk-server-proof")
+      (url.pathname === API_PATHS.environment || url.pathname === API_PATHS.channel) &&
+      !request.headers.get(ENVIRONMENT_PROOF_HEADER)
     ) {
-      return new Response("server proof required\n", { status: 401, headers: textHeaders });
+      return new Response("environment proof required\n", { status: 401, headers: textHeaders });
     }
 
     if (url.pathname === API_PATHS.browser) {
@@ -194,7 +212,7 @@ export default {
         });
       }
       const ownership = resolveOwnershipChecker(env);
-      const ownershipResult = await ownership(authResult.auth.userId, serverId);
+      const ownershipResult = await ownership(authResult.auth.userId, environmentId);
       if (!ownershipResult.ok) {
         return new Response(`${ownershipResult.reason}\n`, {
           status: ownershipResult.status,
@@ -203,12 +221,12 @@ export default {
       }
     }
 
-    if (url.pathname === API_PATHS.serverChannel && !url.searchParams.get("channelId")?.trim()) {
+    if (url.pathname === API_PATHS.channel && !url.searchParams.get("channelId")?.trim()) {
       return new Response("channelId required\n", { status: 400, headers: textHeaders });
     }
 
-    const id = env.SERVER_ROOMS.idFromName(serverId);
-    return env.SERVER_ROOMS.get(id).fetch(request);
+    const id = env.ENVIRONMENT_ROOMS.idFromName(environmentId);
+    return env.ENVIRONMENT_ROOMS.get(id).fetch(request);
   },
 };
 
@@ -217,8 +235,8 @@ interface PendingBrowser {
   readonly buffered: Array<string | ArrayBuffer>;
 }
 
-export class ServerRoom implements DurableObject {
-  private serverSocket: WebSocket | null = null;
+export class EnvironmentRoom implements DurableObject {
+  private environmentSocket: WebSocket | null = null;
   private readonly pendingBrowsers = new Map<string, PendingBrowser>();
 
   constructor(
@@ -237,13 +255,13 @@ export class ServerRoom implements DurableObject {
 
     server.accept();
 
-    if (url.pathname === API_PATHS.server) {
-      this.acceptServer(server);
+    if (url.pathname === API_PATHS.environment) {
+      this.acceptEnvironment(server);
     } else if (url.pathname === API_PATHS.browser) {
       this.acceptBrowser(server);
-    } else if (url.pathname === API_PATHS.serverChannel) {
+    } else if (url.pathname === API_PATHS.channel) {
       const channelId = url.searchParams.get("channelId")?.trim() ?? "";
-      this.acceptServerChannel(server, channelId);
+      this.acceptChannel(server, channelId);
     } else {
       server.close(1008, "unsupported route");
     }
@@ -254,30 +272,30 @@ export class ServerRoom implements DurableObject {
     });
   }
 
-  private acceptServer(socket: WebSocket): void {
-    this.serverSocket?.close(1012, "server replaced");
-    this.serverSocket = socket;
+  private acceptEnvironment(socket: WebSocket): void {
+    this.environmentSocket?.close(1012, "environment replaced");
+    this.environmentSocket = socket;
 
     socket.addEventListener("close", () => {
-      if (this.serverSocket !== socket) {
+      if (this.environmentSocket !== socket) {
         return;
       }
-      this.serverSocket = null;
+      this.environmentSocket = null;
       for (const pending of this.pendingBrowsers.values()) {
-        pending.socket.close(1013, "server offline");
+        pending.socket.close(1013, "environment offline");
       }
       this.pendingBrowsers.clear();
     });
 
     socket.addEventListener("error", () => {
-      socket.close(1011, "server error");
+      socket.close(1011, "environment error");
     });
   }
 
   private acceptBrowser(socket: WebSocket): void {
-    const server = this.serverSocket;
-    if (!server || server.readyState !== WebSocket.OPEN) {
-      socket.close(1013, "server offline");
+    const environmentSocket = this.environmentSocket;
+    if (!environmentSocket || environmentSocket.readyState !== WebSocket.OPEN) {
+      socket.close(1013, "environment offline");
       return;
     }
 
@@ -307,24 +325,24 @@ export class ServerRoom implements DurableObject {
 
     const signal: ControlMessage = { type: "dial", channelId };
     try {
-      server.send(JSON.stringify(signal));
+      environmentSocket.send(JSON.stringify(signal));
     } catch {
       this.pendingBrowsers.delete(channelId);
-      socket.close(1011, "failed to signal server");
+      socket.close(1011, "failed to signal environment");
     }
   }
 
-  private acceptServerChannel(serverChannel: WebSocket, channelId: string): void {
+  private acceptChannel(channel: WebSocket, channelId: string): void {
     const pending = this.pendingBrowsers.get(channelId);
     if (!pending) {
-      serverChannel.close(4404, "unknown channel");
+      channel.close(4404, "unknown channel");
       return;
     }
     this.pendingBrowsers.delete(channelId);
 
     const browser = pending.socket;
     if (browser.readyState !== WebSocket.OPEN) {
-      serverChannel.close(1013, "browser gone");
+      channel.close(1013, "browser gone");
       return;
     }
 
@@ -332,15 +350,15 @@ export class ServerRoom implements DurableObject {
       pending.buffered.length = 0;
     };
 
-    bridge(browser, serverChannel, () => {
+    bridge(browser, channel, () => {
       removeBrowserBuffer();
     });
 
     for (const frame of pending.buffered) {
       try {
-        serverChannel.send(frame);
+        channel.send(frame);
       } catch {
-        // server channel closed mid-flush; bridge cleanup will handle the rest.
+        // channel closed mid-flush; bridge cleanup will handle the rest.
         break;
       }
     }

@@ -1,7 +1,7 @@
 /**
- * Client for the relay's /pairing endpoint. Writes
- * `metadata.serverId = <serverId>` to the authenticated user's WorkOS
- * record so subsequent WS upgrades pass the ownership check.
+ * Client for the relay's /pairing and /me endpoints. /pairing appends
+ * an environmentId to the authenticated user's WorkOS metadata.
+ * /me returns the user's claimed environmentIds.
  */
 
 const TRUNK_API_URL = (import.meta.env.VITE_TRUNK_API_URL as string | undefined)?.trim();
@@ -16,12 +16,15 @@ export class PairingApiError extends Error {
   }
 }
 
-export interface ClaimServerOptions {
-  readonly serverId: string;
+export interface ClaimEnvironmentOptions {
+  readonly environmentId: string;
   readonly accessToken: string;
 }
 
-export async function claimServer({ serverId, accessToken }: ClaimServerOptions): Promise<void> {
+export async function claimEnvironment({
+  environmentId,
+  accessToken,
+}: ClaimEnvironmentOptions): Promise<void> {
   if (!TRUNK_API_URL) {
     throw new PairingApiError(0, "VITE_TRUNK_API_URL is not configured");
   }
@@ -31,7 +34,7 @@ export async function claimServer({ serverId, accessToken }: ClaimServerOptions)
       authorization: `Bearer ${accessToken}`,
       "content-type": "application/json",
     },
-    body: JSON.stringify({ serverId }),
+    body: JSON.stringify({ environmentId }),
   });
   if (!response.ok) {
     const text = await response.text().catch(() => "");
@@ -42,16 +45,20 @@ export async function claimServer({ serverId, accessToken }: ClaimServerOptions)
   }
 }
 
-export async function fetchClaimedServerId(accessToken: string): Promise<string | null> {
+export async function fetchClaimedEnvironmentIds(accessToken: string): Promise<string[]> {
   if (!TRUNK_API_URL) {
-    return null;
+    return [];
   }
   const response = await fetch(`${TRUNK_API_URL.replace(/\/$/, "")}/me`, {
     headers: { authorization: `Bearer ${accessToken}` },
   });
   if (!response.ok) {
-    return null;
+    return [];
   }
-  const body = (await response.json()) as { serverId?: string | null };
-  return typeof body.serverId === "string" && body.serverId.length > 0 ? body.serverId : null;
+  const body = (await response.json()) as { environmentIds?: string[] };
+  return Array.isArray(body.environmentIds)
+    ? body.environmentIds.filter(
+        (entry): entry is string => typeof entry === "string" && entry.length > 0,
+      )
+    : [];
 }
