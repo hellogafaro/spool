@@ -1,5 +1,11 @@
 import type { ComponentType } from "react";
-import { ArchiveBoxIcon, ArrowLeftIcon, Cog8ToothIcon, LinkIcon } from "@heroicons/react/16/solid";
+import {
+  ArchiveBoxIcon,
+  ArrowLeftIcon,
+  Cog8ToothIcon,
+  LinkIcon,
+  ServerStackIcon,
+} from "@heroicons/react/16/solid";
 import { useNavigate } from "@tanstack/react-router";
 
 import {
@@ -15,13 +21,20 @@ export type SettingsSectionPath =
   | "/settings/connections"
   | "/settings/archived";
 
+function isWorkOsConfigured(): boolean {
+  return Boolean((import.meta.env.VITE_WORKOS_CLIENT_ID as string | undefined)?.trim());
+}
+
+const CONNECTIONS_LABEL = isWorkOsConfigured() ? "Environments" : "Connections";
+const CONNECTIONS_ICON = isWorkOsConfigured() ? ServerStackIcon : LinkIcon;
+
 export const SETTINGS_NAV_ITEMS: ReadonlyArray<{
   label: string;
   to: SettingsSectionPath;
   icon: ComponentType<{ className?: string }>;
 }> = [
   { label: "General", to: "/settings/general", icon: Cog8ToothIcon },
-  { label: "Connections", to: "/settings/connections", icon: LinkIcon },
+  { label: CONNECTIONS_LABEL, to: "/settings/connections", icon: CONNECTIONS_ICON },
   { label: "Archive", to: "/settings/archived", icon: ArchiveBoxIcon },
 ];
 

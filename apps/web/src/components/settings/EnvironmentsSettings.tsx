@@ -4,6 +4,7 @@ import { unclaimEnvironment } from "~/auth/pairingApi";
 import { readActiveEnvironmentId, writeActiveEnvironmentId } from "~/auth/tokenStore";
 import { useClaimedEnvironments } from "~/auth/useClaimedEnvironments";
 import { useTrunkAuth } from "~/auth/workos";
+import { InstallationGuide } from "../onboarding/InstallationGuide";
 import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
 import { SettingsPageContainer, SettingsSection } from "./settingsLayout";
@@ -115,28 +116,8 @@ export function EnvironmentsSettings() {
       </SettingsSection>
 
       <SettingsSection title="Add an environment">
-        <div className="space-y-3 px-4 py-4 text-sm text-muted-foreground sm:px-5">
-          <p>
-            Run the Trunk CLI on any machine you want to control. It opens a sign-in URL — click
-            it, and the environment is claimed against this account automatically.
-          </p>
-          <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Laptop</p>
-          <pre className="overflow-x-auto rounded-md border border-border/70 bg-background/40 px-3 py-2 font-mono text-xs">
-            curl -fsSL https://app.trunk.codes/install.sh | sh
-          </pre>
-          <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Container</p>
-          <p>
-            Deploy{" "}
-            <a
-              className="text-primary hover:underline"
-              href="https://github.com/hellogafaro/trunk-server"
-              target="_blank"
-              rel="noreferrer"
-            >
-              github.com/hellogafaro/trunk-server
-            </a>{" "}
-            on Railway / Render / Fly with a <code>/data</code> volume.
-          </p>
+        <div className="px-4 py-4 sm:px-5">
+          <InstallationGuide />
         </div>
       </SettingsSection>
     </SettingsPageContainer>

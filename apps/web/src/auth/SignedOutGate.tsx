@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 
 import { APP_DISPLAY_NAME } from "../branding";
+import { InstallationGuide } from "../components/onboarding/InstallationGuide";
 import { Button } from "../components/ui/button";
 import { Spinner } from "../components/ui/spinner";
 import { readActiveEnvironmentId, writeActiveEnvironmentId } from "./tokenStore";
@@ -75,56 +76,38 @@ function EnvironmentRequiredGate({ children }: SignedOutGateProps) {
 }
 
 function NoEnvironmentSplash({ onRefresh }: { onRefresh: () => void }) {
+  useEffect(() => {
+    const interval = window.setInterval(() => onRefresh(), 5000);
+    return () => window.clearInterval(interval);
+  }, [onRefresh]);
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10 text-foreground">
-      <section className="w-full max-w-lg space-y-5 rounded-2xl border border-border/80 bg-card/90 p-6 shadow-xl shadow-black/10 backdrop-blur-md">
+      <section className="w-full max-w-2xl space-y-5 rounded-2xl border border-border/80 bg-card/90 p-6 shadow-xl shadow-black/10 backdrop-blur-md">
         <header className="space-y-1">
           <p className="text-[11px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
             {APP_DISPLAY_NAME}
           </p>
           <h1 className="text-2xl font-semibold tracking-tight">Add your first environment</h1>
           <p className="text-sm text-muted-foreground">
-            Trunk runs on your machine and streams here. Run the installer on a laptop or VPS, or
-            deploy the container template — it'll prompt you to claim it against this account.
+            Trunk runs on a machine you control and streams here. Pick where you want to install
+            it.
           </p>
         </header>
 
-        <section className="space-y-2 rounded-lg border border-border/70 bg-background/40 p-3">
-          <p className="text-[11px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-            Laptop
-          </p>
-          <pre className="overflow-x-auto rounded-md bg-card/60 px-3 py-2 font-mono text-xs">
-            curl -fsSL https://app.trunk.codes/install.sh | sh
-          </pre>
-        </section>
-
-        <section className="space-y-2 rounded-lg border border-border/70 bg-background/40 p-3">
-          <p className="text-[11px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-            Container
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Deploy{" "}
-            <a
-              className="text-primary hover:underline"
-              href="https://github.com/hellogafaro/trunk-server"
-              target="_blank"
-              rel="noreferrer"
-            >
-              hellogafaro/trunk-server
-            </a>{" "}
-            on Railway / Render / Fly. Add a <code>/data</code> volume and watch the logs for the
-            sign-in URL.
-          </p>
-        </section>
-
-        <div className="flex items-center justify-between gap-2 pt-1">
-          <p className="text-xs text-muted-foreground">
-            Already ran it? This page refreshes automatically.
-          </p>
-          <Button size="sm" variant="outline" onClick={onRefresh}>
-            Refresh
-          </Button>
-        </div>
+        <InstallationGuide
+          footer={
+            <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-3">
+              <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Spinner className="size-3" />
+                Watching for your environment…
+              </p>
+              <Button size="sm" variant="outline" onClick={onRefresh}>
+                Refresh now
+              </Button>
+            </div>
+          }
+        />
       </section>
     </div>
   );
