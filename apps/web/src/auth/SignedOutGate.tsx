@@ -91,6 +91,8 @@ function EnvironmentRequiredGate({ children }: SignedOutGateProps) {
 }
 
 function NoEnvironmentSplash({ onRefresh }: { onRefresh: () => void }) {
+  const auth = useTrunkAuth();
+
   useEffect(() => {
     const interval = window.setInterval(() => onRefresh(), 5000);
     return () => window.clearInterval(interval);
@@ -108,6 +110,12 @@ function NoEnvironmentSplash({ onRefresh }: { onRefresh: () => void }) {
             Trunk runs on a machine you control and streams here. Pick where you want to install
             it.
           </p>
+          {auth.email ? (
+            <p className="pt-1 text-xs text-muted-foreground">
+              Signed in as <span className="font-medium text-foreground">{auth.email}</span>. If
+              your CLI claimed against a different account, sign out and try again.
+            </p>
+          ) : null}
         </header>
 
         <InstallationGuide
