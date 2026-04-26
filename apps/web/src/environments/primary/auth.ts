@@ -10,6 +10,7 @@ import type {
   AuthSessionState,
 } from "@t3tools/contracts";
 
+import { isWorkOsConfigured } from "../../auth/workos";
 import {
   getPairingTokenFromUrl,
   stripPairingTokenFromUrl as stripPairingTokenUrl,
@@ -193,6 +194,9 @@ function isTransientBootstrapError(error: unknown): boolean {
 }
 
 async function bootstrapServerAuth(): Promise<ServerAuthGateState> {
+  if (isWorkOsConfigured) {
+    return { status: "authenticated" };
+  }
   const bootstrapCredential = getDesktopBootstrapCredential();
   const currentSession = await fetchSessionState();
   if (currentSession.authenticated) {

@@ -3,12 +3,21 @@ import {
   createKnownEnvironment,
   type KnownEnvironment,
 } from "@t3tools/client-runtime";
-import type { EnvironmentId, ExecutionEnvironmentDescriptor } from "@t3tools/contracts";
+import { EnvironmentId, type ExecutionEnvironmentDescriptor } from "@t3tools/contracts";
 import { create } from "zustand";
 
+import { isWorkOsConfigured } from "../../auth/workos";
 import { BootstrapHttpError, retryTransientBootstrap } from "./auth";
 
 import { readPrimaryEnvironmentTarget, resolvePrimaryEnvironmentHttpUrl } from "./target";
+
+const PENDING_DESCRIPTOR: ExecutionEnvironmentDescriptor = {
+  environmentId: EnvironmentId.make("trunk-pending"),
+  label: "Trunk",
+  platform: { os: "unknown", arch: "other" },
+  serverVersion: "pending",
+  capabilities: { repositoryIdentity: false },
+};
 
 const SERVER_ENVIRONMENT_DESCRIPTOR_PATH = "/.well-known/t3/environment";
 
@@ -47,6 +56,10 @@ function createPrimaryKnownEnvironment(input: {
 }
 
 async function fetchPrimaryEnvironmentDescriptor(): Promise<ExecutionEnvironmentDescriptor> {
+  if (isWorkOsConfigured) {
+    writePrimaryEnvironmentDescriptor(PENDING_DESCRIPTOR);
+    return PENDING_DESCRIPTOR;
+  }
   return retryTransientBootstrap(async () => {
     const response = await fetch(
       resolvePrimaryEnvironmentHttpUrl(SERVER_ENVIRONMENT_DESCRIPTOR_PATH),

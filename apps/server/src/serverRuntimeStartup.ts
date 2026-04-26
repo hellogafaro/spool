@@ -33,6 +33,7 @@ import { ServerEnvironment } from "./environment/Services/ServerEnvironment.ts";
 import { AnalyticsService } from "./telemetry/Services/AnalyticsService.ts";
 import { ServerAuth } from "./auth/Services/ServerAuth.ts";
 import { ProviderSessionReaper } from "./provider/Services/ProviderSessionReaper.ts";
+import { readRemoteLinkLocalConfig } from "./remoteLink/RemoteLinkConfig.ts";
 import {
   formatHeadlessServeOutput,
   formatHostForUrl,
@@ -430,7 +431,11 @@ export const makeServerRuntimeStartup = Effect.gen(function* () {
 
       yield* Effect.logDebug("startup phase: recording startup heartbeat");
       yield* launchStartupHeartbeat;
-      if (serverConfig.startupPresentation === "headless") {
+      const remoteLinkConfig = yield* readRemoteLinkLocalConfig;
+      const isRelayManaged = Option.isSome(remoteLinkConfig);
+      if (isRelayManaged) {
+        yield* Effect.logDebug("startup phase: relay-managed, skipping pairing output");
+      } else if (serverConfig.startupPresentation === "headless") {
         yield* Effect.logDebug("startup phase: headless access info");
         const accessInfo = yield* issueHeadlessServeAccessInfo();
         yield* runStartupPhase(

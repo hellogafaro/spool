@@ -59,9 +59,10 @@ export default defineConfig({
     include: ["@pierre/diffs", "@pierre/diffs/react", "@pierre/diffs/worker/worker.js"],
   },
   define: {
-    "import.meta.env.VITE_HTTP_URL": JSON.stringify(configuredHttpUrl ?? ""),
-    // In dev mode, tell the web app where the WebSocket server lives
-    "import.meta.env.VITE_WS_URL": JSON.stringify(configuredWsUrl ?? ""),
+    ...(configuredHttpUrl
+      ? { "import.meta.env.VITE_HTTP_URL": JSON.stringify(configuredHttpUrl) }
+      : {}),
+    ...(configuredWsUrl ? { "import.meta.env.VITE_WS_URL": JSON.stringify(configuredWsUrl) } : {}),
     "import.meta.env.APP_VERSION": JSON.stringify(pkg.version),
   },
   resolve: {

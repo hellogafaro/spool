@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { PairingApiError, claimServer } from "../auth/pairingApi";
+import { writeClaimedServerId } from "../auth/tokenStore";
 import { useTrunkAccessToken, useTrunkAuth } from "../auth/workos";
 import { APP_DISPLAY_NAME } from "../branding";
 import { Button } from "../components/ui/button";
@@ -40,7 +41,8 @@ function ConnectServerRouteView() {
         return;
       }
       await claimServer({ serverId: trimmed, accessToken: token });
-      void navigate({ to: "/", replace: true });
+      writeClaimedServerId(trimmed);
+      window.location.replace("/");
     } catch (error) {
       setErrorMessage(claimErrorMessage(error));
     } finally {

@@ -41,3 +41,17 @@ export async function claimServer({ serverId, accessToken }: ClaimServerOptions)
     );
   }
 }
+
+export async function fetchClaimedServerId(accessToken: string): Promise<string | null> {
+  if (!TRUNK_API_URL) {
+    return null;
+  }
+  const response = await fetch(`${TRUNK_API_URL.replace(/\/$/, "")}/me`, {
+    headers: { authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) {
+    return null;
+  }
+  const body = (await response.json()) as { serverId?: string | null };
+  return typeof body.serverId === "string" && body.serverId.length > 0 ? body.serverId : null;
+}

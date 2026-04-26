@@ -38,7 +38,7 @@ describe("handlePairingRequest", () => {
       writer,
     });
     expect(response.status).toBe(405);
-    expect(response.headers.get("allow")).toBe("POST");
+    expect(response.headers.get("allow")).toBe("POST, OPTIONS");
   });
 
   it("returns auth error when token verification fails", async () => {

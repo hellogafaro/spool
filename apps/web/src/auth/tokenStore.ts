@@ -34,8 +34,36 @@ export async function attachAccessTokenToUrl(rawUrl: string): Promise<string> {
   try {
     const url = new URL(rawUrl);
     url.searchParams.set("token", token);
+    const serverId = readClaimedServerId();
+    if (serverId) {
+      url.searchParams.set("serverId", serverId);
+    }
     return url.toString();
   } catch {
     return rawUrl;
+  }
+}
+
+const CLAIMED_SERVER_ID_KEY = "trunk:claimedServerId";
+
+export function readClaimedServerId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(CLAIMED_SERVER_ID_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function writeClaimedServerId(serverId: string | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (serverId) {
+      window.localStorage.setItem(CLAIMED_SERVER_ID_KEY, serverId);
+    } else {
+      window.localStorage.removeItem(CLAIMED_SERVER_ID_KEY);
+    }
+  } catch {
+    // ignore: storage unavailable / quota exceeded
   }
 }

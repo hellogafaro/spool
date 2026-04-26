@@ -38,7 +38,7 @@ async function makeTestSetup() {
   const sign = (payload: Record<string, unknown>) =>
     new SignJWT(payload)
       .setProtectedHeader({ alg: "RS256", kid: "test-key" })
-      .setIssuer("https://api.workos.com")
+      .setIssuer(`https://api.workos.com/user_management/${clientId}`)
       .setIssuedAt()
       .setExpirationTime("1h")
       .sign(privateKey);

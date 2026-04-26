@@ -53,7 +53,7 @@ export function makeWorkOsBrowserAuthVerifier(clientId: string): BrowserAuthVeri
     let result: JWTVerifyResult<JWTPayload>;
     try {
       result = await jwtVerify(token, getJwks(clientId), {
-        issuer: "https://api.workos.com",
+        issuer: `https://api.workos.com/user_management/${clientId}`,
       });
     } catch (error) {
       const reason = error instanceof Error ? error.message : "verification failed";

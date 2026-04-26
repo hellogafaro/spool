@@ -3,6 +3,7 @@ export const API_PROTOCOL_VERSION = 1;
 export const API_PATHS = {
   browser: "/ws",
   health: "/health",
+  me: "/me",
   pairing: "/pairing",
   server: "/server",
   serverChannel: "/server-channel",

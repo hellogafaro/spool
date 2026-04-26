@@ -97,39 +97,59 @@ export interface PairingHandlerOptions {
   readonly writer: PairingWriter;
 }
 
+const CORS_HEADERS: Record<string, string> = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "POST, OPTIONS",
+  "access-control-allow-headers": "authorization, content-type",
+  "access-control-max-age": "86400",
+};
+
+function withCors(response: Response): Response {
+  for (const [key, value] of Object.entries(CORS_HEADERS)) {
+    response.headers.set(key, value);
+  }
+  return response;
+}
+
 export async function handlePairingRequest(
   request: Request,
   url: URL,
   options: PairingHandlerOptions,
 ): Promise<Response> {
+  if (request.method === "OPTIONS") {
+    return withCors(new Response(null, { status: 204 }));
+  }
+
   if (request.method !== "POST") {
-    return new Response("method not allowed\n", {
-      status: 405,
-      headers: { allow: "POST" },
-    });
+    return withCors(
+      new Response("method not allowed\n", {
+        status: 405,
+        headers: { allow: "POST, OPTIONS" },
+      }),
+    );
   }
 
   const auth = await options.authVerifier(request, url);
   if (!auth.ok) {
-    return new Response(`${auth.reason}\n`, { status: auth.status });
+    return withCors(new Response(`${auth.reason}\n`, { status: auth.status }));
   }
 
   let raw: unknown;
   try {
     raw = await request.json();
   } catch {
-    return new Response("invalid json body\n", { status: 400 });
+    return withCors(new Response("invalid json body\n", { status: 400 }));
   }
 
   const body = parsePairingBody(raw);
   if (!body) {
-    return new Response("serverId required\n", { status: 400 });
+    return withCors(new Response("serverId required\n", { status: 400 }));
   }
 
   const result = await options.writer.setServerId(auth.auth.userId, body.serverId);
   if (!result.ok) {
-    return new Response(`${result.reason}\n`, { status: result.status });
+    return withCors(new Response(`${result.reason}\n`, { status: result.status }));
   }
 
-  return Response.json({ ok: true, serverId: body.serverId });
+  return withCors(Response.json({ ok: true, serverId: body.serverId }));
 }
