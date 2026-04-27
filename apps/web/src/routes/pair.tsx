@@ -138,12 +138,12 @@ function EnvironmentPairView() {
   }, [status, navigate]);
 
   return (
-    <div className="min-h-screen bg-background px-6 py-12 text-foreground">
-      <div className="mx-auto w-full max-w-md space-y-6">
+    <div className="flex min-h-screen items-center justify-center bg-background p-4 text-foreground">
+      <div className="w-full max-w-md space-y-6">
         <TrunkLogo />
 
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Pair environment</h1>
+        <div className="space-y-1.5">
+          <h1 className="text-xl font-semibold">Pair environment</h1>
           <p className="text-base text-muted-foreground">
             {environmentId ? (
               <span className="font-mono text-foreground">{environmentId}</span>
@@ -164,7 +164,7 @@ function Body({ status, environmentId }: { status: Status; environmentId: string
 
   if (status.kind === "claiming" || status.kind === "idle") {
     return (
-      <Button size="lg" disabled className="w-full gap-2 cursor-wait">
+      <Button size="default" disabled className="w-full gap-2 cursor-wait">
         <Spinner className="size-4" />
         Pairing…
       </Button>
@@ -178,7 +178,7 @@ function Body({ status, environmentId }: { status: Status; environmentId: string
   return (
     <div className="space-y-3">
       <p className="text-sm text-destructive">{status.message}</p>
-      <Button onClick={() => window.location.reload()} size="lg" className="w-full">
+      <Button onClick={() => window.location.reload()} size="default" className="w-full">
         Try again
       </Button>
     </div>

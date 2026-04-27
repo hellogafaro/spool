@@ -1,17 +1,17 @@
 import { useAuth } from "@workos-inc/authkit-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { CommandLineIcon, CubeTransparentIcon, KeyIcon } from "@heroicons/react/16/solid";
 
 import { updateActiveEnvironmentId } from "../auth/activeEnvironment";
 import { claimEnvironment } from "../auth/pairing";
 import { useClaimedEnvironments } from "../auth/useClaimedEnvironments";
 import { TrunkLogo } from "../components/TrunkLogo";
+import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Spinner } from "../components/ui/spinner";
-import { cn } from "../lib/utils";
 
 export const Route = createFileRoute("/onboarding")({
   component: OnboardingRouteView,
@@ -49,19 +49,19 @@ function OnboardingRouteView() {
   }, [environments]);
 
   return (
-    <div className="min-h-screen bg-background px-6 py-12 text-foreground">
-      <div className="mx-auto w-full max-w-md space-y-6">
+    <div className="flex min-h-screen items-center justify-center bg-background p-4 text-foreground">
+      <div className="w-full max-w-md space-y-6">
         <TrunkLogo />
 
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Add your first environment</h1>
+        <div className="space-y-1.5">
+          <h1 className="text-xl font-semibold">Add your first environment</h1>
           <p className="text-base text-muted-foreground">
-            Trunk runs on a machine you control and streams here.
+            Pair the machine where Trunk runs. Sessions stream from there to here.
           </p>
           {auth.user?.email ? (
-            <p className="pt-2 text-xs text-muted-foreground">
-              Signed in as <span className="font-medium text-foreground">{auth.user.email}</span>.
-            </p>
+            <Badge variant="secondary" className="mt-2">
+              Signed in as {auth.user.email}
+            </Badge>
           ) : null}
         </div>
 
@@ -85,10 +85,12 @@ function OnboardingRouteView() {
         {tab === "container" ? <ContainerGuide /> : null}
         {tab === "manual" ? <ManualPairForm onPaired={() => void environments.refetch()} /> : null}
 
-        <div className="flex items-center gap-2 pt-2 text-xs text-muted-foreground">
-          <Spinner className="size-3" />
-          Watching for your environment…
-        </div>
+        {tab !== "manual" ? (
+          <Button disabled className="w-full cursor-wait gap-2">
+            <Spinner className="size-4" />
+            Watching for your environment…
+          </Button>
+        ) : null}
       </div>
     </div>
   );
@@ -102,8 +104,8 @@ function CodeBlock({ children }: { readonly children: string }) {
   );
 }
 
-function StepList({ children }: { readonly children: React.ReactNode }) {
-  return <ol className="space-y-3">{children}</ol>;
+function StepList({ children }: { readonly children: ReactNode }) {
+  return <ol className="space-y-2">{children}</ol>;
 }
 
 function Step({
@@ -113,10 +115,10 @@ function Step({
 }: {
   readonly index: number;
   readonly title: string;
-  readonly children?: React.ReactNode;
+  readonly children?: ReactNode;
 }) {
   return (
-    <li className="flex items-start gap-3">
+    <li className="flex items-start gap-3 rounded-md border border-border/70 p-2">
       <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-card text-[11px] font-semibold text-muted-foreground">
         {index}
       </span>
@@ -213,7 +215,6 @@ function ManualPairForm({ onPaired }: { readonly onPaired: () => void }) {
           placeholder="abcdefghjk23"
           autoComplete="off"
           spellCheck={false}
-          className="font-mono text-sm"
           required
         />
       </div>
@@ -228,17 +229,11 @@ function ManualPairForm({ onPaired }: { readonly onPaired: () => void }) {
           placeholder="64-char hex string from the env console"
           autoComplete="off"
           spellCheck={false}
-          className="font-mono text-sm"
           required
         />
       </div>
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
-      <Button
-        type="submit"
-        size="lg"
-        disabled={pairing}
-        className={cn("w-full gap-2", pairing && "cursor-wait")}
-      >
+      <Button type="submit" disabled={pairing} className="w-full gap-2">
         {pairing ? <Spinner className="size-4" /> : null}
         {pairing ? "Pairing…" : "Pair environment"}
       </Button>
