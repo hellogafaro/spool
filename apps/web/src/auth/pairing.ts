@@ -1,6 +1,6 @@
 /**
  * Browser client for the relay's /pair endpoint. The list of envs the
- * user owns isn't fetched separately — it ships as the `environmentIds`
+ * user owns isn't fetched separately — it ships as the `environments`
  * custom claim on the WorkOS access token (configured via JWT template
  * in the WorkOS Dashboard), so we decode it from the token directly.
  */

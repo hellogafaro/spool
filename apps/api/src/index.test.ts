@@ -55,7 +55,7 @@ async function pairBrowserToEnvironment(
 ): Promise<{ browser: WebSocket; channel: WebSocket; channelId: string }> {
   const dialPromise = nextMessage(control);
   const browser = await openSocket(
-    API_PATHS.browser,
+    API_PATHS.client,
     { environmentId },
     { authorization: authHeader },
   );
@@ -127,7 +127,7 @@ describe("HTTP routes", () => {
   });
 
   it("401s /ws missing authorization header", async () => {
-    const r = await SELF.fetch(url(API_PATHS.browser, { environmentId: "ABCDEFGHJK23" }), {
+    const r = await SELF.fetch(url(API_PATHS.client, { environmentId: "ABCDEFGHJK23" }), {
       headers: { upgrade: "websocket" },
     });
     expect(r.status).toBe(401);
@@ -137,7 +137,7 @@ describe("HTTP routes", () => {
 describe("dial-back routing", () => {
   it("rejects browser when no environment is connected", async () => {
     const browser = await openSocket(
-      API_PATHS.browser,
+      API_PATHS.client,
       { environmentId: "NOENVABCDEF2" },
       { authorization: "Bearer x" },
     );
@@ -154,7 +154,7 @@ describe("dial-back routing", () => {
     );
     const dialPromise = nextMessage(control);
     const browser = await openSocket(
-      API_PATHS.browser,
+      API_PATHS.client,
       { environmentId },
       { authorization: "Bearer x" },
     );
@@ -201,7 +201,7 @@ describe("dial-back routing", () => {
 
     const dialPromise = nextMessage(control);
     const browser = await openSocket(
-      API_PATHS.browser,
+      API_PATHS.client,
       { environmentId },
       { authorization: "Bearer x" },
     );
@@ -265,7 +265,7 @@ describe("dial-back routing", () => {
 
     const dialAPromise = nextMessage(control);
     const browserA = await openSocket(
-      API_PATHS.browser,
+      API_PATHS.client,
       { environmentId },
       { authorization: "Bearer a" },
     );
@@ -278,7 +278,7 @@ describe("dial-back routing", () => {
 
     const dialBPromise = nextMessage(control);
     const browserB = await openSocket(
-      API_PATHS.browser,
+      API_PATHS.client,
       { environmentId },
       { authorization: "Bearer b" },
     );
@@ -323,7 +323,7 @@ describe("dial-back routing", () => {
 
     const dialPromise = nextMessage(controlA);
     const browserA = await openSocket(
-      API_PATHS.browser,
+      API_PATHS.client,
       { environmentId: "ROOMAAAAAAAA" },
       { authorization: "Bearer a" },
     );
@@ -353,7 +353,7 @@ describe("dial-back routing", () => {
       { [ENVIRONMENT_PROOF_HEADER]: "x" },
     );
     const browser = await openSocket(
-      API_PATHS.browser,
+      API_PATHS.client,
       { environmentId },
       { authorization: "Bearer x" },
     );

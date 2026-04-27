@@ -11,17 +11,17 @@ function getJwks(clientId: string): ReturnType<typeof createRemoteJWKSet> {
   return jwks;
 }
 
-export interface VerifiedBrowserAuth {
+export interface VerifiedClientAuth {
   readonly userId: string;
   readonly payload: JWTPayload;
 }
 
-export type BrowserAuthResult =
-  | { readonly ok: true; readonly auth: VerifiedBrowserAuth }
+export type ClientAuthResult =
+  | { readonly ok: true; readonly auth: VerifiedClientAuth }
   | { readonly ok: false; readonly status: 401 | 503; readonly reason: string };
 
-export interface BrowserAuthVerifier {
-  (request: Request, url: URL): Promise<BrowserAuthResult>;
+export interface ClientAuthVerifier {
+  (request: Request, url: URL): Promise<ClientAuthResult>;
 }
 
 function readBearer(request: Request, url: URL): string | null {
@@ -43,7 +43,7 @@ function readBearer(request: Request, url: URL): string | null {
   return null;
 }
 
-export function makeWorkOsBrowserAuthVerifier(clientId: string): BrowserAuthVerifier {
+export function makeWorkOsClientAuthVerifier(clientId: string): ClientAuthVerifier {
   return async (request, url) => {
     const token = readBearer(request, url);
     if (!token) {
@@ -69,7 +69,7 @@ export function makeWorkOsBrowserAuthVerifier(clientId: string): BrowserAuthVeri
   };
 }
 
-export const presenceOnlyBrowserAuthVerifier: BrowserAuthVerifier = async (request, url) => {
+export const presenceOnlyClientAuthVerifier: ClientAuthVerifier = async (request, url) => {
   const token = readBearer(request, url);
   if (!token) {
     return { ok: false, status: 401, reason: "missing bearer token" };

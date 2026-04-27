@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { BrowserAuthVerifier } from "./auth.ts";
+import type { ClientAuthVerifier } from "./auth.ts";
 import {
   handlePairingRequest,
   makeWorkOsPairingWriter,
@@ -8,11 +8,11 @@ import {
   type ReleaseEnvironmentOwner,
 } from "./pairing.ts";
 
-const acceptingVerifier: BrowserAuthVerifier = async () => ({
+const acceptingVerifier: ClientAuthVerifier = async () => ({
   ok: true,
   auth: { userId: "user_test", payload: { sub: "user_test" } },
 });
-const rejectingVerifier: BrowserAuthVerifier = async () => ({
+const rejectingVerifier: ClientAuthVerifier = async () => ({
   ok: false,
   status: 401,
   reason: "no token",

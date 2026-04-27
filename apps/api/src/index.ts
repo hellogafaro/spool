@@ -1,7 +1,7 @@
 import {
-  makeWorkOsBrowserAuthVerifier,
-  presenceOnlyBrowserAuthVerifier,
-  type BrowserAuthVerifier,
+  makeWorkOsClientAuthVerifier,
+  presenceOnlyClientAuthVerifier,
+  type ClientAuthVerifier,
 } from "./auth.ts";
 import {
   allowAllOwnershipChecker,
@@ -45,13 +45,13 @@ const jsonHeaders = {
   "content-type": "application/json; charset=utf-8",
 };
 
-const WS_PATHS = new Set<string>([API_PATHS.browser, API_PATHS.channel, API_PATHS.environment]);
+const WS_PATHS = new Set<string>([API_PATHS.client, API_PATHS.channel, API_PATHS.environment]);
 
-function getBrowserAuthVerifier(env: Env): BrowserAuthVerifier {
+function getClientAuthVerifier(env: Env): ClientAuthVerifier {
   if (env.WORKOS_CLIENT_ID && env.WORKOS_CLIENT_ID.length > 0) {
-    return makeWorkOsBrowserAuthVerifier(env.WORKOS_CLIENT_ID);
+    return makeWorkOsClientAuthVerifier(env.WORKOS_CLIENT_ID);
   }
-  return presenceOnlyBrowserAuthVerifier;
+  return presenceOnlyClientAuthVerifier;
 }
 
 let cachedOwnershipChecker: { apiKey: string; checker: OwnershipChecker } | null = null;
@@ -105,7 +105,7 @@ export default {
         );
       }
       return handlePairingRequest(request, url, {
-        authVerifier: getBrowserAuthVerifier(env),
+        authVerifier: getClientAuthVerifier(env),
         writer,
         claimEnvironmentOwner: async (environmentId, userId, token) => {
           const id = env.ENVIRONMENT_ROOMS.idFromName(environmentId);
@@ -209,8 +209,8 @@ export default {
       }
     }
 
-    if (url.pathname === API_PATHS.browser) {
-      const verify = getBrowserAuthVerifier(env);
+    if (url.pathname === API_PATHS.client) {
+      const verify = getClientAuthVerifier(env);
       const authResult = await verify(request, url);
       if (!authResult.ok) {
         return new Response(`${authResult.reason}\n`, {
@@ -241,6 +241,13 @@ function doError(status: number, code: PairErrorCode, message: string): Response
   return Response.json({ code, message }, { status });
 }
 
+function isEqualConstantTime(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 async function getDoError(
   response: Response,
 ): Promise<{ readonly code: PairErrorCode | null; readonly message: string }> {
@@ -261,7 +268,7 @@ async function getDoError(
   return { code: null, message: text.trim() };
 }
 
-interface PendingBrowser {
+interface DialingClient {
   readonly socket: WebSocket;
   readonly buffered: Array<string | ArrayBuffer>;
 }
@@ -273,10 +280,12 @@ interface VaultCacheEntry {
 
 const VAULT_CACHE_TTL_MS = 60_000;
 const PENDING_TTL_MS = 15 * 60 * 1000;
+const PAIR_TOKEN_MIN_LENGTH = 8;
+const PAIR_TOKEN_MAX_LENGTH = 256;
 
 export class EnvironmentRoom implements DurableObject {
   private environmentSocket: WebSocket | null = null;
-  private readonly pendingBrowsers = new Map<string, PendingBrowser>();
+  private readonly dialingClients = new Map<string, DialingClient>();
   // Per-isolate cache for the env's Vault entry. Survives across requests
   // landing on the same DO instance, evicts on isolate restart. Reduces
   // env→relay reconnect chatter against the WorkOS Vault API.
@@ -299,7 +308,7 @@ export class EnvironmentRoom implements DurableObject {
 
     if (url.pathname === API_PATHS.environment || url.pathname === API_PATHS.channel) {
       const environmentId = url.searchParams.get("environmentId")?.trim() ?? "";
-      const proof = request.headers.get("x-trunk-environment-proof") ?? "";
+      const proof = request.headers.get(ENVIRONMENT_PROOF_HEADER) ?? "";
       const proofOk = await this.verifyProof(environmentId, proof);
       if (!proofOk) {
         return new Response("environment proof mismatch\n", { status: 401 });
@@ -315,8 +324,8 @@ export class EnvironmentRoom implements DurableObject {
     if (url.pathname === API_PATHS.environment) {
       const environmentId = url.searchParams.get("environmentId")?.trim() ?? "";
       this.handleEnvironmentSocket(server, environmentId);
-    } else if (url.pathname === API_PATHS.browser) {
-      this.handleBrowserSocket(server);
+    } else if (url.pathname === API_PATHS.client) {
+      this.handleClientSocket(server);
     } else if (url.pathname === API_PATHS.channel) {
       const channelId = url.searchParams.get("channelId")?.trim() ?? "";
       this.handleChannelSocket(server, channelId);
@@ -359,17 +368,12 @@ export class EnvironmentRoom implements DurableObject {
   private async verifyProof(environmentId: string, proof: string): Promise<boolean> {
     if (!proof || !environmentId) return false;
     const claimed = await this.getCachedVault(environmentId);
-    if (claimed) return claimed.secret === proof;
+    if (claimed) return isEqualConstantTime(claimed.secret, proof);
     const stored = (await this.state.storage.get<string>("secret")) ?? null;
-    if (stored === proof) return true;
-    if (stored == null) {
-      await this.state.storage.put("secret", proof);
-      await this.state.storage.put("createdAt", new Date().toISOString());
-      await this.state.storage.setAlarm(Date.now() + PENDING_TTL_MS);
-      return true;
-    }
-    // Re-TOFU while pending: a fresh env install replaces the previous one.
+    if (stored != null) return isEqualConstantTime(stored, proof);
     await this.state.storage.put("secret", proof);
+    await this.state.storage.put("createdAt", new Date().toISOString());
+    await this.state.storage.setAlarm(Date.now() + PENDING_TTL_MS);
     return true;
   }
 
@@ -407,7 +411,7 @@ export class EnvironmentRoom implements DurableObject {
         "Couldn't find a pending pair for this environment. The environment may not have started yet, or the pair attempt expired (15 min). Check the env console and copy a fresh Environment ID and Token.",
       );
     }
-    if (storedToken !== token) {
+    if (!isEqualConstantTime(storedToken, token)) {
       return doError(
         401,
         PAIR_ERROR_CODES.PAIR_TOKEN_MISMATCH,
@@ -437,7 +441,7 @@ export class EnvironmentRoom implements DurableObject {
 
   private async onPairToken(environmentId: string, token: string): Promise<void> {
     const trimmed = token.trim();
-    if (trimmed.length === 0 || trimmed.length > 256) return;
+    if (trimmed.length < PAIR_TOKEN_MIN_LENGTH || trimmed.length > PAIR_TOKEN_MAX_LENGTH) return;
     const claimed = await this.getCachedVault(environmentId);
     if (claimed) return; // already paired — ignore further pair-token pushes
     await this.state.storage.put("token", trimmed);
@@ -519,10 +523,10 @@ export class EnvironmentRoom implements DurableObject {
         return;
       }
       this.environmentSocket = null;
-      for (const pending of this.pendingBrowsers.values()) {
+      for (const pending of this.dialingClients.values()) {
         pending.socket.close(1013, "environment offline");
       }
-      this.pendingBrowsers.clear();
+      this.dialingClients.clear();
     });
 
     socket.addEventListener("error", () => {
@@ -530,7 +534,7 @@ export class EnvironmentRoom implements DurableObject {
     });
   }
 
-  private handleBrowserSocket(socket: WebSocket): void {
+  private handleClientSocket(socket: WebSocket): void {
     const environmentSocket = this.environmentSocket;
     if (!environmentSocket || environmentSocket.readyState !== WebSocket.OPEN) {
       socket.close(1013, "environment offline");
@@ -538,81 +542,78 @@ export class EnvironmentRoom implements DurableObject {
     }
 
     const channelId = crypto.randomUUID();
-    const pending: PendingBrowser = { socket, buffered: [] };
-    this.pendingBrowsers.set(channelId, pending);
+    const pending: DialingClient = { socket, buffered: [] };
+    this.dialingClients.set(channelId, pending);
 
     socket.addEventListener("message", (event) => {
-      const current = this.pendingBrowsers.get(channelId);
+      const current = this.dialingClients.get(channelId);
       if (current === pending) {
         pending.buffered.push(event.data as string | ArrayBuffer);
       }
     });
 
     socket.addEventListener("close", () => {
-      if (this.pendingBrowsers.get(channelId) === pending) {
-        this.pendingBrowsers.delete(channelId);
+      if (this.dialingClients.get(channelId) === pending) {
+        this.dialingClients.delete(channelId);
       }
     });
 
     socket.addEventListener("error", () => {
-      if (this.pendingBrowsers.get(channelId) === pending) {
-        this.pendingBrowsers.delete(channelId);
+      if (this.dialingClients.get(channelId) === pending) {
+        this.dialingClients.delete(channelId);
       }
-      socket.close(1011, "browser error");
+      socket.close(1011, "client error");
     });
 
     const signal: ControlMessage = { type: "dial", channelId };
     try {
       environmentSocket.send(JSON.stringify(signal));
     } catch {
-      this.pendingBrowsers.delete(channelId);
+      this.dialingClients.delete(channelId);
       socket.close(1011, "failed to signal environment");
     }
   }
 
   private handleChannelSocket(channel: WebSocket, channelId: string): void {
-    const pending = this.pendingBrowsers.get(channelId);
+    const pending = this.dialingClients.get(channelId);
     if (!pending) {
       channel.close(4404, "unknown channel");
       return;
     }
-    this.pendingBrowsers.delete(channelId);
+    this.dialingClients.delete(channelId);
 
-    const browser = pending.socket;
-    if (browser.readyState !== WebSocket.OPEN) {
-      channel.close(1013, "browser gone");
+    const clientSocket = pending.socket;
+    if (clientSocket.readyState !== WebSocket.OPEN) {
+      channel.close(1013, "client gone");
       return;
     }
 
-    const removeBrowserBuffer = () => {
+    const clearBuffer = () => {
       pending.buffered.length = 0;
     };
 
-    bridge(browser, channel, () => {
-      removeBrowserBuffer();
-    });
+    bridgeSockets(clientSocket, channel, clearBuffer);
 
     for (const frame of pending.buffered) {
       try {
         channel.send(frame);
       } catch {
-        // channel closed mid-flush; bridge cleanup will handle the rest.
         break;
       }
     }
-    removeBrowserBuffer();
+    clearBuffer();
   }
 }
 
-function bridge(a: WebSocket, b: WebSocket, onClose: () => void): void {
-  const forward = (from: WebSocket, to: WebSocket) => {
-    from.addEventListener("message", (event) => {
-      if (to.readyState === WebSocket.OPEN) {
-        to.send(event.data);
-      }
-    });
-  };
+function forwardMessages(from: WebSocket, to: WebSocket): void {
+  from.addEventListener("message", (event) => {
+    if (to.readyState === WebSocket.OPEN) {
+      to.send(event.data);
+    }
+  });
+}
 
+function bridgeSockets(a: WebSocket, b: WebSocket, onClose: () => void): void {
   let closed = false;
   const closeBoth = (code: number, reason: string) => {
     if (closed) return;
@@ -622,8 +623,8 @@ function bridge(a: WebSocket, b: WebSocket, onClose: () => void): void {
     if (b.readyState === WebSocket.OPEN) b.close(code, reason);
   };
 
-  forward(a, b);
-  forward(b, a);
+  forwardMessages(a, b);
+  forwardMessages(b, a);
   a.addEventListener("close", () => closeBoth(1001, "peer closed"));
   b.addEventListener("close", () => closeBoth(1001, "peer closed"));
   a.addEventListener("error", () => closeBoth(1011, "peer error"));

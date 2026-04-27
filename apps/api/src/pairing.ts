@@ -1,4 +1,4 @@
-import type { BrowserAuthVerifier } from "./auth.ts";
+import type { ClientAuthVerifier } from "./auth.ts";
 import { PAIR_ERROR_CODES, type PairErrorBody, type PairErrorCode } from "./protocol.ts";
 import {
   encodeEnvironments,
@@ -134,7 +134,7 @@ export type ReleaseEnvironmentOwner = (
 ) => Promise<ReleaseEnvironmentOwnerResult>;
 
 export interface PairingHandlerOptions {
-  readonly authVerifier: BrowserAuthVerifier;
+  readonly authVerifier: ClientAuthVerifier;
   readonly writer: PairingWriter;
   readonly claimEnvironmentOwner: ClaimEnvironmentOwner;
   readonly releaseEnvironmentOwner: ReleaseEnvironmentOwner;
@@ -253,11 +253,9 @@ export async function handlePairingRequest(
 
   const result = await options.writer.addEnvironmentId(auth.auth.userId, body.environmentId);
   if (!result.ok) {
-    // Don't auto-release: the DO is now {userId, status: active} for this user.
-    // Releasing would flip status -> disabled, which is irreversible. Leaving
-    // it lets the user retry; on retry the claim is a no-op (already-by-same-user)
-    // and the writer retries the WorkOS metadata write — self-heals when WorkOS
-    // recovers.
+    // Don't auto-release: vault now records this user as owner. Retry from
+    // the same user matches vault.owner and re-runs the metadata write —
+    // self-heals when WorkOS recovers.
     return errorResponse(request, result.status, result.code, result.message);
   }
 

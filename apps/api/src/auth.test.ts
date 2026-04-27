@@ -1,6 +1,6 @@
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { describe, expect, it } from "vitest";
-import { makeWorkOsBrowserAuthVerifier, presenceOnlyBrowserAuthVerifier } from "./auth.ts";
+import { makeWorkOsClientAuthVerifier, presenceOnlyClientAuthVerifier } from "./auth.ts";
 
 async function makeTestSetup() {
   const { publicKey, privateKey } = await generateKeyPair("RS256", { extractable: true });
@@ -48,31 +48,31 @@ function makeRequest(
   return { request: new Request(url.toString(), { headers }), url };
 }
 
-describe("presenceOnlyBrowserAuthVerifier", () => {
+describe("presenceOnlyClientAuthVerifier", () => {
   it("rejects when no token present", async () => {
     const { request, url } = makeRequest({});
-    const result = await presenceOnlyBrowserAuthVerifier(request, url);
+    const result = await presenceOnlyClientAuthVerifier(request, url);
     expect(result.ok).toBe(false);
   });
 
   it("accepts any non-empty bearer header", async () => {
     const { request, url } = makeRequest({ authorization: "Bearer xyz" });
-    const result = await presenceOnlyBrowserAuthVerifier(request, url);
+    const result = await presenceOnlyClientAuthVerifier(request, url);
     expect(result.ok).toBe(true);
   });
 
   it("accepts query-string token", async () => {
     const { request, url } = makeRequest({}, "qstoken");
-    const result = await presenceOnlyBrowserAuthVerifier(request, url);
+    const result = await presenceOnlyClientAuthVerifier(request, url);
     expect(result.ok).toBe(true);
   });
 });
 
-describe("makeWorkOsBrowserAuthVerifier", () => {
+describe("makeWorkOsClientAuthVerifier", () => {
   it("verifies a valid signed token from WorkOS JWKS", async () => {
     const { clientId, sign, restore } = await makeTestSetup();
     try {
-      const verifier = makeWorkOsBrowserAuthVerifier(clientId);
+      const verifier = makeWorkOsClientAuthVerifier(clientId);
       const token = await sign({ sub: "user_abc", email: "user@trunk.codes" });
       const { request, url } = makeRequest({ authorization: `Bearer ${token}` });
       const result = await verifier(request, url);
@@ -88,7 +88,7 @@ describe("makeWorkOsBrowserAuthVerifier", () => {
   it("rejects an unsigned/garbage token", async () => {
     const { clientId, restore } = await makeTestSetup();
     try {
-      const verifier = makeWorkOsBrowserAuthVerifier(clientId);
+      const verifier = makeWorkOsClientAuthVerifier(clientId);
       const { request, url } = makeRequest({ authorization: "Bearer not-a-jwt" });
       const result = await verifier(request, url);
       expect(result.ok).toBe(false);
@@ -100,7 +100,7 @@ describe("makeWorkOsBrowserAuthVerifier", () => {
   it("rejects when bearer is missing entirely", async () => {
     const { clientId, restore } = await makeTestSetup();
     try {
-      const verifier = makeWorkOsBrowserAuthVerifier(clientId);
+      const verifier = makeWorkOsClientAuthVerifier(clientId);
       const { request, url } = makeRequest({});
       const result = await verifier(request, url);
       expect(result.ok).toBe(false);
@@ -113,7 +113,7 @@ describe("makeWorkOsBrowserAuthVerifier", () => {
   it("rejects token with wrong issuer", async () => {
     const { clientId, restore } = await makeTestSetup();
     try {
-      const verifier = makeWorkOsBrowserAuthVerifier(clientId);
+      const verifier = makeWorkOsClientAuthVerifier(clientId);
       const wrong = await new SignJWT({ sub: "user_abc" })
         .setProtectedHeader({ alg: "RS256", kid: "test-key" })
         .setIssuer("https://attacker.example.com")
