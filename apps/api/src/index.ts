@@ -8,6 +8,7 @@ import {
   makeWorkOsOwnershipChecker,
   type OwnershipChecker,
 } from "./ownership.ts";
+import { withCors } from "./cors.ts";
 import { handlePairingRequest, makeWorkOsPairingWriter, type PairingWriter } from "./pairing.ts";
 import {
   API_PATHS,
@@ -91,6 +92,25 @@ export default {
 
     if (url.pathname === API_PATHS.version) {
       return Response.json(VERSION_PAYLOAD, { headers: jsonHeaders });
+    }
+
+    // T3's web tracer posts OTLP traces to /api/observability/v1/traces on the
+    // primary env URL. In SaaS mode that resolves to api.trunk.codes; we
+    // accept-and-drop so the browser doesn't surface CORS errors. No traces
+    // are stored.
+    if (url.pathname === "/api/observability/v1/traces") {
+      const methods = "POST, OPTIONS";
+      if (request.method === "OPTIONS") {
+        return withCors(request, new Response(null, { status: 204 }), methods);
+      }
+      if (request.method === "POST") {
+        return withCors(request, new Response(null, { status: 204 }), methods);
+      }
+      return withCors(
+        request,
+        new Response("method not allowed\n", { status: 405, headers: textHeaders }),
+        methods,
+      );
     }
 
     if (url.pathname === API_PATHS.pair) {

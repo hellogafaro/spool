@@ -1,4 +1,5 @@
 import type { ClientAuthVerifier } from "./auth.ts";
+import { withCors as withCorsHeaders } from "./cors.ts";
 import { PAIR_ERROR_CODES, type PairErrorBody, type PairErrorCode } from "./protocol.ts";
 import {
   encodeEnvironments,
@@ -140,36 +141,10 @@ export interface PairingHandlerOptions {
   readonly releaseEnvironmentOwner: ReleaseEnvironmentOwner;
 }
 
-/**
- * Origins allowed to call /pair from a browser. Production points at
- * app.trunk.codes. The Cloudflare Pages preview pattern is whitelisted so
- * branch deploys keep working. Self-hosted forks fork the worker too and
- * extend this list.
- */
-const ALLOWED_ORIGINS = new Set<string>(["https://app.trunk.codes"]);
-const PREVIEW_ORIGIN_PATTERN = /^https:\/\/[a-z0-9-]+\.trunk-app\.pages\.dev$/;
-
-function isAllowedOrigin(origin: string | null): origin is string {
-  if (!origin) return false;
-  return ALLOWED_ORIGINS.has(origin) || PREVIEW_ORIGIN_PATTERN.test(origin);
-}
-
-function corsHeaders(request: Request): Record<string, string> {
-  const origin = request.headers.get("origin");
-  return {
-    "access-control-allow-origin": isAllowedOrigin(origin) ? origin : "https://app.trunk.codes",
-    "access-control-allow-methods": "POST, DELETE, OPTIONS",
-    "access-control-allow-headers": "authorization, content-type",
-    "access-control-max-age": "86400",
-    vary: "Origin",
-  };
-}
+const PAIR_ALLOWED_METHODS = "POST, DELETE, OPTIONS";
 
 function withCors(request: Request, response: Response): Response {
-  for (const [key, value] of Object.entries(corsHeaders(request))) {
-    response.headers.set(key, value);
-  }
-  return response;
+  return withCorsHeaders(request, response, PAIR_ALLOWED_METHODS);
 }
 
 function errorResponse(
