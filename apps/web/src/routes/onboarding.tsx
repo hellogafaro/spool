@@ -75,7 +75,8 @@ function OnboardingRouteView() {
         <div className="space-y-1.5">
           <h1 className="text-xl font-medium">Add your first environment</h1>
           <p className="text-base text-muted-foreground">
-            Trunk runs on a machine you control. Pair it once and start streaming.
+            Trunk drives a coding agent on a machine you trust — your laptop, a VPS, a container —
+            and streams the session into this app. Pair the machine once and start working.
           </p>
           {auth.user?.email ? (
             <Badge variant="secondary" className="mt-2">
@@ -106,31 +107,32 @@ function OnboardingRouteView() {
 
           <Step title="Paste the values it printed">
             <p className="text-sm text-muted-foreground">
-              Trunk prints an Environment ID and Token on first boot. Paste them here.
+              On first boot, Trunk prints an Environment ID and a Token in the console. Copy them
+              here.
             </p>
             <div className="space-y-1.5">
-              <Label htmlFor="environment-id" className="text-xs">
+              <Label htmlFor="environment-id" className="text-sm">
                 Environment ID
               </Label>
               <Input
                 id="environment-id"
                 value={environmentId}
                 onChange={(event) => setEnvironmentId(event.target.value)}
-                placeholder="abcdefghjk23"
+                placeholder="ABCDEFGHJK23"
                 autoComplete="off"
                 spellCheck={false}
                 required
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="token" className="text-xs">
+              <Label htmlFor="token" className="text-sm">
                 Token
               </Label>
               <Input
                 id="token"
                 value={token}
                 onChange={(event) => setToken(event.target.value)}
-                placeholder="64-char hex string"
+                placeholder="WFEBK4Q3TDGQ"
                 autoComplete="off"
                 spellCheck={false}
                 required
@@ -152,7 +154,7 @@ function OnboardingRouteView() {
 
 function CodeBlock({ children }: { readonly children: string }) {
   return (
-    <pre className="overflow-x-auto rounded-md bg-card/60 px-3 py-2 font-mono text-xs">
+    <pre className="overflow-x-auto rounded-md bg-card/60 px-3 py-2 font-mono text-sm">
       {children}
     </pre>
   );
@@ -170,7 +172,9 @@ function Step({ title, children }: { readonly title: string; readonly children?:
 function LocalGuide() {
   return (
     <div className="space-y-2">
-      <p className="text-xs text-muted-foreground">macOS, Linux, or Windows (WSL).</p>
+      <p className="text-sm text-muted-foreground">
+        Runs anywhere with a shell — macOS, Linux, or Windows (WSL). One curl line, then start it.
+      </p>
       <CodeBlock>{"curl -fsSL https://app.trunk.codes/install.sh | sh"}</CodeBlock>
       <CodeBlock>{"trunk start"}</CodeBlock>
     </div>
@@ -180,10 +184,14 @@ function LocalGuide() {
 function ContainerGuide() {
   return (
     <div className="space-y-2">
-      <p className="text-xs text-muted-foreground">Railway, Render, Fly, or any Docker host.</p>
+      <p className="text-sm text-muted-foreground">
+        Deploy the prebuilt template to Railway, Render, Fly.io, or any Docker host. Mount a{" "}
+        <code className="rounded bg-card/60 px-1 py-0.5 font-mono text-sm">/data</code> volume so
+        the Environment ID survives redeploys.
+      </p>
       <CodeBlock>{"github.com/hellogafaro/trunk-environment"}</CodeBlock>
-      <p className="text-xs text-muted-foreground/80">
-        Mount a <code>/data</code> volume so the environmentId survives redeploys.
+      <p className="text-sm text-muted-foreground/80">
+        The container prints the pair values in its boot logs.
       </p>
     </div>
   );

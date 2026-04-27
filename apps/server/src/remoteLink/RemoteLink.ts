@@ -17,6 +17,7 @@ import { Context, Duration, Effect, Layer, Option, Ref, Schedule } from "effect"
 
 import { LOOPBACK_TRUST_HEADER, setLoopbackTrustToken } from "../auth/loopbackTrust.ts";
 import { ServerConfig } from "../config.ts";
+import { awaitPairToken } from "./pairToken.ts";
 import {
   DEFAULT_REMOTE_LINK_API_URL,
   readRemoteLinkLocalConfig,
@@ -139,14 +140,14 @@ const connectControl = (
     );
 
     socket.addEventListener("open", () => {
-      const pairToken = process.env.TRUNK_PAIR_TOKEN;
-      if (pairToken) {
+      void awaitPairToken().then((pairToken) => {
+        if (!pairToken || socket.readyState !== WebSocket.OPEN) return;
         try {
           socket.send(JSON.stringify({ type: "pair-token", token: pairToken }));
         } catch {
-          // ignore: the relay simply won't see a pair token until the next reconnect
+          // ignore: the relay will see the next push on the next reconnect
         }
-      }
+      });
       Effect.runFork(
         setStatus({
           status: "connected",

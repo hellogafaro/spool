@@ -330,16 +330,28 @@ export class EnvironmentRoom implements DurableObject {
     });
   }
 
+  // Env-room lifecycle:
+  //   - "pending"  → no user yet; token can be re-TOFU'd by the env on each
+  //                  reconnect, secret can be re-TOFU'd, anyone with the
+  //                  current token can claim.
+  //   - "active"   → claimed; userId, secret, and token are locked. Env→relay
+  //                  proof must match `secret`. No further claims allowed.
+  //   - "disabled" → released by the owner; no env can re-pair. The user
+  //                  must rotate their environmentId on the env side to start
+  //                  a fresh pending row.
+  private async getStatus(): Promise<"pending" | "active" | "disabled"> {
+    const stored = (await this.state.storage.get<string>("status")) ?? null;
+    return stored === "active" || stored === "disabled" ? stored : "pending";
+  }
+
   private async verifyOrAdoptProof(proof: string): Promise<boolean> {
     if (!proof) return false;
-    const stored = (await this.state.storage.get<string>("envSecret")) ?? null;
+    const status = await this.getStatus();
+    if (status === "disabled") return false;
+    const stored = (await this.state.storage.get<string>("secret")) ?? null;
     if (stored === proof) return true;
-    // Unclaimed envs re-TOFU on every connect: the disk-side secret can
-    // legitimately rotate (config rewrite, fresh container) before any user
-    // has paired. Once a user claims, the secret is locked to that pairing.
-    const userId = (await this.state.storage.get<string>("userId")) ?? null;
-    if (!userId) {
-      await this.state.storage.put("envSecret", proof);
+    if (status === "pending") {
+      await this.state.storage.put("secret", proof);
       return true;
     }
     return false;
@@ -351,10 +363,21 @@ export class EnvironmentRoom implements DurableObject {
     if (!userId) return new Response("userId required\n", { status: 400 });
     if (!token) return new Response("token required\n", { status: 400 });
 
-    // The env pushes a fresh ephemeral pair token via the env-WS handshake.
-    // We match that here. Stays valid until the env reconnects with a new
-    // boot, or until the first successful claim consumes it.
-    const pending = (await this.state.storage.get<string>("pendingPairToken")) ?? null;
+    const status = await this.getStatus();
+    if (status === "disabled") {
+      return new Response("environment was released; re-pair from a fresh install\n", {
+        status: 410,
+      });
+    }
+    if (status === "active") {
+      const existing = (await this.state.storage.get<string>("userId")) ?? null;
+      return new Response(existing === userId ? "ok\n" : "environment already claimed\n", {
+        status: existing === userId ? 200 : 409,
+      });
+    }
+
+    // status === "pending"
+    const pending = (await this.state.storage.get<string>("token")) ?? null;
     if (!pending) {
       return new Response("environment offline; retry once it's online\n", { status: 401 });
     }
@@ -362,35 +385,27 @@ export class EnvironmentRoom implements DurableObject {
       return new Response("invalid pair token\n", { status: 401 });
     }
 
-    const existing = (await this.state.storage.get<string>("userId")) ?? null;
-    if (existing && existing !== userId) {
-      return new Response("environment already claimed\n", { status: 409 });
-    }
-    if (!existing) {
-      await this.state.storage.put("userId", userId);
-    }
-    await this.state.storage.delete("pendingPairToken");
+    await this.state.storage.put("userId", userId);
+    await this.state.storage.put("status", "active");
     return new Response("ok\n", { status: 200 });
   }
 
   private async acceptPairToken(token: string): Promise<void> {
     const trimmed = token.trim();
     if (trimmed.length === 0 || trimmed.length > 256) return;
-    // Once a user owns the room, no more re-pairing — the user must
-    // explicitly release first.
-    const existing = (await this.state.storage.get<string>("userId")) ?? null;
-    if (existing) return;
-    await this.state.storage.put("pendingPairToken", trimmed);
+    const status = await this.getStatus();
+    if (status !== "pending") return;
+    await this.state.storage.put("token", trimmed);
   }
 
   private async handleStatus(): Promise<Response> {
     const online = this.environmentSocket?.readyState === WebSocket.OPEN;
     if (online) {
-      // Update last-seen on every status check while online.
       await this.state.storage.put("lastSeenAt", new Date().toISOString());
     }
     const lastSeenAt = (await this.state.storage.get<string>("lastSeenAt")) ?? null;
-    return Response.json({ online, lastSeenAt });
+    const status = await this.getStatus();
+    return Response.json({ online, lastSeenAt, status });
   }
 
   private async handleRelease(url: URL): Promise<Response> {
@@ -398,9 +413,10 @@ export class EnvironmentRoom implements DurableObject {
     if (!userId) return new Response("userId required\n", { status: 400 });
     const existing = (await this.state.storage.get<string>("userId")) ?? null;
     if (existing === userId) {
+      await this.state.storage.put("status", "disabled");
       await this.state.storage.delete("userId");
-      await this.state.storage.delete("envSecret");
-      await this.state.storage.delete("pendingPairToken");
+      await this.state.storage.delete("secret");
+      await this.state.storage.delete("token");
     }
     return new Response("ok\n", { status: 200 });
   }

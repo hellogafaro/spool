@@ -6,7 +6,9 @@ const ENVIRONMENT_ID_PATTERN = /^[A-Z0-9]{12}$/;
 // Crockford-ish: drop ambiguous chars (0/O, 1/I/L) so the value is safe to read off a console.
 const ENVIRONMENT_ID_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
-export const EnvironmentId = Schema.String.pipe(Schema.check(Schema.isPattern(ENVIRONMENT_ID_PATTERN)));
+export const EnvironmentId = Schema.String.pipe(
+  Schema.check(Schema.isPattern(ENVIRONMENT_ID_PATTERN)),
+);
 export type EnvironmentId = typeof EnvironmentId.Type;
 
 export const RemoteLinkLocalConfig = Schema.Struct({
@@ -77,14 +79,13 @@ export const writeRemoteLinkLocalConfig = (
         ? { userId: overrides.userId }
         : Option.match(existing, {
             onNone: () => ({}),
-            onSome: (current) =>
-              current.userId !== undefined ? { userId: current.userId } : {},
+            onSome: (current) => (current.userId !== undefined ? { userId: current.userId } : {}),
           })),
     };
 
-    yield* fs.makeDirectory(path.dirname(filePath), { recursive: true }).pipe(
-      Effect.orElseSucceed(() => undefined),
-    );
+    yield* fs
+      .makeDirectory(path.dirname(filePath), { recursive: true })
+      .pipe(Effect.orElseSucceed(() => undefined));
     yield* fs.writeFileString(filePath, `${JSON.stringify(config, null, 2)}\n`);
     return config;
   });

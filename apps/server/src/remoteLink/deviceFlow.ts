@@ -135,9 +135,7 @@ const claim = (
       });
       if (!response.ok) {
         const text = await response.text().catch(() => "");
-        throw new Error(
-          `Pairing claim failed (${response.status}): ${text.trim() || "no body"}`,
-        );
+        throw new Error(`Pairing claim failed (${response.status}): ${text.trim() || "no body"}`);
       }
     },
     catch: (cause) =>

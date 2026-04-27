@@ -33,13 +33,17 @@ import { ServerEnvironment } from "./environment/Services/ServerEnvironment.ts";
 import { AnalyticsService } from "./telemetry/Services/AnalyticsService.ts";
 import { ServerAuth } from "./auth/Services/ServerAuth.ts";
 import { ProviderSessionReaper } from "./provider/Services/ProviderSessionReaper.ts";
+import { publishPairToken } from "./remoteLink/pairToken.ts";
 import { readRemoteLinkLocalConfig } from "./remoteLink/RemoteLinkConfig.ts";
+import { formatRelayPairingBanner } from "./remoteLink/relayPairingBanner.ts";
 import {
   formatHeadlessServeOutput,
   formatHostForUrl,
   isWildcardHost,
   issueHeadlessServeAccessInfo,
 } from "./startupAccess.ts";
+
+const DEFAULT_TRUNK_APP_URL = "https://app.trunk.codes";
 
 export class ServerRuntimeStartupError extends Data.TaggedError("ServerRuntimeStartupError")<{
   readonly message: string;
@@ -434,7 +438,23 @@ export const makeServerRuntimeStartup = Effect.gen(function* () {
       const remoteLinkConfig = yield* readRemoteLinkLocalConfig;
       const isRelayManaged = Option.isSome(remoteLinkConfig);
       if (isRelayManaged) {
-        yield* Effect.logDebug("startup phase: relay-managed, skipping pairing output");
+        yield* Effect.logDebug("startup phase: relay-managed, issuing pair credential");
+        const accessInfo = yield* issueHeadlessServeAccessInfo();
+        publishPairToken(accessInfo.token);
+        const appUrl = (process.env.TRUNK_APP_URL?.trim() || DEFAULT_TRUNK_APP_URL).replace(
+          /\/$/,
+          "",
+        );
+        yield* runStartupPhase(
+          "relay.banner",
+          Console.log(
+            formatRelayPairingBanner({
+              environmentId: remoteLinkConfig.value.environmentId,
+              token: accessInfo.token,
+              appUrl,
+            }),
+          ),
+        );
       } else if (serverConfig.startupPresentation === "headless") {
         yield* Effect.logDebug("startup phase: headless access info");
         const accessInfo = yield* issueHeadlessServeAccessInfo();

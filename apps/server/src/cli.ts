@@ -1096,46 +1096,17 @@ const projectCommand = Command.make("project").pipe(
   Command.withSubcommands([projectAddCommand, projectRemoveCommand, projectRenameCommand]),
 );
 
-const DEFAULT_TRUNK_APP_URL = "https://app.trunk.codes";
-
-const TRUNK_ASCII_LOGO = String.raw`
-   _____ ___ _   _ _  _ _  __
-  |_   _| _ \ | | | \| | |/ /
-    | | |   / |_| | .\` | ' <
-    |_| |_|_\\___/|_|\_|_|\_\
-`;
-
-const PAIR_TOKEN_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-
-/** Fresh 12-char Crockford-ish code per boot. Lives in process.env so the
- * RemoteLink layer can pick it up at WS connect time and ship it to the DO
- * — never written to disk. The DO consumes it on the first successful
- * claim, so leaking the screen later is harmless. */
-const generatePairToken = (): string => {
-  const bytes = new Uint8Array(12);
-  crypto.getRandomValues(bytes);
-  let token = "";
-  for (let index = 0; index < 12; index += 1) {
-    token += PAIR_TOKEN_ALPHABET[bytes[index]! % PAIR_TOKEN_ALPHABET.length];
-  }
-  return token;
-};
-
-const printPairingBanner = Effect.gen(function* () {
+/**
+ * Bootstrap the RemoteLink config so an environmentId exists on disk. The
+ * pair banner itself is printed later by the runtime startup phase that
+ * actually issues the T3 pair credential — running here would be too early
+ * (auth/db layers aren't up yet).
+ */
+const ensureRemoteLinkBootstrapped = Effect.gen(function* () {
   const { writeRemoteLinkLocalConfig } = yield* Effect.promise(
     () => import("./remoteLink/RemoteLinkConfig.ts"),
   );
-  const config = yield* writeRemoteLinkLocalConfig();
-  const appUrl = (process.env.TRUNK_APP_URL?.trim() || DEFAULT_TRUNK_APP_URL).replace(/\/$/, "");
-  const pairToken = generatePairToken();
-  process.env.TRUNK_PAIR_TOKEN = pairToken;
-
-  yield* Console.log(TRUNK_ASCII_LOGO);
-  yield* Console.log(`Environment ID: ${config.environmentId}`);
-  yield* Console.log(`Token: ${pairToken}`);
-  yield* Console.log("");
-  yield* Console.log(`Follow the instructions at ${appUrl} to add this environment.`);
-  yield* Console.log("");
+  yield* writeRemoteLinkLocalConfig();
 });
 
 const runServerCommand = (
@@ -1146,7 +1117,7 @@ const runServerCommand = (
   },
 ) =>
   Effect.gen(function* () {
-    yield* printPairingBanner;
+    yield* ensureRemoteLinkBootstrapped;
     const logLevel = yield* GlobalFlag.LogLevel;
     const config = yield* resolveServerConfig(flags, logLevel, options);
     return yield* runServer.pipe(Effect.provideService(ServerConfig, config));
@@ -1154,9 +1125,9 @@ const runServerCommand = (
 
 const pairCommand = Command.make("pair").pipe(
   Command.withDescription(
-    "Bootstrap ~/.trunk/config.json and print the one-click URL to claim this environment against your Trunk account.",
+    "Bootstrap ~/.trunk/config.json. Run `trunk start` to print the pair credentials.",
   ),
-  Command.withHandler(() => printPairingBanner),
+  Command.withHandler(() => ensureRemoteLinkBootstrapped),
 );
 
 const startCommand = Command.make("start", { ...sharedServerCommandFlags }).pipe(
