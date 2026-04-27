@@ -1,8 +1,8 @@
 import { type EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { readEnvironmentApi } from "~/environmentApi";
-import { useStore } from "~/store";
+import { createEnvironmentApi } from "~/environmentApi";
+import { getPrimaryEnvironmentConnection } from "~/environments/runtime";
 import { useServerConfig } from "~/rpc/serverState";
 
 import { getProviderCommands } from "./providerCommands";
@@ -27,7 +27,6 @@ export interface UseProviderInstallResult {
  * onto T3.
  */
 export function useProviderInstall(providerId: string): UseProviderInstallResult {
-  const activeEnvironmentId = useStore((s) => s.activeEnvironmentId);
   const serverConfig = useServerConfig();
   const [status, setStatus] = useState<InstallStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -43,17 +42,21 @@ export function useProviderInstall(providerId: string): UseProviderInstallResult
 
   const install = useCallback(() => {
     if (inFlightRef.current) return;
-    if (!activeEnvironmentId || !serverConfig) {
-      setStatus("error");
-      setErrorMessage("No active environment.");
-      return;
-    }
-    const api = readEnvironmentApi(activeEnvironmentId);
-    if (!api) {
+    if (!serverConfig) {
       setStatus("error");
       setErrorMessage("Environment is offline.");
       return;
     }
+    let primary;
+    try {
+      primary = getPrimaryEnvironmentConnection();
+    } catch {
+      setStatus("error");
+      setErrorMessage("Environment is offline.");
+      return;
+    }
+    const api = createEnvironmentApi(primary.client);
+    const envId = primary.environmentId;
     const commands = getProviderCommands(providerId);
     if (!commands) {
       setStatus("error");
@@ -67,7 +70,6 @@ export function useProviderInstall(providerId: string): UseProviderInstallResult
     const threadId = ThreadId.make(`__trunk-provider-install__${providerId}__${Date.now()}`);
     const terminalId = "default";
     const cwd = serverConfig.cwd;
-    const envId = activeEnvironmentId;
 
     inFlightRef.current = true;
     setStatus("installing");
@@ -134,7 +136,7 @@ export function useProviderInstall(providerId: string): UseProviderInstallResult
       .catch((error: unknown) => {
         finish("error", error instanceof Error ? error.message : "Could not open install shell.");
       });
-  }, [activeEnvironmentId, providerId, serverConfig]);
+  }, [providerId, serverConfig]);
 
   // Tear down on unmount: cancel the settle timer, drop the subscription,
   // close the PTY. Without this a navigation mid-install leaves a shell
@@ -145,17 +147,19 @@ export function useProviderInstall(providerId: string): UseProviderInstallResult
       const session = activeSessionRef.current;
       if (!session) return;
       session.unsubscribe();
-      const api = readEnvironmentApi(session.environmentId);
-      if (api) {
-        void api.terminal
-          .close({
+      activeSessionRef.current = null;
+      try {
+        const primary = getPrimaryEnvironmentConnection();
+        void createEnvironmentApi(primary.client)
+          .terminal.close({
             threadId: session.threadId,
             terminalId: session.terminalId,
             deleteHistory: true,
           })
           .catch(() => undefined);
+      } catch {
+        // Primary connection gone — env will reap the PTY itself.
       }
-      activeSessionRef.current = null;
     };
   }, []);
 

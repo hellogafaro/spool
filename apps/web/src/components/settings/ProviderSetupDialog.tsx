@@ -1,9 +1,9 @@
-import { ThreadId } from "@t3tools/contracts";
+import { type EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { scopeThreadRef } from "@t3tools/client-runtime";
 import { useEffect, useMemo, useRef } from "react";
 
-import { readEnvironmentApi } from "~/environmentApi";
-import { useStore } from "~/store";
+import { createEnvironmentApi } from "~/environmentApi";
+import { getPrimaryEnvironmentConnection } from "~/environments/runtime";
 import { useServerConfig, useServerKeybindings } from "~/rpc/serverState";
 
 import { TerminalViewport } from "../ThreadTerminalDrawer";
@@ -38,10 +38,16 @@ const TERMINAL_ID = "default";
  * the user lands directly in OAuth without typing anything.
  */
 export function ProviderSetupDialog({ providerId, providerLabel, open, onOpenChange }: Props) {
-  const activeEnvironmentId = useStore((s) => s.activeEnvironmentId);
   const serverConfig = useServerConfig();
   const keybindings = useServerKeybindings();
   const commands = getProviderCommands(providerId);
+
+  let primaryEnvironmentId: EnvironmentId | null = null;
+  try {
+    primaryEnvironmentId = getPrimaryEnvironmentConnection().environmentId;
+  } catch {
+    primaryEnvironmentId = null;
+  }
 
   // Timestamp the threadId per dialog open. Reusing a fixed threadId after a
   // previous setup closed would not re-fire the "started" event (T3's terminal
@@ -55,8 +61,8 @@ export function ProviderSetupDialog({ providerId, providerLabel, open, onOpenCha
     [open, providerId],
   );
   const threadRef = useMemo(
-    () => (activeEnvironmentId ? scopeThreadRef(activeEnvironmentId, threadId) : null),
-    [activeEnvironmentId, threadId],
+    () => (primaryEnvironmentId ? scopeThreadRef(primaryEnvironmentId, threadId) : null),
+    [primaryEnvironmentId, threadId],
   );
   const autoFedRef = useRef(false);
 
@@ -69,9 +75,14 @@ export function ProviderSetupDialog({ providerId, providerLabel, open, onOpenCha
       autoFedRef.current = false;
       return;
     }
-    if (!activeEnvironmentId || !commands) return;
-    const api = readEnvironmentApi(activeEnvironmentId);
-    if (!api) return;
+    if (!commands) return;
+    let primary;
+    try {
+      primary = getPrimaryEnvironmentConnection();
+    } catch {
+      return;
+    }
+    const api = createEnvironmentApi(primary.client);
 
     const unsubscribe = api.terminal.onEvent((event) => {
       if (event.threadId !== threadId || event.terminalId !== TERMINAL_ID) return;
@@ -88,7 +99,7 @@ export function ProviderSetupDialog({ providerId, providerLabel, open, onOpenCha
         .close({ threadId, terminalId: TERMINAL_ID, deleteHistory: true })
         .catch(() => undefined);
     };
-  }, [activeEnvironmentId, commands, open, threadId]);
+  }, [commands, open, threadId]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -101,7 +112,7 @@ export function ProviderSetupDialog({ providerId, providerLabel, open, onOpenCha
           </DialogDescription>
         </DialogHeader>
         <div className="px-6 pb-2">
-          {!activeEnvironmentId || !serverConfig ? (
+          {!primaryEnvironmentId || !serverConfig ? (
             <div className="rounded-md border border-dashed border-border/70 bg-card/40 px-4 py-6 text-center text-sm text-muted-foreground">
               No active environment.
             </div>
