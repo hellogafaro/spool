@@ -1106,6 +1106,13 @@ const formatPairUrl = (config: { environmentId: string; environmentSecret: strin
   return `${appUrl}/pair?environmentId=${config.environmentId}#token=${config.environmentSecret}`;
 };
 
+const TRUNK_ASCII_LOGO = String.raw`
+   _____ ___ _   _ _  _ _  __
+  |_   _| _ \ | | | \| | |/ /
+    | | |   / |_| | .\` | ' <
+    |_| |_|_\\___/|_|\_|_|\_\
+`;
+
 const printPairingBanner = Effect.gen(function* () {
   const { remoteLinkConfigPath, writeRemoteLinkLocalConfig } = yield* Effect.promise(
     () => import("./remoteLink/RemoteLinkConfig.ts"),
@@ -1114,17 +1121,16 @@ const printPairingBanner = Effect.gen(function* () {
   const filePath = yield* remoteLinkConfigPath();
   const pairUrl = formatPairUrl(config);
 
+  yield* Console.log(TRUNK_ASCII_LOGO);
+  yield* Console.log("  Pair this environment with your Trunk account:");
   yield* Console.log("");
-  yield* Console.log("============================================================");
-  yield* Console.log(" Pair this environment with your Trunk account:");
+  yield* Console.log(`    1. Environment ID:  ${config.environmentId}`);
+  yield* Console.log(`    2. Token:           ${config.environmentSecret}`);
+  yield* Console.log(`    3. Pair URL:        ${pairUrl}`);
   yield* Console.log("");
-  yield* Console.log(`   ${pairUrl}`);
+  yield* Console.log("  Open the Pair URL on any device, sign in, done.");
   yield* Console.log("");
-  yield* Console.log(" Open the URL on any device, sign in, done.");
-  yield* Console.log("============================================================");
-  yield* Console.log("");
-  yield* Console.log(`  config:         ${filePath}`);
-  yield* Console.log(`  environmentId:  ${config.environmentId}`);
+  yield* Console.log(`  Config: ${filePath}`);
   yield* Console.log("");
 });
 
