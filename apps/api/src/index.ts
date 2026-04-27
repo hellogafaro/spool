@@ -361,12 +361,12 @@ export class EnvironmentRoom implements DurableObject {
       return new Response("invalid pair token\n", { status: 401 });
     }
 
-    const existing = (await this.state.storage.get<string>("ownerUserId")) ?? null;
+    const existing = (await this.state.storage.get<string>("userId")) ?? null;
     if (existing && existing !== userId) {
       return new Response("environment already claimed\n", { status: 409 });
     }
     if (!existing) {
-      await this.state.storage.put("ownerUserId", userId);
+      await this.state.storage.put("userId", userId);
     }
     return new Response("ok\n", { status: 200 });
   }
@@ -384,9 +384,9 @@ export class EnvironmentRoom implements DurableObject {
   private async handleRelease(url: URL): Promise<Response> {
     const userId = url.searchParams.get("userId")?.trim();
     if (!userId) return new Response("userId required\n", { status: 400 });
-    const existing = (await this.state.storage.get<string>("ownerUserId")) ?? null;
+    const existing = (await this.state.storage.get<string>("userId")) ?? null;
     if (existing === userId) {
-      await this.state.storage.delete("ownerUserId");
+      await this.state.storage.delete("userId");
       await this.state.storage.delete("envSecret");
     }
     return new Response("ok\n", { status: 200 });
