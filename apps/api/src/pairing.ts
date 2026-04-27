@@ -141,21 +141,40 @@ export interface PairingHandlerOptions {
   readonly releaseEnvironmentOwner: ReleaseEnvironmentOwner;
 }
 
-const CORS_HEADERS: Record<string, string> = {
-  "access-control-allow-origin": "*",
-  "access-control-allow-methods": "POST, DELETE, OPTIONS",
-  "access-control-allow-headers": "authorization, content-type",
-  "access-control-max-age": "86400",
-};
+/**
+ * Origins allowed to call /pair from a browser. Production points at
+ * app.trunk.codes. The Cloudflare Pages preview pattern is whitelisted so
+ * branch deploys keep working. Self-hosted forks fork the worker too and
+ * extend this list.
+ */
+const ALLOWED_ORIGINS = new Set<string>(["https://app.trunk.codes"]);
+const PREVIEW_ORIGIN_PATTERN = /^https:\/\/[a-z0-9-]+\.trunk-app\.pages\.dev$/;
 
-function withCors(response: Response): Response {
-  for (const [key, value] of Object.entries(CORS_HEADERS)) {
+function isAllowedOrigin(origin: string | null): origin is string {
+  if (!origin) return false;
+  return ALLOWED_ORIGINS.has(origin) || PREVIEW_ORIGIN_PATTERN.test(origin);
+}
+
+function corsHeaders(request: Request): Record<string, string> {
+  const origin = request.headers.get("origin");
+  return {
+    "access-control-allow-origin": isAllowedOrigin(origin) ? origin : "https://app.trunk.codes",
+    "access-control-allow-methods": "POST, DELETE, OPTIONS",
+    "access-control-allow-headers": "authorization, content-type",
+    "access-control-max-age": "86400",
+    vary: "Origin",
+  };
+}
+
+function withCors(request: Request, response: Response): Response {
+  for (const [key, value] of Object.entries(corsHeaders(request))) {
     response.headers.set(key, value);
   }
   return response;
 }
 
 function errorResponse(
+  request: Request,
   status: number,
   code: PairErrorCode,
   message: string,
@@ -163,6 +182,7 @@ function errorResponse(
 ): Response {
   const body: PairErrorBody = { code, message };
   return withCors(
+    request,
     new Response(JSON.stringify(body), {
       status,
       headers: {
@@ -179,7 +199,7 @@ export async function handlePairingRequest(
   options: PairingHandlerOptions,
 ): Promise<Response> {
   if (request.method === "OPTIONS") {
-    return withCors(new Response(null, { status: 204 }));
+    return withCors(request, new Response(null, { status: 204 }));
   }
 
   if (request.method === "DELETE") {
@@ -188,6 +208,7 @@ export async function handlePairingRequest(
 
   if (request.method !== "POST") {
     return errorResponse(
+      request,
       405,
       PAIR_ERROR_CODES.PAIR_METHOD_NOT_ALLOWED,
       `Method ${request.method} is not allowed on /pair.`,
@@ -197,7 +218,7 @@ export async function handlePairingRequest(
 
   const auth = await options.authVerifier(request, url);
   if (!auth.ok) {
-    return errorResponse(auth.status, PAIR_ERROR_CODES.PAIR_AUTH_FAILED, auth.reason);
+    return errorResponse(request, auth.status, PAIR_ERROR_CODES.PAIR_AUTH_FAILED, auth.reason);
   }
 
   let raw: unknown;
@@ -205,6 +226,7 @@ export async function handlePairingRequest(
     raw = await request.json();
   } catch {
     return errorResponse(
+      request,
       400,
       PAIR_ERROR_CODES.PAIR_INVALID_BODY,
       "Request body is not valid JSON.",
@@ -214,6 +236,7 @@ export async function handlePairingRequest(
   const body = parsePairingBody(raw);
   if (!body) {
     return errorResponse(
+      request,
       400,
       PAIR_ERROR_CODES.PAIR_INVALID_BODY,
       "Body must be { environmentId: 12-char A-Z 0-9, token: non-empty string }.",
@@ -226,7 +249,7 @@ export async function handlePairingRequest(
     body.token,
   );
   if (!claim.ok) {
-    return errorResponse(claim.status, claim.code, claim.message);
+    return errorResponse(request, claim.status, claim.code, claim.message);
   }
 
   const result = await options.writer.addEnvironmentId(auth.auth.userId, body.environmentId);
@@ -236,10 +259,10 @@ export async function handlePairingRequest(
     // it lets the user retry; on retry the claim is a no-op (already-by-same-user)
     // and the writer retries the WorkOS metadata write — self-heals when WorkOS
     // recovers.
-    return errorResponse(result.status, result.code, result.message);
+    return errorResponse(request, result.status, result.code, result.message);
   }
 
-  return withCors(Response.json({ ok: true, environmentId: body.environmentId }));
+  return withCors(request, Response.json({ ok: true, environmentId: body.environmentId }));
 }
 
 async function handleDelete(
@@ -249,12 +272,13 @@ async function handleDelete(
 ): Promise<Response> {
   const auth = await options.authVerifier(request, url);
   if (!auth.ok) {
-    return errorResponse(auth.status, PAIR_ERROR_CODES.PAIR_AUTH_FAILED, auth.reason);
+    return errorResponse(request, auth.status, PAIR_ERROR_CODES.PAIR_AUTH_FAILED, auth.reason);
   }
 
   const environmentId = url.searchParams.get("environmentId")?.trim();
   if (!environmentId || !ENVIRONMENT_ID_PATTERN.test(environmentId)) {
     return errorResponse(
+      request,
       400,
       PAIR_ERROR_CODES.PAIR_INVALID_BODY,
       "environmentId query parameter must be a 12-char A-Z 0-9 string.",
@@ -263,13 +287,13 @@ async function handleDelete(
 
   const removeResult = await options.writer.removeEnvironmentId(auth.auth.userId, environmentId);
   if (!removeResult.ok) {
-    return errorResponse(removeResult.status, removeResult.code, removeResult.message);
+    return errorResponse(request, removeResult.status, removeResult.code, removeResult.message);
   }
 
   const release = await options.releaseEnvironmentOwner(environmentId, auth.auth.userId);
   if (!release.ok) {
-    return errorResponse(release.status, release.code, release.message);
+    return errorResponse(request, release.status, release.code, release.message);
   }
 
-  return withCors(Response.json({ ok: true, environmentId }));
+  return withCors(request, Response.json({ ok: true, environmentId }));
 }

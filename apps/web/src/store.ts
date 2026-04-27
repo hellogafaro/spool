@@ -154,6 +154,17 @@ function mapSession(session: OrchestrationSession): ThreadSession {
   };
 }
 
+function safeResolveAttachmentUrl(environmentId: EnvironmentId, attachmentId: string): string {
+  try {
+    return resolveEnvironmentHttpUrl({
+      environmentId,
+      pathname: attachmentPreviewRoutePath(attachmentId),
+    });
+  } catch {
+    return "";
+  }
+}
+
 function mapMessage(environmentId: EnvironmentId, message: OrchestrationMessage): ChatMessage {
   const attachments = message.attachments?.map((attachment) => ({
     type: "image" as const,
@@ -161,10 +172,11 @@ function mapMessage(environmentId: EnvironmentId, message: OrchestrationMessage)
     name: attachment.name,
     mimeType: attachment.mimeType,
     sizeBytes: attachment.sizeBytes,
-    previewUrl: resolveEnvironmentHttpUrl({
-      environmentId,
-      pathname: attachmentPreviewRoutePath(attachment.id),
-    }),
+    // SaaS environments don't expose a directly-reachable HTTP base
+    // (everything goes through the relay), so resolveEnvironmentHttpUrl
+    // throws for them. Treat that as "no preview available" rather than
+    // letting it crash the whole chat render.
+    previewUrl: safeResolveAttachmentUrl(environmentId, attachment.id),
   }));
 
   return {
