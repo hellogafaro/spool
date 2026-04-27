@@ -1,7 +1,7 @@
 import { useNavigate, useLocation } from "@tanstack/react-router";
 import { useEffect } from "react";
 
-import { readActiveEnvironmentId, writeActiveEnvironmentId } from "./tokenStore";
+import { getActiveEnvironmentId, updateActiveEnvironmentId } from "./activeEnvironment";
 import { useClaimedEnvironments } from "./useClaimedEnvironments";
 
 /**
@@ -21,15 +21,15 @@ export function useEnvironmentGate(): { isReady: boolean } {
     if (!environments.data) return;
     const ids = environments.data.environmentIds;
     if (ids.length === 0) {
-      writeActiveEnvironmentId(null);
+      updateActiveEnvironmentId(null);
       if (pathname !== "/onboarding" && pathname !== "/pair") {
         void navigate({ to: "/onboarding", replace: true });
       }
       return;
     }
-    const stored = readActiveEnvironmentId();
+    const stored = getActiveEnvironmentId();
     if (!stored || !ids.includes(stored)) {
-      writeActiveEnvironmentId(ids[0] ?? null);
+      updateActiveEnvironmentId(ids[0] ?? null);
     }
   }, [environments.data, navigate, pathname]);
 

@@ -2,7 +2,7 @@ import { useAuth } from "@workos-inc/authkit-react";
 import { useState } from "react";
 
 import { unclaimEnvironment } from "~/auth/pairing";
-import { readActiveEnvironmentId, writeActiveEnvironmentId } from "~/auth/tokenStore";
+import { getActiveEnvironmentId, updateActiveEnvironmentId } from "~/auth/activeEnvironment";
 import { useClaimedEnvironments } from "~/auth/useClaimedEnvironments";
 import { InstallationGuide } from "../onboarding/InstallationGuide";
 import { Button } from "../ui/button";
@@ -12,12 +12,12 @@ import { SettingsPageContainer, SettingsSection } from "./settingsLayout";
 export function EnvironmentsSettings() {
   const auth = useAuth();
   const environments = useClaimedEnvironments();
-  const activeId = readActiveEnvironmentId();
+  const activeId = getActiveEnvironmentId();
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string>("");
 
   const handleSelect = (id: string) => {
-    writeActiveEnvironmentId(id);
+    updateActiveEnvironmentId(id);
     window.location.reload();
   };
 
@@ -32,8 +32,8 @@ export function EnvironmentsSettings() {
         return;
       }
       await unclaimEnvironment({ environmentId: id, accessToken: token });
-      if (readActiveEnvironmentId() === id) {
-        writeActiveEnvironmentId(null);
+      if (getActiveEnvironmentId() === id) {
+        updateActiveEnvironmentId(null);
       }
       await environments.refetch();
     } catch (error) {

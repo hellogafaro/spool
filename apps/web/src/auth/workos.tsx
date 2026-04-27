@@ -1,14 +1,29 @@
 import { AuthKitProvider, useAuth } from "@workos-inc/authkit-react";
 import { useEffect, useRef, type ReactNode } from "react";
 
-import { setAccessTokenRefresher } from "./tokenStore";
-
 const WORKOS_CLIENT_ID = (import.meta.env.VITE_WORKOS_CLIENT_ID as string | undefined)?.trim();
 const WORKOS_API_HOSTNAME = (
   import.meta.env.VITE_WORKOS_API_HOSTNAME as string | undefined
 )?.trim();
 
 export const isWorkOsConfigured = !!WORKOS_CLIENT_ID;
+
+type TokenRefresher = () => Promise<string | null>;
+let registeredRefresher: TokenRefresher | null = null;
+
+/**
+ * Returns a fresh WorkOS access token from outside the React tree.
+ * AuthProvider registers the AuthKit refresher on mount; the WS transport
+ * calls this at connect time so every socket carries a current token.
+ */
+export async function getCurrentAccessToken(): Promise<string | null> {
+  if (!registeredRefresher) return null;
+  try {
+    return await registeredRefresher();
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Wraps the app in WorkOS AuthKit and only renders children once the
@@ -37,11 +52,11 @@ function SignedInOnly({ children }: { readonly children: ReactNode }) {
   const auth = useAuth();
   const redirectedRef = useRef(false);
 
-  // The WS transport reads this at connect time so each new socket
-  // carries a fresh access token in its URL.
   useEffect(() => {
-    setAccessTokenRefresher(() => auth.getAccessToken().then((value) => value ?? null));
-    return () => setAccessTokenRefresher(null);
+    registeredRefresher = () => auth.getAccessToken().then((value) => value ?? null);
+    return () => {
+      registeredRefresher = null;
+    };
   }, [auth]);
 
   useEffect(() => {

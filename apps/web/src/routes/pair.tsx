@@ -3,7 +3,7 @@ import { createFileRoute, redirect, useNavigate, useSearch } from "@tanstack/rea
 import { useEffect, useRef, useState } from "react";
 
 import { ApiError, claimEnvironment } from "../auth/pairing";
-import { writeActiveEnvironmentId } from "../auth/tokenStore";
+import { updateActiveEnvironmentId } from "../auth/activeEnvironment";
 import { useClaimedEnvironments } from "../auth/useClaimedEnvironments";
 import { isWorkOsConfigured } from "../auth/workos";
 import { APP_DISPLAY_NAME } from "../branding";
@@ -117,7 +117,7 @@ function EnvironmentPairView() {
           return;
         }
         await claimEnvironment({ environmentId, token: pairToken, accessToken });
-        writeActiveEnvironmentId(environmentId);
+        updateActiveEnvironmentId(environmentId);
         await environments.refetch();
         setStatus({ kind: "claimed" });
       } catch (error) {

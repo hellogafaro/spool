@@ -23,7 +23,8 @@ import {
   markPromotedDraftThreadsByRef,
   useComposerDraftStore,
 } from "~/composerDraftStore";
-import { attachAccessTokenToUrl } from "~/auth/tokenStore";
+import { getActiveEnvironmentId } from "~/auth/activeEnvironment";
+import { getCurrentAccessToken } from "~/auth/workos";
 import { ensureLocalApi } from "~/localApi";
 import { collectActiveTerminalThreadIds } from "~/lib/terminalStateCleanup";
 import { deriveOrchestrationBatchEffects } from "~/orchestrationEventEffects";
@@ -789,6 +790,22 @@ function createEnvironmentConnectionHandlers() {
   };
 }
 
+async function attachAuthToWsUrl(rawUrl: string): Promise<string> {
+  const accessToken = await getCurrentAccessToken();
+  if (!accessToken) return rawUrl;
+  try {
+    const url = new URL(rawUrl);
+    url.searchParams.set("token", accessToken);
+    const environmentId = getActiveEnvironmentId();
+    if (environmentId) {
+      url.searchParams.set("environmentId", environmentId);
+    }
+    return url.toString();
+  } catch {
+    return rawUrl;
+  }
+}
+
 function createPrimaryEnvironmentClient(
   knownEnvironment: ReturnType<typeof getPrimaryKnownEnvironment>,
 ) {
@@ -799,7 +816,7 @@ function createPrimaryEnvironmentClient(
     );
   }
 
-  return createWsRpcClient(new WsTransport(() => attachAccessTokenToUrl(wsBaseUrl)));
+  return createWsRpcClient(new WsTransport(() => attachAuthToWsUrl(wsBaseUrl)));
 }
 
 function createSavedEnvironmentClient(
