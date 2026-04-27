@@ -75,8 +75,8 @@ function OnboardingRouteView() {
         <div className="space-y-1.5">
           <h1 className="text-xl font-medium">Add your first environment</h1>
           <p className="text-base text-muted-foreground">
-            Trunk drives a coding agent on a machine you trust — your laptop, a VPS, a container —
-            and streams the session into this app. Pair the machine once and start working.
+            Trunk runs a coding agent on a machine you trust and streams the session into this app.
+            Pair the machine once and start working.
           </p>
           {auth.user?.email ? (
             <Badge variant="secondary" className="mt-2">
@@ -173,7 +173,7 @@ function LocalGuide() {
   return (
     <div className="space-y-2">
       <p className="text-sm text-muted-foreground">
-        Runs anywhere with a shell — macOS, Linux, or Windows (WSL). One curl line, then start it.
+        Works on macOS, Linux, and Windows with WSL. One curl line installs it, then start it.
       </p>
       <CodeBlock>{"curl -fsSL https://app.trunk.codes/install.sh | sh"}</CodeBlock>
       <CodeBlock>{"trunk start"}</CodeBlock>
