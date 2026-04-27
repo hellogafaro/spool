@@ -1,14 +1,16 @@
+import { DurableObject } from "cloudflare:workers";
+
 import {
   makeWorkOsClientAuthVerifier,
   presenceOnlyClientAuthVerifier,
   type ClientAuthVerifier,
 } from "./auth.ts";
+import { withCors } from "./cors.ts";
 import {
   allowAllOwnershipChecker,
   makeWorkOsOwnershipChecker,
   type OwnershipChecker,
 } from "./ownership.ts";
-import { withCors } from "./cors.ts";
 import { handlePairingRequest, makeWorkOsPairingWriter, type PairingWriter } from "./pairing.ts";
 import {
   API_PATHS,
@@ -26,27 +28,20 @@ interface Env {
   WORKOS_API_KEY?: string;
 }
 
-interface VersionPayload {
-  product: "trunk-api";
-  version: string;
-  protocolVersion: number;
-}
-
-const VERSION_PAYLOAD: VersionPayload = {
-  product: "trunk-api",
+const VERSION_PAYLOAD = {
+  product: "trunk-api" as const,
   version: "0.0.0",
   protocolVersion: API_PROTOCOL_VERSION,
 };
 
-const textHeaders = {
-  "content-type": "text/plain; charset=utf-8",
-};
-
-const jsonHeaders = {
-  "content-type": "application/json; charset=utf-8",
-};
+const textHeaders = { "content-type": "text/plain; charset=utf-8" };
+const jsonHeaders = { "content-type": "application/json; charset=utf-8" };
 
 const WS_PATHS = new Set<string>([API_PATHS.client, API_PATHS.channel, API_PATHS.environment]);
+
+const PENDING_TTL_MS = 15 * 60 * 1000;
+const PAIR_TOKEN_MIN_LENGTH = 8;
+const PAIR_TOKEN_MAX_LENGTH = 256;
 
 function getClientAuthVerifier(env: Env): ClientAuthVerifier {
   if (env.WORKOS_CLIENT_ID && env.WORKOS_CLIENT_ID.length > 0) {
@@ -95,15 +90,11 @@ export default {
     }
 
     // T3's web tracer posts OTLP traces to /api/observability/v1/traces on the
-    // primary env URL. In SaaS mode that resolves to api.trunk.codes; we
-    // accept-and-drop so the browser doesn't surface CORS errors. No traces
-    // are stored.
+    // primary env URL. In SaaS mode that resolves to api.trunk.codes; accept
+    // and drop so the browser doesn't surface CORS errors.
     if (url.pathname === "/api/observability/v1/traces") {
       const methods = "POST, OPTIONS";
-      if (request.method === "OPTIONS") {
-        return withCors(request, new Response(null, { status: 204 }), methods);
-      }
-      if (request.method === "POST") {
+      if (request.method === "OPTIONS" || request.method === "POST") {
         return withCors(request, new Response(null, { status: 204 }), methods);
       }
       return withCors(
@@ -128,80 +119,29 @@ export default {
         authVerifier: getClientAuthVerifier(env),
         writer,
         claimEnvironmentOwner: async (environmentId, userId, token) => {
-          const id = env.ENVIRONMENT_ROOMS.idFromName(environmentId);
-          const stub = env.ENVIRONMENT_ROOMS.get(id);
-          const claimUrl = new URL(
-            `http://do/internal/claim?userId=${encodeURIComponent(userId)}&token=${encodeURIComponent(
-              token,
-            )}&environmentId=${encodeURIComponent(environmentId)}`,
-          );
-          let response: Response;
-          try {
-            response = await stub.fetch(claimUrl.toString(), { method: "POST" });
-          } catch (error) {
-            return {
-              ok: false,
-              status: 502,
-              code: PAIR_ERROR_CODES.PAIR_DO_UNAVAILABLE,
-              message:
-                error instanceof Error
-                  ? `Relay couldn't reach the room: ${error.message}`
-                  : "Relay couldn't reach the room.",
-            } as const;
-          }
+          const response = await callDo(env, environmentId, "claim", {
+            userId,
+            token,
+            environmentId,
+          });
           if (response.ok) return { ok: true } as const;
-          const parsed = await getDoError(response);
-          if (
-            response.status === 401 ||
-            response.status === 404 ||
-            response.status === 409 ||
-            response.status === 502 ||
-            response.status === 503
-          ) {
-            return {
-              ok: false,
-              status: response.status,
-              code: parsed.code ?? PAIR_ERROR_CODES.PAIR_DO_UNAVAILABLE,
-              message: parsed.message,
-            } as const;
-          }
-          return {
-            ok: false,
-            status: 502,
-            code: PAIR_ERROR_CODES.PAIR_DO_UNAVAILABLE,
-            message: parsed.message || `Relay returned ${response.status}.`,
-          } as const;
+          const status = [401, 404, 409, 502, 503].includes(response.status)
+            ? (response.status as 401 | 404 | 409 | 502 | 503)
+            : 502;
+          return { ok: false, status, code: response.code, message: response.message } as const;
         },
         releaseEnvironmentOwner: async (environmentId, userId) => {
-          const id = env.ENVIRONMENT_ROOMS.idFromName(environmentId);
-          const stub = env.ENVIRONMENT_ROOMS.get(id);
-          const releaseUrl = new URL(
-            `http://do/internal/release?userId=${encodeURIComponent(
-              userId,
-            )}&environmentId=${encodeURIComponent(environmentId)}`,
-          );
-          let response: Response;
-          try {
-            response = await stub.fetch(releaseUrl.toString(), { method: "POST" });
-          } catch (error) {
-            return {
-              ok: false,
-              status: 502,
-              code: PAIR_ERROR_CODES.PAIR_DO_UNAVAILABLE,
-              message:
-                error instanceof Error
-                  ? `Relay couldn't reach the room: ${error.message}`
-                  : "Relay couldn't reach the room.",
-            } as const;
-          }
+          const response = await callDo(env, environmentId, "release", {
+            userId,
+            environmentId,
+          });
           if (response.ok) return { ok: true } as const;
-          const parsed = await getDoError(response);
           return {
             ok: false,
-            status: 502,
-            code: parsed.code ?? PAIR_ERROR_CODES.PAIR_DO_UNAVAILABLE,
-            message: parsed.message || `Release returned ${response.status}.`,
-          } as const;
+            status: 502 as const,
+            code: response.code,
+            message: response.message,
+          };
         },
       });
     }
@@ -220,8 +160,7 @@ export default {
     }
 
     if (url.pathname === API_PATHS.environment || url.pathname === API_PATHS.channel) {
-      const proof = request.headers.get(ENVIRONMENT_PROOF_HEADER);
-      if (!proof) {
+      if (!request.headers.get(ENVIRONMENT_PROOF_HEADER)) {
         return new Response("environment proof required\n", {
           status: 401,
           headers: textHeaders,
@@ -231,18 +170,14 @@ export default {
 
     if (url.pathname === API_PATHS.client) {
       const verify = getClientAuthVerifier(env);
-      const authResult = await verify(request, url);
-      if (!authResult.ok) {
-        return new Response(`${authResult.reason}\n`, {
-          status: authResult.status,
-          headers: textHeaders,
-        });
+      const auth = await verify(request, url);
+      if (!auth.ok) {
+        return new Response(`${auth.reason}\n`, { status: auth.status, headers: textHeaders });
       }
-      const ownership = getOwnershipChecker(env);
-      const ownershipResult = await ownership(authResult.auth.userId, environmentId);
-      if (!ownershipResult.ok) {
-        return new Response(`${ownershipResult.reason}\n`, {
-          status: ownershipResult.status,
+      const ownership = await getOwnershipChecker(env)(auth.auth.userId, environmentId);
+      if (!ownership.ok) {
+        return new Response(`${ownership.reason}\n`, {
+          status: ownership.status,
           headers: textHeaders,
         });
       }
@@ -256,6 +191,47 @@ export default {
     return env.ENVIRONMENT_ROOMS.get(id).fetch(request);
   },
 };
+
+async function callDo(
+  env: Env,
+  environmentId: string,
+  op: "claim" | "release",
+  params: Record<string, string>,
+): Promise<
+  | { readonly ok: true }
+  | {
+      readonly ok: false;
+      readonly status: number;
+      readonly code: PairErrorCode;
+      readonly message: string;
+    }
+> {
+  const id = env.ENVIRONMENT_ROOMS.idFromName(environmentId);
+  const stub = env.ENVIRONMENT_ROOMS.get(id);
+  const search = new URLSearchParams(params).toString();
+  let response: Response;
+  try {
+    response = await stub.fetch(`http://do/internal/${op}?${search}`, { method: "POST" });
+  } catch (error) {
+    return {
+      ok: false,
+      status: 502,
+      code: PAIR_ERROR_CODES.PAIR_DO_UNAVAILABLE,
+      message:
+        error instanceof Error
+          ? `Relay couldn't reach the room: ${error.message}`
+          : "Relay couldn't reach the room.",
+    };
+  }
+  if (response.ok) return { ok: true };
+  const parsed = await getDoError(response);
+  return {
+    ok: false,
+    status: response.status,
+    code: parsed.code ?? PAIR_ERROR_CODES.PAIR_DO_UNAVAILABLE,
+    message: parsed.message || `Relay returned ${response.status}.`,
+  };
+}
 
 function doError(status: number, code: PairErrorCode, message: string): Response {
   return Response.json({ code, message }, { status });
@@ -288,114 +264,209 @@ async function getDoError(
   return { code: null, message: text.trim() };
 }
 
-interface DialingClient {
-  readonly socket: WebSocket;
-  readonly buffered: Array<string | ArrayBuffer>;
-}
+// One DO per environmentId. Identity is implicit, so attachments only carry
+// the role and (for bridges) the channelId. Hibernation-safe per CF docs:
+// https://developers.cloudflare.com/durable-objects/best-practices/websockets/
+type WsAttachment =
+  | { readonly role: "env" }
+  | { readonly role: "client"; readonly channelId: string }
+  | { readonly role: "channel"; readonly channelId: string };
 
-interface VaultCacheEntry {
-  readonly entry: VaultEntry | null;
-  readonly expiresAt: number;
-}
+export class EnvironmentRoom extends DurableObject<Env> {
+  // Buffer for client→channel messages received before the channel WS opens.
+  // Per-isolate; resets if the DO hibernates between client open and channel
+  // open. The race window is microseconds in practice (env dials immediately
+  // on receiving the dial signal), so the buffer is best-effort.
+  private readonly dialBuffers = new Map<string, Array<string | ArrayBuffer>>();
 
-const VAULT_CACHE_TTL_MS = 60_000;
-const PENDING_TTL_MS = 15 * 60 * 1000;
-const PAIR_TOKEN_MIN_LENGTH = 8;
-const PAIR_TOKEN_MAX_LENGTH = 256;
-
-export class EnvironmentRoom implements DurableObject {
-  private environmentSocket: WebSocket | null = null;
-  private readonly dialingClients = new Map<string, DialingClient>();
-  // Per-isolate cache for the env's Vault entry. Survives across requests
-  // landing on the same DO instance, evicts on isolate restart. Reduces
-  // env→relay reconnect chatter against the WorkOS Vault API.
-  private vaultCache: VaultCacheEntry | null = null;
-
-  constructor(
-    private readonly state: DurableObjectState,
-    private readonly env: Env,
-  ) {}
-
-  async fetch(request: Request): Promise<Response> {
+  override async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
-    if (url.pathname === "/internal/claim") {
-      return this.handleClaim(url);
-    }
-    if (url.pathname === "/internal/release") {
-      return this.handleRelease(url);
-    }
+    if (url.pathname === "/internal/claim") return this.handleClaim(url);
+    if (url.pathname === "/internal/release") return this.handleRelease(url);
+
+    const environmentId = url.searchParams.get("environmentId")?.trim() ?? "";
+    const proof = request.headers.get(ENVIRONMENT_PROOF_HEADER) ?? "";
 
     if (url.pathname === API_PATHS.environment || url.pathname === API_PATHS.channel) {
-      const environmentId = url.searchParams.get("environmentId")?.trim() ?? "";
-      const proof = request.headers.get(ENVIRONMENT_PROOF_HEADER) ?? "";
-      const proofOk = await this.verifyProof(environmentId, proof);
-      if (!proofOk) {
-        return new Response("environment proof mismatch\n", { status: 401 });
-      }
+      const ok = await this.verifyProof(environmentId, proof);
+      if (!ok) return new Response("environment proof mismatch\n", { status: 401 });
     }
 
     const pair = new WebSocketPair();
-    const client = pair[0];
-    const server = pair[1];
-
-    server.accept();
+    const [clientEnd, server] = [pair[0], pair[1]];
 
     if (url.pathname === API_PATHS.environment) {
-      const environmentId = url.searchParams.get("environmentId")?.trim() ?? "";
-      this.handleEnvironmentSocket(server, environmentId);
+      this.acceptEnvSocket(server, environmentId);
     } else if (url.pathname === API_PATHS.client) {
-      this.handleClientSocket(server);
+      this.acceptClientSocket(server);
     } else if (url.pathname === API_PATHS.channel) {
       const channelId = url.searchParams.get("channelId")?.trim() ?? "";
-      this.handleChannelSocket(server, channelId);
+      this.acceptChannelSocket(server, channelId);
     } else {
       server.close(1008, "unsupported route");
     }
 
-    return new Response(null, {
-      status: 101,
-      webSocket: client,
+    return new Response(null, { status: 101, webSocket: clientEnd });
+  }
+
+  // ── WebSocket accept handlers ─────────────────────────────────
+
+  private acceptEnvSocket(socket: WebSocket, environmentId: string): void {
+    for (const existing of this.findByRole("env")) {
+      try {
+        existing.close(1012, "environment replaced");
+      } catch {
+        // already closing
+      }
+    }
+    this.ctx.acceptWebSocket(socket);
+    socket.serializeAttachment({ role: "env" } satisfies WsAttachment);
+    void this.getVault(environmentId).then((vault) => {
+      this.sendPairStatus(socket, vault?.owner ?? null);
     });
   }
 
-  // DO storage is purely the env→relay TOFU material before claim:
-  //   secret, token, createdAt
-  // Once a claim succeeds, the secret lives in WorkOS Vault (with owner
-  // recorded in key_context) and the DO row is wiped. The alarm() evicts
-  // unclaimed rows after PENDING_TTL_MS.
-
-  private async getCachedVault(environmentId: string): Promise<VaultEntry | null> {
-    if (this.vaultCache && this.vaultCache.expiresAt > Date.now()) {
-      return this.vaultCache.entry;
+  private acceptClientSocket(socket: WebSocket): void {
+    this.ctx.acceptWebSocket(socket);
+    const env = this.findByRole("env")[0];
+    if (!env) {
+      socket.close(1013, "environment offline");
+      return;
     }
-    if (!this.env.WORKOS_API_KEY) return null;
-    let entry: VaultEntry | null;
+    const channelId = crypto.randomUUID();
+    socket.serializeAttachment({ role: "client", channelId } satisfies WsAttachment);
+    const dial: ControlMessage = { type: "dial", channelId };
     try {
-      entry = await getVault(this.env.WORKOS_API_KEY, environmentId);
+      env.send(JSON.stringify(dial));
     } catch {
-      // Don't cache failures — let the next call retry.
-      return null;
+      socket.close(1011, "failed to signal environment");
     }
-    this.vaultCache = { entry, expiresAt: Date.now() + VAULT_CACHE_TTL_MS };
-    return entry;
   }
 
-  private clearVaultCache(): void {
-    this.vaultCache = null;
+  private acceptChannelSocket(socket: WebSocket, channelId: string): void {
+    this.ctx.acceptWebSocket(socket);
+    const client = this.findChannelPeer("client", channelId);
+    if (!client) {
+      socket.close(4404, "unknown channel");
+      return;
+    }
+    if (client.readyState !== WebSocket.OPEN) {
+      socket.close(1013, "client gone");
+      return;
+    }
+    socket.serializeAttachment({ role: "channel", channelId } satisfies WsAttachment);
+    const buffer = this.dialBuffers.get(channelId);
+    if (buffer) {
+      for (const frame of buffer) {
+        try {
+          socket.send(frame);
+        } catch {
+          break;
+        }
+      }
+      this.dialBuffers.delete(channelId);
+    }
   }
 
-  private async verifyProof(environmentId: string, proof: string): Promise<boolean> {
-    if (!proof || !environmentId) return false;
-    const claimed = await this.getCachedVault(environmentId);
-    if (claimed) return isEqualConstantTime(claimed.secret, proof);
-    const stored = (await this.state.storage.get<string>("secret")) ?? null;
-    if (stored != null) return isEqualConstantTime(stored, proof);
-    await this.state.storage.put("secret", proof);
-    await this.state.storage.put("createdAt", new Date().toISOString());
-    await this.state.storage.setAlarm(Date.now() + PENDING_TTL_MS);
-    return true;
+  // ── Hibernation handlers ──────────────────────────────────────
+
+  override async webSocketMessage(ws: WebSocket, msg: string | ArrayBuffer): Promise<void> {
+    const attachment = ws.deserializeAttachment() as WsAttachment | null;
+    if (!attachment) return;
+
+    if (attachment.role === "env") {
+      if (typeof msg !== "string") return;
+      let parsed: { type?: unknown; token?: unknown };
+      try {
+        parsed = JSON.parse(msg) as typeof parsed;
+      } catch {
+        return;
+      }
+      if (parsed.type === "pair-token" && typeof parsed.token === "string") {
+        await this.onPairToken(parsed.token);
+      }
+      return;
+    }
+
+    if (attachment.role === "client") {
+      const channel = this.findChannelPeer("channel", attachment.channelId);
+      if (channel && channel.readyState === WebSocket.OPEN) {
+        try {
+          channel.send(msg);
+        } catch {
+          // channel racing close — drop frame
+        }
+        return;
+      }
+      const list = this.dialBuffers.get(attachment.channelId) ?? [];
+      list.push(msg);
+      this.dialBuffers.set(attachment.channelId, list);
+      return;
+    }
+
+    if (attachment.role === "channel") {
+      const client = this.findChannelPeer("client", attachment.channelId);
+      if (client && client.readyState === WebSocket.OPEN) {
+        try {
+          client.send(msg);
+        } catch {
+          // client racing close — drop frame
+        }
+      }
+    }
   }
+
+  override async webSocketClose(ws: WebSocket, code: number, reason: string): Promise<void> {
+    const attachment = ws.deserializeAttachment() as WsAttachment | null;
+    if (!attachment) return;
+
+    if (attachment.role === "env") {
+      for (const client of this.findByRole("client")) {
+        try {
+          client.close(1013, "environment offline");
+        } catch {
+          // already closing
+        }
+      }
+      this.dialBuffers.clear();
+      return;
+    }
+
+    if (attachment.role === "client") {
+      this.dialBuffers.delete(attachment.channelId);
+      const channel = this.findChannelPeer("channel", attachment.channelId);
+      if (channel) {
+        try {
+          channel.close(1001, "peer closed");
+        } catch {
+          // already closing
+        }
+      }
+      return;
+    }
+
+    if (attachment.role === "channel") {
+      const client = this.findChannelPeer("client", attachment.channelId);
+      if (client) {
+        try {
+          client.close(1001, "peer closed");
+        } catch {
+          // already closing
+        }
+      }
+    }
+  }
+
+  override async webSocketError(ws: WebSocket): Promise<void> {
+    try {
+      ws.close(1011, "peer error");
+    } catch {
+      // already closing
+    }
+  }
+
+  // ── Internal claim/release endpoints ──────────────────────────
 
   private async handleClaim(url: URL): Promise<Response> {
     const userId = url.searchParams.get("userId")?.trim();
@@ -412,7 +483,7 @@ export class EnvironmentRoom implements DurableObject {
       );
     }
 
-    const claimed = await this.getCachedVault(environmentId);
+    const claimed = await this.getVault(environmentId);
     if (claimed) {
       if (claimed.owner === userId) return new Response("ok\n", { status: 200 });
       return doError(
@@ -422,8 +493,8 @@ export class EnvironmentRoom implements DurableObject {
       );
     }
 
-    const storedToken = (await this.state.storage.get<string>("token")) ?? null;
-    const storedSecret = (await this.state.storage.get<string>("secret")) ?? null;
+    const storedToken = (await this.ctx.storage.get<string>("token")) ?? null;
+    const storedSecret = (await this.ctx.storage.get<string>("secret")) ?? null;
     if (!storedToken || !storedSecret) {
       return doError(
         404,
@@ -451,26 +522,10 @@ export class EnvironmentRoom implements DurableObject {
       );
     }
 
-    // Claim succeeded — the DO's pending state is now redundant. Wipe it
-    // and cancel the pending-eviction alarm.
-    await this.state.storage.deleteAll();
-    await this.state.storage.deleteAlarm();
-    this.clearVaultCache();
+    await this.ctx.storage.deleteAll();
+    await this.ctx.storage.deleteAlarm();
+    this.broadcastPairStatus(userId);
     return new Response("ok\n", { status: 200 });
-  }
-
-  private async onPairToken(environmentId: string, token: string): Promise<void> {
-    const trimmed = token.trim();
-    if (trimmed.length < PAIR_TOKEN_MIN_LENGTH || trimmed.length > PAIR_TOKEN_MAX_LENGTH) return;
-    const claimed = await this.getCachedVault(environmentId);
-    if (claimed) return; // already paired — ignore further pair-token pushes
-    await this.state.storage.put("token", trimmed);
-    if ((await this.state.storage.get<string>("createdAt")) == null) {
-      await this.state.storage.put("createdAt", new Date().toISOString());
-    }
-    if ((await this.state.storage.getAlarm()) == null) {
-      await this.state.storage.setAlarm(Date.now() + PENDING_TTL_MS);
-    }
   }
 
   private async handleRelease(url: URL): Promise<Response> {
@@ -490,7 +545,7 @@ export class EnvironmentRoom implements DurableObject {
         "Pairing isn't enabled on this deployment.",
       );
     }
-    const claimed = await this.getCachedVault(environmentId);
+    const claimed = await this.getVault(environmentId);
     if (claimed && claimed.owner !== userId) {
       return doError(
         409,
@@ -509,144 +564,82 @@ export class EnvironmentRoom implements DurableObject {
           : "Vault delete failed. Try again in a minute.",
       );
     }
-    this.clearVaultCache();
-    await this.state.storage.deleteAll();
-    await this.state.storage.deleteAlarm();
+    await this.ctx.storage.deleteAll();
+    await this.ctx.storage.deleteAlarm();
+    this.broadcastPairStatus(null);
     return new Response("ok\n", { status: 200 });
   }
 
-  /** Fires PENDING_TTL_MS after the pending row was created. Drops it so a
-   *  user who never finished pairing doesn't leave stale data on the DO. */
-  async alarm(): Promise<void> {
-    await this.state.storage.deleteAll();
+  /** Wipes the unclaimed-pending row 15 min after first write. */
+  override async alarm(): Promise<void> {
+    await this.ctx.storage.deleteAll();
   }
 
-  private handleEnvironmentSocket(socket: WebSocket, environmentId: string): void {
-    this.environmentSocket?.close(1012, "environment replaced");
-    this.environmentSocket = socket;
+  // ── Helpers ──────────────────────────────────────────────────
 
-    socket.addEventListener("message", (event) => {
-      if (typeof event.data !== "string") return;
-      let parsed: { type?: unknown; token?: unknown };
-      try {
-        parsed = JSON.parse(event.data) as { type?: unknown; token?: unknown };
-      } catch {
-        return;
-      }
-      if (parsed.type === "pair-token" && typeof parsed.token === "string") {
-        void this.onPairToken(environmentId, parsed.token);
-      }
-    });
-
-    socket.addEventListener("close", () => {
-      if (this.environmentSocket !== socket) {
-        return;
-      }
-      this.environmentSocket = null;
-      for (const pending of this.dialingClients.values()) {
-        pending.socket.close(1013, "environment offline");
-      }
-      this.dialingClients.clear();
-    });
-
-    socket.addEventListener("error", () => {
-      socket.close(1011, "environment error");
-    });
-  }
-
-  private handleClientSocket(socket: WebSocket): void {
-    const environmentSocket = this.environmentSocket;
-    if (!environmentSocket || environmentSocket.readyState !== WebSocket.OPEN) {
-      socket.close(1013, "environment offline");
-      return;
-    }
-
-    const channelId = crypto.randomUUID();
-    const pending: DialingClient = { socket, buffered: [] };
-    this.dialingClients.set(channelId, pending);
-
-    socket.addEventListener("message", (event) => {
-      const current = this.dialingClients.get(channelId);
-      if (current === pending) {
-        pending.buffered.push(event.data as string | ArrayBuffer);
-      }
-    });
-
-    socket.addEventListener("close", () => {
-      if (this.dialingClients.get(channelId) === pending) {
-        this.dialingClients.delete(channelId);
-      }
-    });
-
-    socket.addEventListener("error", () => {
-      if (this.dialingClients.get(channelId) === pending) {
-        this.dialingClients.delete(channelId);
-      }
-      socket.close(1011, "client error");
-    });
-
-    const signal: ControlMessage = { type: "dial", channelId };
+  private async getVault(environmentId: string): Promise<VaultEntry | null> {
+    if (!this.env.WORKOS_API_KEY) return null;
     try {
-      environmentSocket.send(JSON.stringify(signal));
+      return await getVault(this.env.WORKOS_API_KEY, environmentId);
     } catch {
-      this.dialingClients.delete(channelId);
-      socket.close(1011, "failed to signal environment");
+      return null;
     }
   }
 
-  private handleChannelSocket(channel: WebSocket, channelId: string): void {
-    const pending = this.dialingClients.get(channelId);
-    if (!pending) {
-      channel.close(4404, "unknown channel");
-      return;
-    }
-    this.dialingClients.delete(channelId);
-
-    const clientSocket = pending.socket;
-    if (clientSocket.readyState !== WebSocket.OPEN) {
-      channel.close(1013, "client gone");
-      return;
-    }
-
-    const clearBuffer = () => {
-      pending.buffered.length = 0;
-    };
-
-    bridgeSockets(clientSocket, channel, clearBuffer);
-
-    for (const frame of pending.buffered) {
-      try {
-        channel.send(frame);
-      } catch {
-        break;
-      }
-    }
-    clearBuffer();
+  private async verifyProof(environmentId: string, proof: string): Promise<boolean> {
+    if (!proof || !environmentId) return false;
+    const claimed = await this.getVault(environmentId);
+    if (claimed) return isEqualConstantTime(claimed.secret, proof);
+    const stored = (await this.ctx.storage.get<string>("secret")) ?? null;
+    if (stored != null) return isEqualConstantTime(stored, proof);
+    await this.ctx.storage.put("secret", proof);
+    await this.ctx.storage.put("createdAt", new Date().toISOString());
+    await this.ctx.storage.setAlarm(Date.now() + PENDING_TTL_MS);
+    return true;
   }
-}
 
-function forwardMessages(from: WebSocket, to: WebSocket): void {
-  from.addEventListener("message", (event) => {
-    if (to.readyState === WebSocket.OPEN) {
-      to.send(event.data);
+  private async onPairToken(token: string): Promise<void> {
+    const trimmed = token.trim();
+    if (trimmed.length < PAIR_TOKEN_MIN_LENGTH || trimmed.length > PAIR_TOKEN_MAX_LENGTH) return;
+    await this.ctx.storage.put("token", trimmed);
+    if ((await this.ctx.storage.get<string>("createdAt")) == null) {
+      await this.ctx.storage.put("createdAt", new Date().toISOString());
     }
-  });
-}
+    if ((await this.ctx.storage.getAlarm()) == null) {
+      await this.ctx.storage.setAlarm(Date.now() + PENDING_TTL_MS);
+    }
+  }
 
-function bridgeSockets(a: WebSocket, b: WebSocket, onClose: () => void): void {
-  let closed = false;
-  const closeBoth = (code: number, reason: string) => {
-    if (closed) return;
-    closed = true;
-    onClose();
-    if (a.readyState === WebSocket.OPEN) a.close(code, reason);
-    if (b.readyState === WebSocket.OPEN) b.close(code, reason);
-  };
+  private sendPairStatus(socket: WebSocket, owner: string | null): void {
+    if (socket.readyState !== WebSocket.OPEN) return;
+    const signal: ControlMessage = { type: "pair-status", owner };
+    try {
+      socket.send(JSON.stringify(signal));
+    } catch {
+      // env will pick up state on its next reconnect
+    }
+  }
 
-  forwardMessages(a, b);
-  forwardMessages(b, a);
-  a.addEventListener("close", () => closeBoth(1001, "peer closed"));
-  b.addEventListener("close", () => closeBoth(1001, "peer closed"));
-  a.addEventListener("error", () => closeBoth(1011, "peer error"));
-  b.addEventListener("error", () => closeBoth(1011, "peer error"));
+  private broadcastPairStatus(owner: string | null): void {
+    for (const env of this.findByRole("env")) {
+      this.sendPairStatus(env, owner);
+    }
+  }
+
+  private findByRole(role: WsAttachment["role"]): WebSocket[] {
+    const matches: WebSocket[] = [];
+    for (const ws of this.ctx.getWebSockets()) {
+      const a = ws.deserializeAttachment() as WsAttachment | null;
+      if (a?.role === role) matches.push(ws);
+    }
+    return matches;
+  }
+
+  private findChannelPeer(role: "client" | "channel", channelId: string): WebSocket | null {
+    for (const ws of this.ctx.getWebSockets()) {
+      const a = ws.deserializeAttachment() as WsAttachment | null;
+      if (a?.role === role && a.channelId === channelId) return ws;
+    }
+    return null;
+  }
 }

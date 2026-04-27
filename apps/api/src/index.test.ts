@@ -4,7 +4,7 @@ import {
   API_PATHS,
   API_PROTOCOL_VERSION,
   ENVIRONMENT_PROOF_HEADER,
-  type ControlMessage,
+  type DialSignal,
 } from "./protocol.ts";
 
 const ORIGIN = "https://api.test.local";
@@ -42,6 +42,16 @@ function nextMessage(socket: WebSocket): Promise<MessageEvent> {
   });
 }
 
+// Env's WS receives pair-status on open + dial when a client connects. Tests
+// that exercise the dial path use this to skip the pair-status preamble.
+async function nextDial(socket: WebSocket): Promise<MessageEvent> {
+  for (;;) {
+    const event = await nextMessage(socket);
+    const parsed = JSON.parse(String(event.data)) as { readonly type?: unknown };
+    if (parsed.type === "dial") return event;
+  }
+}
+
 function nextClose(socket: WebSocket): Promise<CloseEvent> {
   return new Promise((resolve) => {
     socket.addEventListener("close", (event) => resolve(event as CloseEvent), { once: true });
@@ -53,14 +63,14 @@ async function pairBrowserToEnvironment(
   control: WebSocket,
   authHeader: string,
 ): Promise<{ browser: WebSocket; channel: WebSocket; channelId: string }> {
-  const dialPromise = nextMessage(control);
+  const dialPromise = nextDial(control);
   const browser = await openSocket(
     API_PATHS.client,
     { environmentId },
     { authorization: authHeader },
   );
   const dialEvent = await dialPromise;
-  const dial = JSON.parse(String(dialEvent.data)) as ControlMessage;
+  const dial = JSON.parse(String(dialEvent.data)) as DialSignal;
   expect(dial.type).toBe("dial");
   const channel = await openSocket(
     API_PATHS.channel,
@@ -152,7 +162,7 @@ describe("dial-back routing", () => {
       { environmentId },
       { [ENVIRONMENT_PROOF_HEADER]: "x" },
     );
-    const dialPromise = nextMessage(control);
+    const dialPromise = nextDial(control);
     const browser = await openSocket(
       API_PATHS.client,
       { environmentId },
@@ -160,7 +170,7 @@ describe("dial-back routing", () => {
     );
 
     const dialEvent = await dialPromise;
-    const dial = JSON.parse(String(dialEvent.data)) as ControlMessage;
+    const dial = JSON.parse(String(dialEvent.data)) as DialSignal;
     expect(dial.type).toBe("dial");
     expect(dial.channelId).toMatch(/^[0-9a-f-]{36}$/);
 
@@ -199,7 +209,7 @@ describe("dial-back routing", () => {
       { [ENVIRONMENT_PROOF_HEADER]: "x" },
     );
 
-    const dialPromise = nextMessage(control);
+    const dialPromise = nextDial(control);
     const browser = await openSocket(
       API_PATHS.client,
       { environmentId },
@@ -210,7 +220,7 @@ describe("dial-back routing", () => {
     browser.send("early-2");
 
     const dialEvent = await dialPromise;
-    const dial = JSON.parse(String(dialEvent.data)) as ControlMessage;
+    const dial = JSON.parse(String(dialEvent.data)) as DialSignal;
 
     const channel = await openSocket(
       API_PATHS.channel,
@@ -263,26 +273,26 @@ describe("dial-back routing", () => {
       { [ENVIRONMENT_PROOF_HEADER]: "x" },
     );
 
-    const dialAPromise = nextMessage(control);
+    const dialAPromise = nextDial(control);
     const browserA = await openSocket(
       API_PATHS.client,
       { environmentId },
       { authorization: "Bearer a" },
     );
-    const dialA = JSON.parse(String((await dialAPromise).data)) as ControlMessage;
+    const dialA = JSON.parse(String((await dialAPromise).data)) as DialSignal;
     const channelA = await openSocket(
       API_PATHS.channel,
       { environmentId, channelId: dialA.channelId },
       { [ENVIRONMENT_PROOF_HEADER]: "x" },
     );
 
-    const dialBPromise = nextMessage(control);
+    const dialBPromise = nextDial(control);
     const browserB = await openSocket(
       API_PATHS.client,
       { environmentId },
       { authorization: "Bearer b" },
     );
-    const dialB = JSON.parse(String((await dialBPromise).data)) as ControlMessage;
+    const dialB = JSON.parse(String((await dialBPromise).data)) as DialSignal;
     const channelB = await openSocket(
       API_PATHS.channel,
       { environmentId, channelId: dialB.channelId },
@@ -329,7 +339,7 @@ describe("dial-back routing", () => {
     );
 
     const dialEvent = await dialPromise;
-    const dial = JSON.parse(String(dialEvent.data)) as ControlMessage;
+    const dial = JSON.parse(String(dialEvent.data)) as DialSignal;
 
     let bGotMessage = false;
     controlB.addEventListener("message", () => {

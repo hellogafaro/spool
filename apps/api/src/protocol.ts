@@ -16,6 +16,14 @@ export interface DialSignal {
   readonly channelId: string;
 }
 
+/** Relay→env handshake reply. Sent once the env's WS handshake is accepted,
+ * carries the vault-recorded owner so the env can suppress its pair banner
+ * when already claimed (and clear it when released). */
+export interface PairStatusSignal {
+  readonly type: "pair-status";
+  readonly owner: string | null;
+}
+
 /** Machine-readable error codes returned by the /pair endpoint. UI maps
  * these to user-facing copy; logs key off the code, not the message. */
 export const PAIR_ERROR_CODES = {
@@ -58,7 +66,7 @@ export interface PairTokenSignal {
   readonly token: string;
 }
 
-export type ControlMessage = DialSignal;
+export type ControlMessage = DialSignal | PairStatusSignal;
 export type EnvironmentSignal = PairTokenSignal;
 
 export const ENVIRONMENT_PROOF_HEADER = "x-trunk-environment-proof";
