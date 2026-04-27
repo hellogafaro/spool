@@ -24,20 +24,20 @@ export const PAIR_ERROR_CODES = {
   PAIR_INVALID_BODY: "PAIR_INVALID_BODY",
   /** WorkOS bearer is missing/expired/invalid. */
   PAIR_AUTH_FAILED: "PAIR_AUTH_FAILED",
-  /** Env hasn't reported a pair token to the relay yet. */
-  PAIR_ENV_OFFLINE: "PAIR_ENV_OFFLINE",
+  /** No pending pair record (env never reported, or 15-min TTL expired). */
+  PAIR_PENDING_NOT_FOUND: "PAIR_PENDING_NOT_FOUND",
   /** Token in request doesn't match the env's pending pair token. */
   PAIR_TOKEN_MISMATCH: "PAIR_TOKEN_MISMATCH",
   /** Env is already claimed by a different user. */
   PAIR_ALREADY_CLAIMED: "PAIR_ALREADY_CLAIMED",
-  /** Env has been released; rotate environmentId on the env side to re-pair. */
-  PAIR_RELEASED: "PAIR_RELEASED",
   /** WorkOS metadata read failed (transient). */
   PAIR_METADATA_READ_FAILED: "PAIR_METADATA_READ_FAILED",
   /** WorkOS metadata write failed (transient). */
   PAIR_METADATA_WRITE_FAILED: "PAIR_METADATA_WRITE_FAILED",
   /** Cloudflare Worker couldn't reach the room DO. */
   PAIR_DO_UNAVAILABLE: "PAIR_DO_UNAVAILABLE",
+  /** WorkOS Vault read/write/delete failed. */
+  PAIR_VAULT_UNAVAILABLE: "PAIR_VAULT_UNAVAILABLE",
   /** Pairing isn't configured on this deployment (no WorkOS API key). */
   PAIR_NOT_CONFIGURED: "PAIR_NOT_CONFIGURED",
   /** HTTP method isn't allowed. */

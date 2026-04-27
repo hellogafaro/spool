@@ -1,9 +1,10 @@
+import { type EnvironmentId } from "@t3tools/contracts";
 import { useAuth } from "@workos-inc/authkit-react";
 import { useState } from "react";
 
 import { unclaimEnvironment } from "~/auth/pairing";
-import { getActiveEnvironmentId, updateActiveEnvironmentId } from "~/auth/activeEnvironment";
 import { useClaimedEnvironments } from "~/auth/useClaimedEnvironments";
+import { useStore } from "~/store";
 import { InstallationGuide } from "../onboarding/InstallationGuide";
 import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
@@ -12,12 +13,13 @@ import { SettingsPageContainer, SettingsSection } from "./settingsLayout";
 export function EnvironmentsSettings() {
   const auth = useAuth();
   const environments = useClaimedEnvironments();
-  const activeId = getActiveEnvironmentId();
+  const activeId = useStore((s) => s.activeEnvironmentId);
+  const setActiveEnvironmentId = useStore((s) => s.setActiveEnvironmentId);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string>("");
 
   const handleSelect = (id: string) => {
-    updateActiveEnvironmentId(id);
+    setActiveEnvironmentId(id as EnvironmentId);
     window.location.reload();
   };
 
@@ -32,9 +34,6 @@ export function EnvironmentsSettings() {
         return;
       }
       await unclaimEnvironment({ environmentId: id, accessToken: token });
-      if (getActiveEnvironmentId() === id) {
-        updateActiveEnvironmentId(null);
-      }
       await environments.refetch();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Could not remove environment.");

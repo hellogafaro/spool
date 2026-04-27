@@ -1,16 +1,14 @@
+import { type EnvironmentId } from "@t3tools/contracts";
 import { useNavigate, useLocation } from "@tanstack/react-router";
 import { useEffect } from "react";
 
-import { getActiveEnvironmentId, updateActiveEnvironmentId } from "./activeEnvironment";
+import { useStore } from "../store";
 import { useClaimedEnvironments } from "./useClaimedEnvironments";
 
 /**
- * Redirects to /onboarding when the signed-in user has no claimed
- * environments. Also keeps the active environmentId in localStorage
- * in sync with the user's actual list.
- *
- * Lives inside the router so it can use the router's QueryClient and
- * navigate via react-router. Mount it once near the route root.
+ * Redirects the signed-in user to /onboarding when they have no claimed
+ * environments. Also seeds T3's `activeEnvironmentId` from /me so the WS
+ * layer has something to dial against on cold boot.
  */
 export function useEnvironmentGate(): { isReady: boolean } {
   const environments = useClaimedEnvironments();
@@ -21,15 +19,15 @@ export function useEnvironmentGate(): { isReady: boolean } {
     if (!environments.data) return;
     const ids = environments.data.map((entry) => entry.environmentId);
     if (ids.length === 0) {
-      updateActiveEnvironmentId(null);
       if (pathname !== "/onboarding" && pathname !== "/pair") {
         void navigate({ to: "/onboarding", replace: true });
       }
       return;
     }
-    const stored = getActiveEnvironmentId();
-    if (!stored || !ids.includes(stored)) {
-      updateActiveEnvironmentId(ids[0] ?? null);
+    const store = useStore.getState();
+    const next = ids[0];
+    if (next && (!store.activeEnvironmentId || !ids.includes(store.activeEnvironmentId))) {
+      store.setActiveEnvironmentId(next as EnvironmentId);
     }
   }, [environments.data, navigate, pathname]);
 

@@ -99,7 +99,7 @@ export type ClaimEnvironmentOwnerResult =
   | { readonly ok: true }
   | {
       readonly ok: false;
-      readonly status: 401 | 409 | 410 | 502;
+      readonly status: 401 | 404 | 409 | 410 | 502 | 503;
       readonly code: PairErrorCode;
       readonly message: string;
     };

@@ -23,7 +23,6 @@ import {
   markPromotedDraftThreadsByRef,
   useComposerDraftStore,
 } from "~/composerDraftStore";
-import { getActiveEnvironmentId } from "~/auth/activeEnvironment";
 import { getCurrentAccessToken } from "~/auth/workos";
 import { ensureLocalApi } from "~/localApi";
 import { collectActiveTerminalThreadIds } from "~/lib/terminalStateCleanup";
@@ -796,7 +795,11 @@ async function attachAuthToWsUrl(rawUrl: string): Promise<string> {
   try {
     const url = new URL(rawUrl);
     url.searchParams.set("token", accessToken);
-    const environmentId = getActiveEnvironmentId();
+    // T3's store is the source of truth for which env this session is
+    // operating on (set by route resolution / sidebar selection / welcome).
+    // Reading it synchronously avoids the localStorage cache we used to
+    // maintain ourselves.
+    const environmentId = useStore.getState().activeEnvironmentId;
     if (environmentId) {
       url.searchParams.set("environmentId", environmentId);
     }

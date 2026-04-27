@@ -3,7 +3,6 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { CommandLineIcon, CubeTransparentIcon } from "@heroicons/react/16/solid";
 
-import { updateActiveEnvironmentId } from "../auth/activeEnvironment";
 import { claimEnvironment } from "../auth/pairing";
 import { useClaimedEnvironments } from "../auth/useClaimedEnvironments";
 import { Badge } from "../components/ui/badge";
@@ -58,7 +57,8 @@ function OnboardingRouteView() {
         token: token.trim(),
         accessToken,
       });
-      updateActiveEnvironmentId(environmentId.trim());
+      // useEnvironmentGate will pick up the new env on the next /me refetch
+      // and seed T3's store; the route effect then redirects to /.
       await environments.refetch();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Pairing failed.");
