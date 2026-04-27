@@ -1,0 +1,16 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "trunk-web",
+  "account_id": "3c664cf60b79efaab2e96ca62522d152",
+  "compatibility_date": "2025-09-06",
+  // app.trunk.codes is currently bound to the legacy Pages project; we'll
+  // attach it via the dashboard once that project releases the domain.
+  // Until then this Worker is reachable at trunk-web.<account>.workers.dev.
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application",
+  },
+  "observability": {
+    "enabled": true,
+  },
+}
