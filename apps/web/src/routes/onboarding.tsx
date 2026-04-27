@@ -73,7 +73,7 @@ function OnboardingRouteView() {
         <TrunkLogo className="size-6 text-foreground" />
 
         <div className="space-y-1.5">
-          <h1 className="text-xl font-semibold">Add your first environment</h1>
+          <h1 className="text-xl font-medium">Add your first environment</h1>
           <p className="text-base text-muted-foreground">
             Trunk runs on a machine you control. Pair it once and start streaming.
           </p>
@@ -84,58 +84,60 @@ function OnboardingRouteView() {
           ) : null}
         </div>
 
-        <Step index={1} title="Install Trunk on your machine">
-          <div className="flex items-center gap-1">
-            {INSTALL_TABS.map(({ value, label, icon: Icon }) => (
-              <Button
-                key={value}
-                type="button"
-                size="sm"
-                variant={installTab === value ? "secondary" : "ghost"}
-                className="gap-1.5"
-                onClick={() => setInstallTab(value)}
-              >
-                <Icon />
-                <span>{label}</span>
-              </Button>
-            ))}
-          </div>
-          {installTab === "local" ? <LocalGuide /> : <ContainerGuide />}
-        </Step>
+        <ol className="ml-2.5 space-y-6 border-l border-border/70 pl-8 [counter-reset:step]">
+          <Step title="Install Trunk on your machine">
+            <div className="flex items-center gap-1">
+              {INSTALL_TABS.map(({ value, label, icon: Icon }) => (
+                <Button
+                  key={value}
+                  type="button"
+                  size="sm"
+                  variant={installTab === value ? "secondary" : "ghost"}
+                  className="gap-1.5"
+                  onClick={() => setInstallTab(value)}
+                >
+                  <Icon />
+                  <span>{label}</span>
+                </Button>
+              ))}
+            </div>
+            {installTab === "local" ? <LocalGuide /> : <ContainerGuide />}
+          </Step>
 
-        <Step index={2} title="Paste the values it printed">
-          <p className="text-sm text-muted-foreground">
-            Trunk prints an Environment ID and Token on first boot. Paste them here.
-          </p>
-          <div className="space-y-1.5">
-            <Label htmlFor="environment-id" className="text-xs">
-              Environment ID
-            </Label>
-            <Input
-              id="environment-id"
-              value={environmentId}
-              onChange={(event) => setEnvironmentId(event.target.value)}
-              placeholder="abcdefghjk23"
-              autoComplete="off"
-              spellCheck={false}
-              required
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="token" className="text-xs">
-              Token
-            </Label>
-            <Input
-              id="token"
-              value={token}
-              onChange={(event) => setToken(event.target.value)}
-              placeholder="64-char hex string"
-              autoComplete="off"
-              spellCheck={false}
-              required
-            />
-          </div>
-        </Step>
+          <Step title="Paste the values it printed">
+            <p className="text-sm text-muted-foreground">
+              Trunk prints an Environment ID and Token on first boot. Paste them here.
+            </p>
+            <div className="space-y-1.5">
+              <Label htmlFor="environment-id" className="text-xs">
+                Environment ID
+              </Label>
+              <Input
+                id="environment-id"
+                value={environmentId}
+                onChange={(event) => setEnvironmentId(event.target.value)}
+                placeholder="abcdefghjk23"
+                autoComplete="off"
+                spellCheck={false}
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="token" className="text-xs">
+                Token
+              </Label>
+              <Input
+                id="token"
+                value={token}
+                onChange={(event) => setToken(event.target.value)}
+                placeholder="64-char hex string"
+                autoComplete="off"
+                spellCheck={false}
+                required
+              />
+            </div>
+          </Step>
+        </ol>
 
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
@@ -156,25 +158,12 @@ function CodeBlock({ children }: { readonly children: string }) {
   );
 }
 
-function Step({
-  index,
-  title,
-  children,
-}: {
-  readonly index: number;
-  readonly title: string;
-  readonly children?: ReactNode;
-}) {
+function Step({ title, children }: { readonly title: string; readonly children?: ReactNode }) {
   return (
-    <section className="space-y-3 rounded-md border border-border/70 p-3">
-      <header className="flex items-center gap-2">
-        <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-card text-[11px] font-semibold text-muted-foreground">
-          {index}
-        </span>
-        <h2 className="text-sm font-medium text-foreground">{title}</h2>
-      </header>
-      <div className="space-y-3">{children}</div>
-    </section>
+    <li className="relative space-y-3 [counter-increment:step] before:absolute before:top-0 before:-left-[calc(2rem+0.625rem+1px)] before:flex before:size-5 before:items-center before:justify-center before:rounded-full before:border before:border-border/70 before:bg-background before:text-[11px] before:font-semibold before:text-muted-foreground before:content-[counter(step)]">
+      <h2 className="text-sm font-medium text-foreground">{title}</h2>
+      {children}
+    </li>
   );
 }
 
