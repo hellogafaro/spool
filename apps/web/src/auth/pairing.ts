@@ -75,23 +75,16 @@ export async function unclaimEnvironment({
   }
 }
 
-export interface ClaimedEnvironmentSummary {
+export interface ClaimedEnvironment {
   readonly environmentId: string;
   readonly online: boolean;
-  readonly lastSeenAt?: string | null;
-}
-
-export interface ClaimedEnvironmentsSnapshot {
-  readonly environmentIds: ReadonlyArray<string>;
-  readonly environments: ReadonlyArray<ClaimedEnvironmentSummary>;
+  readonly lastSeenAt: string | null;
 }
 
 export async function getClaimedEnvironments(
   accessToken: string,
-): Promise<ClaimedEnvironmentsSnapshot> {
-  if (!TRUNK_API_URL) {
-    return { environmentIds: [], environments: [] };
-  }
+): Promise<ReadonlyArray<ClaimedEnvironment>> {
+  if (!TRUNK_API_URL) return [];
   const response = await fetch(`${TRUNK_API_URL.replace(/\/$/, "")}/me`, {
     headers: { authorization: `Bearer ${accessToken}` },
   });
@@ -99,29 +92,21 @@ export async function getClaimedEnvironments(
     throw new ApiError(response.status, `Failed to load environments (${response.status})`);
   }
   const body = (await response.json()) as {
-    environmentIds?: ReadonlyArray<string>;
-    environments?: ReadonlyArray<ClaimedEnvironmentSummary>;
+    environments?: ReadonlyArray<{
+      environmentId?: unknown;
+      online?: unknown;
+      lastSeenAt?: unknown;
+    }>;
   };
-  const environmentIds = Array.isArray(body.environmentIds)
-    ? body.environmentIds.filter(
-        (entry): entry is string => typeof entry === "string" && entry.length > 0,
-      )
-    : [];
-  const environments: ClaimedEnvironmentSummary[] = Array.isArray(body.environments)
-    ? body.environments.flatMap((entry): ClaimedEnvironmentSummary[] => {
-        if (!entry || typeof entry !== "object" || typeof entry.environmentId !== "string") {
-          return [];
-        }
-        const lastSeenAt =
-          typeof (entry as { lastSeenAt?: unknown }).lastSeenAt === "string"
-            ? (entry as { lastSeenAt: string }).lastSeenAt
-            : null;
-        return [{ environmentId: entry.environmentId, online: Boolean(entry.online), lastSeenAt }];
-      })
-    : environmentIds.map((environmentId) => ({
-        environmentId,
-        online: false,
-        lastSeenAt: null,
-      }));
-  return { environmentIds, environments };
+  if (!Array.isArray(body.environments)) return [];
+  return body.environments.flatMap((entry): ClaimedEnvironment[] => {
+    if (!entry || typeof entry.environmentId !== "string") return [];
+    return [
+      {
+        environmentId: entry.environmentId,
+        online: Boolean(entry.online),
+        lastSeenAt: typeof entry.lastSeenAt === "string" ? entry.lastSeenAt : null,
+      },
+    ];
+  });
 }

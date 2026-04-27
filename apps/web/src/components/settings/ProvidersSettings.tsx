@@ -20,8 +20,7 @@ const RECIPES: ReadonlyArray<ProviderRecipe> = [
     fallbackLabel: "Claude Code",
     install: "npm install -g @anthropic-ai/claude-code",
     authCommand: "claude login",
-    authNote:
-      "Browser-based OAuth. Or set ANTHROPIC_API_KEY in the environment for headless auth.",
+    authNote: "Browser-based OAuth. Or set ANTHROPIC_API_KEY in the environment for headless auth.",
     docs: "https://docs.claude.com/claude-code",
   },
   {
@@ -47,7 +46,7 @@ export function ProvidersSettings() {
   const liveProviders = useServerProviders();
 
   const hasOnlineEnv = useMemo(
-    () => environments.data?.environments.some((entry) => entry.online) ?? false,
+    () => environments.data?.some((entry) => entry.online) ?? false,
     [environments.data],
   );
 
@@ -63,8 +62,8 @@ export function ProvidersSettings() {
       <SettingsSection title="Providers">
         <div className="space-y-4 px-4 py-4 sm:px-5">
           <p className="text-xs leading-relaxed text-muted-foreground/80">
-            CLIs that drive your coding sessions live on the environment, not on this device.
-            Status comes from the active environment in real time.
+            CLIs that drive your coding sessions live on the environment, not on this device. Status
+            comes from the active environment in real time.
           </p>
 
           {!hasOnlineEnv ? (
@@ -214,16 +213,12 @@ function Step({
   );
 }
 
-function needsInstall(
-  live: ReturnType<typeof useServerProviders>[number] | undefined,
-): boolean {
+function needsInstall(live: ReturnType<typeof useServerProviders>[number] | undefined): boolean {
   if (!live) return true;
   return !live.installed;
 }
 
-function needsAuth(
-  live: ReturnType<typeof useServerProviders>[number] | undefined,
-): boolean {
+function needsAuth(live: ReturnType<typeof useServerProviders>[number] | undefined): boolean {
   if (!live) return false;
   return live.installed && live.auth.status !== "authenticated";
 }

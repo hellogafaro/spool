@@ -19,7 +19,7 @@ export function useEnvironmentGate(): { isReady: boolean } {
 
   useEffect(() => {
     if (!environments.data) return;
-    const ids = environments.data.environmentIds;
+    const ids = environments.data.map((entry) => entry.environmentId);
     if (ids.length === 0) {
       updateActiveEnvironmentId(null);
       if (pathname !== "/onboarding" && pathname !== "/pair") {
@@ -34,8 +34,7 @@ export function useEnvironmentGate(): { isReady: boolean } {
   }, [environments.data, navigate, pathname]);
 
   const isReady =
-    !!environments.data &&
-    (environments.data.environmentIds.length > 0 || pathname === "/onboarding");
+    !!environments.data && (environments.data.length > 0 || pathname === "/onboarding");
 
   return { isReady };
 }

@@ -197,11 +197,7 @@ function readPairTokenFromHash(): string | null {
 }
 
 function friendlyError(error: unknown): string {
-  if (error instanceof ApiError) {
-    if (error.status === 401) return "Your session expired. Sign in again.";
-    if (error.status === 409) return "That environment is already paired with another account.";
-    return error.message;
-  }
+  if (error instanceof ApiError) return error.message;
   if (error instanceof Error) return error.message;
   return "Couldn't pair that environment.";
 }

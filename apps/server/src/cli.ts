@@ -1114,23 +1114,20 @@ const TRUNK_ASCII_LOGO = String.raw`
 `;
 
 const printPairingBanner = Effect.gen(function* () {
-  const { remoteLinkConfigPath, writeRemoteLinkLocalConfig } = yield* Effect.promise(
+  const { writeRemoteLinkLocalConfig } = yield* Effect.promise(
     () => import("./remoteLink/RemoteLinkConfig.ts"),
   );
   const config = yield* writeRemoteLinkLocalConfig();
-  const filePath = yield* remoteLinkConfigPath();
   const pairUrl = formatPairUrl(config);
 
   yield* Console.log(TRUNK_ASCII_LOGO);
-  yield* Console.log("  Pair this environment with your Trunk account:");
+  yield* Console.log("Pair this environment with your Trunk account:");
   yield* Console.log("");
-  yield* Console.log(`    1. Environment ID:  ${config.environmentId}`);
-  yield* Console.log(`    2. Token:           ${config.environmentSecret}`);
-  yield* Console.log(`    3. Pair URL:        ${pairUrl}`);
+  yield* Console.log(`Environment ID: ${config.environmentId}`);
+  yield* Console.log(`Token:          ${config.environmentSecret}`);
+  yield* Console.log(`Pair URL:       ${pairUrl}`);
   yield* Console.log("");
-  yield* Console.log("  Open the Pair URL on any device, sign in, done.");
-  yield* Console.log("");
-  yield* Console.log(`  Config: ${filePath}`);
+  yield* Console.log("Open the Pair URL on any device, sign in, done.");
   yield* Console.log("");
 });
 

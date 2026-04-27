@@ -71,11 +71,11 @@ export function EnvironmentsSettings() {
               <Spinner className="size-3.5" />
               Loading environments…
             </div>
-          ) : environments.data.environmentIds.length === 0 ? (
+          ) : environments.data.length === 0 ? (
             <EmptyState />
           ) : (
             <ul className="space-y-2">
-              {environments.data.environments.map(({ environmentId: id, online, lastSeenAt }) => {
+              {environments.data.map(({ environmentId: id, online, lastSeenAt }) => {
                 const isActive = id === activeId;
                 return (
                   <li

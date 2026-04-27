@@ -18,7 +18,7 @@ function OnboardingRouteView() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (environments.data && environments.data.environmentIds.length > 0) {
+    if (environments.data && environments.data.length > 0) {
       void navigate({ to: "/", replace: true });
     }
   }, [environments.data, navigate]);

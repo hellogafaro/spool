@@ -119,7 +119,7 @@ async function handleMeRequest(request: Request, url: URL, env: Env): Promise<Re
     return withMeCors(new Response(`${auth.reason}\n`, { status: auth.status }));
   }
   if (!env.WORKOS_API_KEY || env.WORKOS_API_KEY.length === 0) {
-    return withMeCors(Response.json({ userId: auth.auth.userId, environmentIds: [] }));
+    return withMeCors(Response.json({ userId: auth.auth.userId, environments: [] }));
   }
   let metadata: Record<string, unknown> | null;
   try {
@@ -128,20 +128,13 @@ async function handleMeRequest(request: Request, url: URL, env: Env): Promise<Re
     const reason = error instanceof Error ? error.message : "workos lookup failed";
     return withMeCors(new Response(reason, { status: 503 }));
   }
-  const environmentIds = getEnvironmentIds(metadata);
   const environments = await Promise.all(
-    environmentIds.map(async (environmentId) => {
+    getEnvironmentIds(metadata).map(async (environmentId) => {
       const status = await getEnvironmentStatus(env, environmentId);
       return { environmentId, ...status };
     }),
   );
-  return withMeCors(
-    Response.json({
-      userId: auth.auth.userId,
-      environmentIds,
-      environments,
-    }),
-  );
+  return withMeCors(Response.json({ userId: auth.auth.userId, environments }));
 }
 
 function resolvePairingWriter(env: Env): PairingWriter | null {
@@ -190,17 +183,21 @@ export default {
           );
           const response = await stub.fetch(claimUrl.toString(), { method: "POST" });
           if (response.ok) return { ok: true } as const;
+          const text = (await response.text().catch(() => "")).trim();
           if (response.status === 401) {
-            return { ok: false, status: 401, reason: "invalid pair token" } as const;
+            return { ok: false, status: 401, reason: text || "invalid pair token" } as const;
           }
           if (response.status === 409) {
-            return { ok: false, status: 409, reason: "environment already claimed" } as const;
+            return {
+              ok: false,
+              status: 409,
+              reason: text || "environment already claimed",
+            } as const;
           }
-          const text = await response.text().catch(() => "");
           return {
             ok: false,
             status: 502 as const,
-            reason: text.trim() || `claim check failed (${response.status})`,
+            reason: text || `claim check failed (${response.status})`,
           };
         },
         releaseEnvironmentOwner: async (environmentId, userId) => {
@@ -336,11 +333,16 @@ export class EnvironmentRoom implements DurableObject {
   private async verifyOrAdoptProof(proof: string): Promise<boolean> {
     if (!proof) return false;
     const stored = (await this.state.storage.get<string>("envSecret")) ?? null;
-    if (!stored) {
+    if (stored === proof) return true;
+    // Unclaimed envs re-TOFU on every connect: the disk-side secret can
+    // legitimately rotate (config rewrite, fresh container) before any user
+    // has paired. Once a user claims, the secret is locked to that pairing.
+    const userId = (await this.state.storage.get<string>("userId")) ?? null;
+    if (!userId) {
       await this.state.storage.put("envSecret", proof);
       return true;
     }
-    return stored === proof;
+    return false;
   }
 
   private async handleClaim(url: URL): Promise<Response> {
