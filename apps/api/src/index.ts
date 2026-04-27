@@ -17,12 +17,7 @@ import {
   type ControlMessage,
   type PairErrorCode,
 } from "./protocol.ts";
-import {
-  createEnvVaultObject,
-  deleteEnvVaultObject,
-  readEnvVaultObject,
-  type EnvVaultEntry,
-} from "./workos.ts";
+import { deleteVault, getVault, upsertVault, type VaultEntry } from "./workos.ts";
 
 interface Env {
   ENVIRONMENT_ROOMS: DurableObjectNamespace;
@@ -52,7 +47,7 @@ const jsonHeaders = {
 
 const WS_PATHS = new Set<string>([API_PATHS.browser, API_PATHS.channel, API_PATHS.environment]);
 
-function resolveBrowserAuthVerifier(env: Env): BrowserAuthVerifier {
+function getBrowserAuthVerifier(env: Env): BrowserAuthVerifier {
   if (env.WORKOS_CLIENT_ID && env.WORKOS_CLIENT_ID.length > 0) {
     return makeWorkOsBrowserAuthVerifier(env.WORKOS_CLIENT_ID);
   }
@@ -62,7 +57,7 @@ function resolveBrowserAuthVerifier(env: Env): BrowserAuthVerifier {
 let cachedOwnershipChecker: { apiKey: string; checker: OwnershipChecker } | null = null;
 let cachedPairingWriter: { apiKey: string; writer: PairingWriter } | null = null;
 
-function resolveOwnershipChecker(env: Env): OwnershipChecker {
+function getOwnershipChecker(env: Env): OwnershipChecker {
   if (!env.WORKOS_API_KEY || env.WORKOS_API_KEY.length === 0) {
     return allowAllOwnershipChecker;
   }
@@ -75,7 +70,7 @@ function resolveOwnershipChecker(env: Env): OwnershipChecker {
   return cachedOwnershipChecker.checker;
 }
 
-function resolvePairingWriter(env: Env): PairingWriter | null {
+function getPairingWriter(env: Env): PairingWriter | null {
   if (!env.WORKOS_API_KEY || env.WORKOS_API_KEY.length === 0) return null;
   if (!cachedPairingWriter || cachedPairingWriter.apiKey !== env.WORKOS_API_KEY) {
     cachedPairingWriter = {
@@ -99,7 +94,7 @@ export default {
     }
 
     if (url.pathname === API_PATHS.pair) {
-      const writer = resolvePairingWriter(env);
+      const writer = getPairingWriter(env);
       if (!writer) {
         return Response.json(
           {
@@ -110,7 +105,7 @@ export default {
         );
       }
       return handlePairingRequest(request, url, {
-        authVerifier: resolveBrowserAuthVerifier(env),
+        authVerifier: getBrowserAuthVerifier(env),
         writer,
         claimEnvironmentOwner: async (environmentId, userId, token) => {
           const id = env.ENVIRONMENT_ROOMS.idFromName(environmentId);
@@ -135,7 +130,7 @@ export default {
             } as const;
           }
           if (response.ok) return { ok: true } as const;
-          const parsed = await readDoErrorBody(response);
+          const parsed = await getDoError(response);
           if (
             response.status === 401 ||
             response.status === 404 ||
@@ -180,7 +175,7 @@ export default {
             } as const;
           }
           if (response.ok) return { ok: true } as const;
-          const parsed = await readDoErrorBody(response);
+          const parsed = await getDoError(response);
           return {
             ok: false,
             status: 502,
@@ -215,7 +210,7 @@ export default {
     }
 
     if (url.pathname === API_PATHS.browser) {
-      const verify = resolveBrowserAuthVerifier(env);
+      const verify = getBrowserAuthVerifier(env);
       const authResult = await verify(request, url);
       if (!authResult.ok) {
         return new Response(`${authResult.reason}\n`, {
@@ -223,7 +218,7 @@ export default {
           headers: textHeaders,
         });
       }
-      const ownership = resolveOwnershipChecker(env);
+      const ownership = getOwnershipChecker(env);
       const ownershipResult = await ownership(authResult.auth.userId, environmentId);
       if (!ownershipResult.ok) {
         return new Response(`${ownershipResult.reason}\n`, {
@@ -246,7 +241,7 @@ function doError(status: number, code: PairErrorCode, message: string): Response
   return Response.json({ code, message }, { status });
 }
 
-async function readDoErrorBody(
+async function getDoError(
   response: Response,
 ): Promise<{ readonly code: PairErrorCode | null; readonly message: string }> {
   const text = await response.text().catch(() => "");
@@ -272,7 +267,7 @@ interface PendingBrowser {
 }
 
 interface VaultCacheEntry {
-  readonly entry: EnvVaultEntry | null;
+  readonly entry: VaultEntry | null;
   readonly expiresAt: number;
 }
 
@@ -301,14 +296,11 @@ export class EnvironmentRoom implements DurableObject {
     if (url.pathname === "/internal/release") {
       return this.handleRelease(url);
     }
-    if (url.pathname === "/internal/status") {
-      return this.handleStatus();
-    }
 
     if (url.pathname === API_PATHS.environment || url.pathname === API_PATHS.channel) {
       const environmentId = url.searchParams.get("environmentId")?.trim() ?? "";
       const proof = request.headers.get("x-trunk-environment-proof") ?? "";
-      const proofOk = await this.verifyOrAdoptProof(environmentId, proof);
+      const proofOk = await this.verifyProof(environmentId, proof);
       if (!proofOk) {
         return new Response("environment proof mismatch\n", { status: 401 });
       }
@@ -322,12 +314,12 @@ export class EnvironmentRoom implements DurableObject {
 
     if (url.pathname === API_PATHS.environment) {
       const environmentId = url.searchParams.get("environmentId")?.trim() ?? "";
-      this.acceptEnvironment(server, environmentId);
+      this.handleEnvironmentSocket(server, environmentId);
     } else if (url.pathname === API_PATHS.browser) {
-      this.acceptBrowser(server);
+      this.handleBrowserSocket(server);
     } else if (url.pathname === API_PATHS.channel) {
       const channelId = url.searchParams.get("channelId")?.trim() ?? "";
-      this.acceptChannel(server, channelId);
+      this.handleChannelSocket(server, channelId);
     } else {
       server.close(1008, "unsupported route");
     }
@@ -338,22 +330,20 @@ export class EnvironmentRoom implements DurableObject {
     });
   }
 
-  // No long-lived secrets in DO storage. The DO holds:
-  //   - pendingSecret    + pendingPairToken + pendingCreatedAt
-  //     (the env→relay TOFU material before claim)
-  //   - lastSeenAt
-  // Once a claim succeeds, the {userId, secret} pair lives in WorkOS Vault
-  // (keyed by environmentId via createEnvVaultObject) and the DO row is
-  // wiped. The pending alarm() evicts unclaimed rows after PENDING_TTL_MS.
+  // DO storage is purely the env→relay TOFU material before claim:
+  //   secret, token, createdAt
+  // Once a claim succeeds, the secret lives in WorkOS Vault (with owner
+  // recorded in key_context) and the DO row is wiped. The alarm() evicts
+  // unclaimed rows after PENDING_TTL_MS.
 
-  private async getVaultEntry(environmentId: string): Promise<EnvVaultEntry | null> {
+  private async getCachedVault(environmentId: string): Promise<VaultEntry | null> {
     if (this.vaultCache && this.vaultCache.expiresAt > Date.now()) {
       return this.vaultCache.entry;
     }
     if (!this.env.WORKOS_API_KEY) return null;
-    let entry: EnvVaultEntry | null;
+    let entry: VaultEntry | null;
     try {
-      entry = await readEnvVaultObject(this.env.WORKOS_API_KEY, environmentId);
+      entry = await getVault(this.env.WORKOS_API_KEY, environmentId);
     } catch {
       // Don't cache failures — let the next call retry.
       return null;
@@ -362,26 +352,24 @@ export class EnvironmentRoom implements DurableObject {
     return entry;
   }
 
-  private invalidateVaultCache(): void {
+  private clearVaultCache(): void {
     this.vaultCache = null;
   }
 
-  private async verifyOrAdoptProof(environmentId: string, proof: string): Promise<boolean> {
+  private async verifyProof(environmentId: string, proof: string): Promise<boolean> {
     if (!proof || !environmentId) return false;
-    const claimed = await this.getVaultEntry(environmentId);
+    const claimed = await this.getCachedVault(environmentId);
     if (claimed) return claimed.secret === proof;
-    // Unclaimed: TOFU into pending state.
-    const pendingSecret = (await this.state.storage.get<string>("pendingSecret")) ?? null;
-    if (pendingSecret === proof) return true;
-    if (pendingSecret == null) {
-      await this.state.storage.put("pendingSecret", proof);
-      await this.state.storage.put("pendingCreatedAt", new Date().toISOString());
+    const stored = (await this.state.storage.get<string>("secret")) ?? null;
+    if (stored === proof) return true;
+    if (stored == null) {
+      await this.state.storage.put("secret", proof);
+      await this.state.storage.put("createdAt", new Date().toISOString());
       await this.state.storage.setAlarm(Date.now() + PENDING_TTL_MS);
       return true;
     }
-    // Different proof from a different installer — re-TOFU is fine while
-    // pending: a fresh env install replaces the previous one.
-    await this.state.storage.put("pendingSecret", proof);
+    // Re-TOFU while pending: a fresh env install replaces the previous one.
+    await this.state.storage.put("secret", proof);
     return true;
   }
 
@@ -400,9 +388,9 @@ export class EnvironmentRoom implements DurableObject {
       );
     }
 
-    const claimed = await this.getVaultEntry(environmentId);
+    const claimed = await this.getCachedVault(environmentId);
     if (claimed) {
-      if (claimed.userId === userId) return new Response("ok\n", { status: 200 });
+      if (claimed.owner === userId) return new Response("ok\n", { status: 200 });
       return doError(
         409,
         PAIR_ERROR_CODES.PAIR_ALREADY_CLAIMED,
@@ -410,16 +398,16 @@ export class EnvironmentRoom implements DurableObject {
       );
     }
 
-    const pendingToken = (await this.state.storage.get<string>("pendingPairToken")) ?? null;
-    const pendingSecret = (await this.state.storage.get<string>("pendingSecret")) ?? null;
-    if (!pendingToken || !pendingSecret) {
+    const storedToken = (await this.state.storage.get<string>("token")) ?? null;
+    const storedSecret = (await this.state.storage.get<string>("secret")) ?? null;
+    if (!storedToken || !storedSecret) {
       return doError(
         404,
         PAIR_ERROR_CODES.PAIR_PENDING_NOT_FOUND,
         "Couldn't find a pending pair for this environment. The environment may not have started yet, or the pair attempt expired (15 min). Check the env console and copy a fresh Environment ID and Token.",
       );
     }
-    if (pendingToken !== token) {
+    if (storedToken !== token) {
       return doError(
         401,
         PAIR_ERROR_CODES.PAIR_TOKEN_MISMATCH,
@@ -428,10 +416,7 @@ export class EnvironmentRoom implements DurableObject {
     }
 
     try {
-      await createEnvVaultObject(this.env.WORKOS_API_KEY, environmentId, {
-        userId,
-        secret: pendingSecret,
-      });
+      await upsertVault(this.env.WORKOS_API_KEY, environmentId, storedSecret, userId);
     } catch (error) {
       return doError(
         502,
@@ -446,31 +431,22 @@ export class EnvironmentRoom implements DurableObject {
     // and cancel the pending-eviction alarm.
     await this.state.storage.deleteAll();
     await this.state.storage.deleteAlarm();
-    this.invalidateVaultCache();
+    this.clearVaultCache();
     return new Response("ok\n", { status: 200 });
   }
 
-  private async acceptPairToken(environmentId: string, token: string): Promise<void> {
+  private async onPairToken(environmentId: string, token: string): Promise<void> {
     const trimmed = token.trim();
     if (trimmed.length === 0 || trimmed.length > 256) return;
-    const claimed = await this.getVaultEntry(environmentId);
+    const claimed = await this.getCachedVault(environmentId);
     if (claimed) return; // already paired — ignore further pair-token pushes
-    await this.state.storage.put("pendingPairToken", trimmed);
-    if ((await this.state.storage.get<string>("pendingCreatedAt")) == null) {
-      await this.state.storage.put("pendingCreatedAt", new Date().toISOString());
+    await this.state.storage.put("token", trimmed);
+    if ((await this.state.storage.get<string>("createdAt")) == null) {
+      await this.state.storage.put("createdAt", new Date().toISOString());
     }
     if ((await this.state.storage.getAlarm()) == null) {
       await this.state.storage.setAlarm(Date.now() + PENDING_TTL_MS);
     }
-  }
-
-  private async handleStatus(): Promise<Response> {
-    const online = this.environmentSocket?.readyState === WebSocket.OPEN;
-    if (online) {
-      await this.state.storage.put("lastSeenAt", new Date().toISOString());
-    }
-    const lastSeenAt = (await this.state.storage.get<string>("lastSeenAt")) ?? null;
-    return Response.json({ online, lastSeenAt });
   }
 
   private async handleRelease(url: URL): Promise<Response> {
@@ -490,8 +466,8 @@ export class EnvironmentRoom implements DurableObject {
         "Pairing isn't enabled on this deployment.",
       );
     }
-    const claimed = await this.getVaultEntry(environmentId);
-    if (claimed && claimed.userId !== userId) {
+    const claimed = await this.getCachedVault(environmentId);
+    if (claimed && claimed.owner !== userId) {
       return doError(
         409,
         PAIR_ERROR_CODES.PAIR_ALREADY_CLAIMED,
@@ -499,7 +475,7 @@ export class EnvironmentRoom implements DurableObject {
       );
     }
     try {
-      await deleteEnvVaultObject(this.env.WORKOS_API_KEY, environmentId);
+      await deleteVault(this.env.WORKOS_API_KEY, environmentId);
     } catch (error) {
       return doError(
         502,
@@ -509,7 +485,7 @@ export class EnvironmentRoom implements DurableObject {
           : "Vault delete failed. Try again in a minute.",
       );
     }
-    this.invalidateVaultCache();
+    this.clearVaultCache();
     await this.state.storage.deleteAll();
     await this.state.storage.deleteAlarm();
     return new Response("ok\n", { status: 200 });
@@ -521,7 +497,7 @@ export class EnvironmentRoom implements DurableObject {
     await this.state.storage.deleteAll();
   }
 
-  private acceptEnvironment(socket: WebSocket, environmentId: string): void {
+  private handleEnvironmentSocket(socket: WebSocket, environmentId: string): void {
     this.environmentSocket?.close(1012, "environment replaced");
     this.environmentSocket = socket;
 
@@ -534,7 +510,7 @@ export class EnvironmentRoom implements DurableObject {
         return;
       }
       if (parsed.type === "pair-token" && typeof parsed.token === "string") {
-        void this.acceptPairToken(environmentId, parsed.token);
+        void this.onPairToken(environmentId, parsed.token);
       }
     });
 
@@ -554,7 +530,7 @@ export class EnvironmentRoom implements DurableObject {
     });
   }
 
-  private acceptBrowser(socket: WebSocket): void {
+  private handleBrowserSocket(socket: WebSocket): void {
     const environmentSocket = this.environmentSocket;
     if (!environmentSocket || environmentSocket.readyState !== WebSocket.OPEN) {
       socket.close(1013, "environment offline");
@@ -594,7 +570,7 @@ export class EnvironmentRoom implements DurableObject {
     }
   }
 
-  private acceptChannel(channel: WebSocket, channelId: string): void {
+  private handleChannelSocket(channel: WebSocket, channelId: string): void {
     const pending = this.pendingBrowsers.get(channelId);
     if (!pending) {
       channel.close(4404, "unknown channel");

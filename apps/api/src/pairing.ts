@@ -1,10 +1,10 @@
 import type { BrowserAuthVerifier } from "./auth.ts";
 import { PAIR_ERROR_CODES, type PairErrorBody, type PairErrorCode } from "./protocol.ts";
 import {
-  encodeEnvironmentIds,
-  getEnvironmentIds,
-  getWorkOsUserMetadata,
-  putWorkOsUserMetadata,
+  encodeEnvironments,
+  getEnvironments,
+  getUserMetadata,
+  updateUserMetadata,
 } from "./workos.ts";
 
 export type PairingWriteResult =
@@ -28,11 +28,10 @@ interface WorkOsPairingWriterOptions {
 }
 
 export function makeWorkOsPairingWriter(options: WorkOsPairingWriterOptions): PairingWriter {
-  const getMetadata =
-    options.getMetadata ?? ((userId) => getWorkOsUserMetadata(options.apiKey, userId));
+  const getMetadata = options.getMetadata ?? ((userId) => getUserMetadata(options.apiKey, userId));
   const putMetadata =
     options.putMetadata ??
-    ((userId, metadata) => putWorkOsUserMetadata(options.apiKey, userId, metadata));
+    ((userId, metadata) => updateUserMetadata(options.apiKey, userId, metadata));
 
   const writeUpdatedIds = async (
     userId: string,
@@ -54,7 +53,7 @@ export function makeWorkOsPairingWriter(options: WorkOsPairingWriterOptions): Pa
     }
     const next = {
       ...(existing ?? {}),
-      environments: encodeEnvironmentIds(update(getEnvironmentIds(existing))),
+      environments: encodeEnvironments(update(getEnvironments(existing))),
     };
     // Drop any legacy key from earlier shape so the metadata stays clean.
     delete (next as Record<string, unknown>).environmentIds;

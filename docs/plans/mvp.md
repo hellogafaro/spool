@@ -133,19 +133,19 @@ MVP-target commands on the `trunk` CLI:
 
 ## Status
 
-| Phase | Description | Status |
-|-------|-------------|--------|
-| 1 | Trunk branding + distribution surfaces over T3 internals | Done. |
-| 2 | `apps/api` zero-storage DO routing skeleton | Done (`bea0bbc1`, `1c17493f`). |
-| 3 | Server outbound `RemoteLink` with reconnect | Done (`52523f49`). |
-| 4 | Dial-back relay so each browser gets its own pair (multi-device) | Done (`a9289187`, `c9abb866`, `a3e53044`). |
-| 4a | `trunk pair` CLI subcommand for bootstrapping the local config | Done (`e77ed108`). |
-| 5 | Real WorkOS verification at the API edge (JWT + ownership + pairing write) | In progress: JWT verification (`e0ab2d10`), ownership check (`cc0ef046`), and pairing write endpoint (this commit) all wired. Pending: `Sec-WebSocket-Protocol` token fallback verified against workerd, server-side proof upgrade, AuthKit hosted UI in `apps/web`. |
-| 6 | WorkOS-backed collaboration (multi-user per server) | Not started. |
-| 7 | Installer + service registration | Not started. |
-| 8 | Reconnect / offline / version-mismatch UX in the web app | Not started. |
-| 9 | `trunk update` / `trunk unpair` / key rotation | Not started. |
-| 10 | PostHog + error reporting with strict redaction | Not started. |
+| Phase | Description                                                                | Status                                                                                                                                                                                                                                                               |
+| ----- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | Trunk branding + distribution surfaces over T3 internals                   | Done.                                                                                                                                                                                                                                                                |
+| 2     | `apps/api` zero-storage DO routing skeleton                                | Done (`bea0bbc1`, `1c17493f`).                                                                                                                                                                                                                                       |
+| 3     | Server outbound `RemoteLink` with reconnect                                | Done (`52523f49`).                                                                                                                                                                                                                                                   |
+| 4     | Dial-back relay so each browser gets its own pair (multi-device)           | Done (`a9289187`, `c9abb866`, `a3e53044`).                                                                                                                                                                                                                           |
+| 4a    | `trunk pair` CLI subcommand for bootstrapping the local config             | Done (`e77ed108`).                                                                                                                                                                                                                                                   |
+| 5     | Real WorkOS verification at the API edge (JWT + ownership + pairing write) | In progress: JWT verification (`e0ab2d10`), ownership check (`cc0ef046`), and pairing write endpoint (this commit) all wired. Pending: `Sec-WebSocket-Protocol` token fallback verified against workerd, server-side proof upgrade, AuthKit hosted UI in `apps/web`. |
+| 6     | WorkOS-backed collaboration (multi-user per server)                        | Not started.                                                                                                                                                                                                                                                         |
+| 7     | Installer + service registration                                           | Not started.                                                                                                                                                                                                                                                         |
+| 8     | Reconnect / offline / version-mismatch UX in the web app                   | Not started.                                                                                                                                                                                                                                                         |
+| 9     | `trunk update` / `trunk unpair` / key rotation                             | Not started.                                                                                                                                                                                                                                                         |
+| 10    | PostHog + error reporting with strict redaction                            | Not started.                                                                                                                                                                                                                                                         |
 
 ## Non-Goals (MVP)
 

@@ -1,4 +1,4 @@
-import { getWorkOsUserMetadata, getEnvironmentIds } from "./workos.ts";
+import { getEnvironments, getUserMetadata } from "./workos.ts";
 
 export type OwnershipResult =
   | { readonly ok: true }
@@ -25,8 +25,7 @@ export interface WorkOsOwnershipOptions {
 export function makeWorkOsOwnershipChecker(options: WorkOsOwnershipOptions): OwnershipChecker {
   const ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
   const now = options.now ?? (() => Date.now());
-  const getMetadata =
-    options.getMetadata ?? ((userId) => getWorkOsUserMetadata(options.apiKey, userId));
+  const getMetadata = options.getMetadata ?? ((userId) => getUserMetadata(options.apiKey, userId));
   const cache = new Map<string, CacheEntry>();
 
   return async (userId, environmentId) => {
@@ -44,7 +43,7 @@ export function makeWorkOsOwnershipChecker(options: WorkOsOwnershipOptions): Own
       return { ok: false, status: 503, reason };
     }
 
-    const result: OwnershipResult = getEnvironmentIds(metadata).includes(environmentId)
+    const result: OwnershipResult = getEnvironments(metadata).includes(environmentId)
       ? { ok: true }
       : { ok: false, status: 403, reason: "user is not paired with this environment" };
 
