@@ -1,5 +1,5 @@
 /**
- * RemoteLink - Outbound link from a Trunk environment to the hosted API.
+ * Relay - Outbound link from a Trunk environment to the hosted API.
  *
  * Reads `~/.trunk/config.json`. If absent the layer is a no-op and
  * snapshot stays "disabled" — keeps the local-only path untouched.
@@ -18,24 +18,14 @@ import { Context, Duration, Effect, Layer, Option, Ref, Schedule } from "effect"
 import { LOOPBACK_TRUST_HEADER, setLoopbackTrustToken } from "../auth/loopbackTrust.ts";
 import { ServerConfig } from "../config.ts";
 import { awaitPairToken } from "./pairToken.ts";
-import {
-  DEFAULT_REMOTE_LINK_API_URL,
-  readRemoteLinkLocalConfig,
-  type RemoteLinkLocalConfig,
-} from "./RemoteLinkConfig.ts";
-import {
-  DISABLED_REMOTE_LINK_SNAPSHOT,
-  type RemoteLinkSnapshot,
-  type RemoteLinkStatus,
-} from "./RemoteLinkState.ts";
+import { DEFAULT_RELAY_API_URL, readRelayConfig, type RelayConfig } from "./RelayConfig.ts";
+import { DISABLED_RELAY_SNAPSHOT, type RelaySnapshot, type RelayStatus } from "./RelayState.ts";
 
-export interface RemoteLinkShape {
-  readonly snapshot: Effect.Effect<RemoteLinkSnapshot>;
+export interface RelayShape {
+  readonly snapshot: Effect.Effect<RelaySnapshot>;
 }
 
-export class RemoteLink extends Context.Service<RemoteLink, RemoteLinkShape>()(
-  "trunk/remoteLink/RemoteLink",
-) {}
+export class Relay extends Context.Service<Relay, RelayShape>()("trunk/relay/Relay") {}
 
 const PROOF_HEADER = "x-trunk-environment-proof";
 const CONTROL_PATH = "/environment";
@@ -46,7 +36,7 @@ interface DialSignal {
   readonly channelId: string;
 }
 
-const resolveApiUrl = (): URL => new URL(process.env.TRUNK_API_URL ?? DEFAULT_REMOTE_LINK_API_URL);
+const resolveApiUrl = (): URL => new URL(process.env.TRUNK_API_URL ?? DEFAULT_RELAY_API_URL);
 
 const buildChannelUrl = (apiUrl: URL, environmentId: string, channelId: string): URL => {
   const url = new URL(CHANNEL_PATH, apiUrl);
@@ -105,7 +95,7 @@ const bridgeChannel = (remote: WebSocket, loopback: WebSocket): Effect.Effect<vo
 
 const handleDial = (
   apiUrl: URL,
-  local: RemoteLinkLocalConfig,
+  local: RelayConfig,
   loopbackUrl: string,
   trustToken: string,
   channelId: string,
@@ -120,16 +110,15 @@ const handleDial = (
   }).pipe(Effect.ignoreCause({ log: true }));
 
 const connectControl = (
-  ref: Ref.Ref<RemoteLinkSnapshot>,
-  local: RemoteLinkLocalConfig,
+  ref: Ref.Ref<RelaySnapshot>,
+  local: RelayConfig,
   apiUrl: URL,
   loopbackUrl: string,
   trustToken: string,
 ): Effect.Effect<void> =>
   Effect.callback<void>((resume) => {
-    const setStatus = (
-      patch: Partial<RemoteLinkSnapshot> & { readonly status: RemoteLinkStatus },
-    ) => Ref.update(ref, (current) => ({ ...current, ...patch }));
+    const setStatus = (patch: Partial<RelaySnapshot> & { readonly status: RelayStatus }) =>
+      Ref.update(ref, (current) => ({ ...current, ...patch }));
 
     const controlUrl = new URL(CONTROL_PATH, apiUrl);
     controlUrl.searchParams.set("environmentId", local.environmentId);
@@ -207,12 +196,12 @@ const reconnectSchedule = Schedule.exponential(Duration.seconds(1), 2.0).pipe(
 
 const buildLoopbackUrl = (port: number): string => `ws://127.0.0.1:${port}/ws`;
 
-export const RemoteLinkLive = Layer.effect(
-  RemoteLink,
+export const RelayLive = Layer.effect(
+  Relay,
   Effect.gen(function* () {
     const config = yield* ServerConfig;
-    const ref = yield* Ref.make<RemoteLinkSnapshot>(DISABLED_REMOTE_LINK_SNAPSHOT);
-    const localOption = yield* readRemoteLinkLocalConfig;
+    const ref = yield* Ref.make<RelaySnapshot>(DISABLED_RELAY_SNAPSHOT);
+    const localOption = yield* readRelayConfig;
 
     if (Option.isSome(localOption) && config.port > 0) {
       const local = localOption.value;
@@ -228,7 +217,7 @@ export const RemoteLinkLive = Layer.effect(
       yield* Effect.forkScoped(loop);
     }
 
-    return RemoteLink.of({
+    return Relay.of({
       snapshot: Ref.get(ref),
     });
   }),

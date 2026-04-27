@@ -1,5 +1,5 @@
 /**
- * Shared WorkOS user-metadata helpers used by /me, /pairing, and the
+ * Shared WorkOS user-metadata helpers used by /me, /pair, and the
  * ownership checker. WorkOS stores each user's claimed `environmentIds`
  * here; we treat it as the canonical list and the relay DO as the
  * race-safe source of first-claim ownership.

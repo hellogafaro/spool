@@ -25,7 +25,7 @@ const okClaim: ClaimEnvironmentOwner = async () => ({ ok: true });
 const okRelease: ReleaseEnvironmentOwner = async () => ({ ok: true });
 
 function makePostRequest(body: unknown): { request: Request; url: URL } {
-  const url = new URL("https://api.test.local/pairing");
+  const url = new URL("https://api.test.local/pair");
   return {
     request: new Request(url.toString(), {
       method: "POST",
@@ -38,7 +38,7 @@ function makePostRequest(body: unknown): { request: Request; url: URL } {
 
 describe("handlePairingRequest", () => {
   it("rejects non-POST methods with 405", async () => {
-    const url = new URL("https://api.test.local/pairing");
+    const url = new URL("https://api.test.local/pair");
     const request = new Request(url.toString(), { method: "GET" });
     const writer: PairingWriter = {
       addEnvironmentId: async () => ({ ok: true }),
@@ -234,7 +234,7 @@ describe("handlePairingRequest", () => {
         return { ok: true };
       },
     };
-    const url = new URL(`https://api.test.local/pairing?environmentId=${VALID_ID}`);
+    const url = new URL(`https://api.test.local/pair?environmentId=${VALID_ID}`);
     const request = new Request(url.toString(), { method: "DELETE" });
     const response = await handlePairingRequest(request, url, {
       authVerifier: acceptingVerifier,

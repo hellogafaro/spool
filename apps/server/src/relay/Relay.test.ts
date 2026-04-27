@@ -5,17 +5,12 @@ import * as NFS from "node:fs/promises";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { ServerConfig } from "../config.ts";
-import { RemoteLink, RemoteLinkLive } from "./RemoteLink.ts";
-import {
-  RemoteLinkLocalConfig,
-  readRemoteLinkLocalConfig,
-  remoteLinkConfigPath,
-  writeRemoteLinkLocalConfig,
-} from "./RemoteLinkConfig.ts";
+import { Relay, RelayLive } from "./Relay.ts";
+import { RelayConfig, readRelayConfig, relayConfigPath, writeRelayConfig } from "./RelayConfig.ts";
 import { Schema } from "effect";
 
 const baseLayer = Layer.provideMerge(
-  RemoteLinkLive,
+  RelayLive,
   Layer.provideMerge(
     ServerConfig.layerTest(process.cwd(), { prefix: "trunk-remote-link-test-config-" }),
     NodeServices.layer,
@@ -23,11 +18,11 @@ const baseLayer = Layer.provideMerge(
 );
 
 const readSnapshot = Effect.gen(function* () {
-  const link = yield* RemoteLink;
+  const link = yield* Relay;
   return yield* link.snapshot;
 }).pipe(Effect.provide(baseLayer), Effect.scoped);
 
-describe("RemoteLink", () => {
+describe("Relay", () => {
   let tempHome: string;
   let previousHome: string | undefined;
 
@@ -49,32 +44,32 @@ describe("RemoteLink", () => {
     expect(snapshot.environmentId).toBeNull();
   });
 
-  it("writeRemoteLinkLocalConfig generates a config and round-trips through read", async () => {
+  it("writeRelayConfig generates a config and round-trips through read", async () => {
     const written = await Effect.runPromise(
-      writeRemoteLinkLocalConfig().pipe(Effect.provide(NodeServices.layer)),
+      writeRelayConfig().pipe(Effect.provide(NodeServices.layer)),
     );
-    expect(Schema.is(RemoteLinkLocalConfig)(written)).toBe(true);
+    expect(Schema.is(RelayConfig)(written)).toBe(true);
     expect(written.environmentId).toMatch(/^[A-Z0-9]{12}$/);
     expect(written.environmentSecret).toMatch(/^[0-9a-f]{64}$/);
 
     const readBack = await Effect.runPromise(
-      readRemoteLinkLocalConfig.pipe(Effect.provide(NodeServices.layer)),
+      readRelayConfig.pipe(Effect.provide(NodeServices.layer)),
     );
     if (readBack._tag !== "Some") throw new Error("expected config to round-trip");
     expect(readBack.value).toEqual(written);
 
     const filePath = await Effect.runPromise(
-      remoteLinkConfigPath().pipe(Effect.provide(NodeServices.layer)),
+      relayConfigPath().pipe(Effect.provide(NodeServices.layer)),
     );
     expect(filePath.startsWith(tempHome)).toBe(true);
   });
 
-  it("writeRemoteLinkLocalConfig preserves an existing config when called again", async () => {
+  it("writeRelayConfig preserves an existing config when called again", async () => {
     const first = await Effect.runPromise(
-      writeRemoteLinkLocalConfig().pipe(Effect.provide(NodeServices.layer)),
+      writeRelayConfig().pipe(Effect.provide(NodeServices.layer)),
     );
     const second = await Effect.runPromise(
-      writeRemoteLinkLocalConfig().pipe(Effect.provide(NodeServices.layer)),
+      writeRelayConfig().pipe(Effect.provide(NodeServices.layer)),
     );
     expect(second.environmentId).toBe(first.environmentId);
     expect(second.environmentSecret).toBe(first.environmentSecret);

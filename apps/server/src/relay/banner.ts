@@ -11,7 +11,7 @@ const TRUNK_ASCII_LOGO = String.raw`
     |_| |_|_\\___/|_|\_|_|\_\
 `;
 
-export function formatRelayPairingBanner(input: {
+export function formatPairBanner(input: {
   readonly environmentId: string;
   readonly token: string;
   readonly appUrl: string;

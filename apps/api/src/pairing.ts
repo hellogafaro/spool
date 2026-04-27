@@ -77,7 +77,7 @@ function parsePairingBody(raw: unknown): PairingRequestBody | null {
 
 export type ClaimEnvironmentOwnerResult =
   | { readonly ok: true }
-  | { readonly ok: false; readonly status: 401 | 409 | 502; readonly reason: string };
+  | { readonly ok: false; readonly status: 401 | 409 | 410 | 502; readonly reason: string };
 
 export type ClaimEnvironmentOwner = (
   environmentId: string,

@@ -1,7 +1,7 @@
 /**
- * Browser client for the relay's /pairing and /me endpoints. /pairing
- * binds an environmentId to the signed-in user (DO + WorkOS metadata).
- * /me returns the user's claimed environments with live status.
+ * Browser client for the relay's /pair and /me endpoints. /pair binds an
+ * environmentId to the signed-in user. /me returns the user's claimed
+ * environments with live status.
  */
 
 const TRUNK_API_URL = (import.meta.env.VITE_TRUNK_API_URL as string | undefined)?.trim();
@@ -16,11 +16,11 @@ export class ApiError extends Error {
   }
 }
 
-function pairingUrl(): string {
+function pairUrl(): string {
   if (!TRUNK_API_URL) {
     throw new ApiError(0, "VITE_TRUNK_API_URL is not configured");
   }
-  return `${TRUNK_API_URL.replace(/\/$/, "")}/pairing`;
+  return `${TRUNK_API_URL.replace(/\/$/, "")}/pair`;
 }
 
 export interface ClaimEnvironmentOptions {
@@ -34,7 +34,7 @@ export async function claimEnvironment({
   token,
   accessToken,
 }: ClaimEnvironmentOptions): Promise<void> {
-  const response = await fetch(pairingUrl(), {
+  const response = await fetch(pairUrl(), {
     method: "POST",
     headers: {
       authorization: `Bearer ${accessToken}`,
@@ -60,7 +60,7 @@ export async function unclaimEnvironment({
   environmentId,
   accessToken,
 }: UnclaimEnvironmentOptions): Promise<void> {
-  const url = new URL(pairingUrl());
+  const url = new URL(pairUrl());
   url.searchParams.set("environmentId", environmentId);
   const response = await fetch(url.toString(), {
     method: "DELETE",

@@ -1,12 +1,12 @@
 /**
  * Module-level bridge for the SaaS pair token between the runtime startup
  * phase that issues it (via T3's BootstrapCredentialService) and the
- * RemoteLink WebSocket layer that ships it to the relay DO.
+ * Relay WebSocket layer that ships it to the relay DO.
  *
  * Lifecycle:
  *   - Startup phase calls publishPairToken(token) once the credential is
  *     issued. Idempotent across reconnects within the same process.
- *   - RemoteLink awaits the token at WS-open; if it isn't available yet,
+ *   - Relay awaits the token at WS-open; if it isn't available yet,
  *     the await resolves once startup publishes it (with a generous
  *     timeout so a busted setup doesn't wedge the env forever).
  */

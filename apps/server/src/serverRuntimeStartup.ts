@@ -33,9 +33,9 @@ import { ServerEnvironment } from "./environment/Services/ServerEnvironment.ts";
 import { AnalyticsService } from "./telemetry/Services/AnalyticsService.ts";
 import { ServerAuth } from "./auth/Services/ServerAuth.ts";
 import { ProviderSessionReaper } from "./provider/Services/ProviderSessionReaper.ts";
-import { publishPairToken } from "./remoteLink/pairToken.ts";
-import { readRemoteLinkLocalConfig } from "./remoteLink/RemoteLinkConfig.ts";
-import { formatRelayPairingBanner } from "./remoteLink/relayPairingBanner.ts";
+import { publishPairToken } from "./relay/pairToken.ts";
+import { readRelayConfig } from "./relay/RelayConfig.ts";
+import { formatPairBanner } from "./relay/banner.ts";
 import {
   formatHeadlessServeOutput,
   formatHostForUrl,
@@ -435,8 +435,8 @@ export const makeServerRuntimeStartup = Effect.gen(function* () {
 
       yield* Effect.logDebug("startup phase: recording startup heartbeat");
       yield* launchStartupHeartbeat;
-      const remoteLinkConfig = yield* readRemoteLinkLocalConfig;
-      const isRelayManaged = Option.isSome(remoteLinkConfig);
+      const relayConfig = yield* readRelayConfig;
+      const isRelayManaged = Option.isSome(relayConfig);
       if (isRelayManaged) {
         yield* Effect.logDebug("startup phase: relay-managed, issuing pair credential");
         const accessInfo = yield* issueHeadlessServeAccessInfo();
@@ -448,8 +448,8 @@ export const makeServerRuntimeStartup = Effect.gen(function* () {
         yield* runStartupPhase(
           "relay.banner",
           Console.log(
-            formatRelayPairingBanner({
-              environmentId: remoteLinkConfig.value.environmentId,
+            formatPairBanner({
+              environmentId: relayConfig.value.environmentId,
               token: accessInfo.token,
               appUrl,
             }),

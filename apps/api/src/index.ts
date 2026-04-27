@@ -164,7 +164,7 @@ export default {
       return handleMeRequest(request, url, env);
     }
 
-    if (url.pathname === API_PATHS.pairing) {
+    if (url.pathname === API_PATHS.pair) {
       const writer = resolvePairingWriter(env);
       if (!writer) {
         return new Response("pairing not configured\n", {
@@ -185,19 +185,36 @@ export default {
           if (response.ok) return { ok: true } as const;
           const text = (await response.text().catch(() => "")).trim();
           if (response.status === 401) {
-            return { ok: false, status: 401, reason: text || "invalid pair token" } as const;
+            return {
+              ok: false,
+              status: 401,
+              reason:
+                text ||
+                "Couldn't verify the pair token. Make sure the environment is running and the values match what its console printed.",
+            } as const;
           }
           if (response.status === 409) {
             return {
               ok: false,
               status: 409,
-              reason: text || "environment already claimed",
+              reason:
+                text ||
+                "This environment is already paired with another account. Sign in with that account or release it first.",
+            } as const;
+          }
+          if (response.status === 410) {
+            return {
+              ok: false,
+              status: 410,
+              reason:
+                text ||
+                "This environment was released. Restart it with a fresh install to start a new pairing.",
             } as const;
           }
           return {
             ok: false,
             status: 502 as const,
-            reason: text || `claim check failed (${response.status})`,
+            reason: text || `Pairing failed (${response.status}). Try again in a moment.`,
           };
         },
         releaseEnvironmentOwner: async (environmentId, userId) => {
@@ -365,24 +382,31 @@ export class EnvironmentRoom implements DurableObject {
 
     const status = await this.getStatus();
     if (status === "disabled") {
-      return new Response("environment was released; re-pair from a fresh install\n", {
-        status: 410,
-      });
+      return new Response(
+        "This environment was released. Restart it with a fresh install to start a new pairing.\n",
+        { status: 410 },
+      );
     }
     if (status === "active") {
       const existing = (await this.state.storage.get<string>("userId")) ?? null;
-      return new Response(existing === userId ? "ok\n" : "environment already claimed\n", {
-        status: existing === userId ? 200 : 409,
+      if (existing === userId) return new Response("ok\n", { status: 200 });
+      return new Response("This environment is already paired with another account.\n", {
+        status: 409,
       });
     }
 
     // status === "pending"
     const pending = (await this.state.storage.get<string>("token")) ?? null;
     if (!pending) {
-      return new Response("environment offline; retry once it's online\n", { status: 401 });
+      return new Response(
+        "Environment isn't reporting yet. Make sure it's running and try again.\n",
+        { status: 401 },
+      );
     }
     if (pending !== token) {
-      return new Response("invalid pair token\n", { status: 401 });
+      return new Response("Pair token doesn't match. Re-copy it from the env console.\n", {
+        status: 401,
+      });
     }
 
     await this.state.storage.put("userId", userId);

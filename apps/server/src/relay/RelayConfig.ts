@@ -11,27 +11,27 @@ export const EnvironmentId = Schema.String.pipe(
 );
 export type EnvironmentId = typeof EnvironmentId.Type;
 
-export const RemoteLinkLocalConfig = Schema.Struct({
+export const RelayConfig = Schema.Struct({
   environmentId: EnvironmentId,
   environmentSecret: Schema.String.pipe(Schema.check(Schema.isMinLength(1))),
   userId: Schema.optional(Schema.String),
 });
-export type RemoteLinkLocalConfig = typeof RemoteLinkLocalConfig.Type;
+export type RelayConfig = typeof RelayConfig.Type;
 
-export const DEFAULT_REMOTE_LINK_API_URL = "wss://api.trunk.codes";
+export const DEFAULT_RELAY_API_URL = "wss://api.trunk.codes";
 
-export interface RemoteLinkRuntimeConfig {
+export interface RelayRuntimeConfig {
   readonly apiUrl: URL;
-  readonly local: RemoteLinkLocalConfig;
+  readonly local: RelayConfig;
 }
 
-export function makeRemoteLinkEnvironmentUrl(config: RemoteLinkRuntimeConfig): URL {
+export function makeRelayEnvironmentUrl(config: RelayRuntimeConfig): URL {
   const url = new URL("/environment", config.apiUrl);
   url.searchParams.set("environmentId", config.local.environmentId);
   return url;
 }
 
-export const remoteLinkConfigPath = Effect.fn(function* () {
+export const relayConfigPath = Effect.fn(function* () {
   const path = yield* Path.Path;
   const home = process.env.TRUNK_HOME ?? OS.homedir();
   return path.join(home, ".trunk", "config.json");
@@ -53,16 +53,16 @@ const generateEnvironmentSecret = (): string => {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 };
 
-export const writeRemoteLinkLocalConfig = (
-  overrides: Partial<RemoteLinkLocalConfig> = {},
-): Effect.Effect<RemoteLinkLocalConfig, PlatformError, FileSystem.FileSystem | Path.Path> =>
+export const writeRelayConfig = (
+  overrides: Partial<RelayConfig> = {},
+): Effect.Effect<RelayConfig, PlatformError, FileSystem.FileSystem | Path.Path> =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    const filePath = yield* remoteLinkConfigPath();
+    const filePath = yield* relayConfigPath();
 
-    const existing = yield* readRemoteLinkLocalConfig;
-    const config: RemoteLinkLocalConfig = {
+    const existing = yield* readRelayConfig;
+    const config: RelayConfig = {
       environmentId:
         overrides.environmentId ??
         Option.match(existing, {
@@ -90,23 +90,23 @@ export const writeRemoteLinkLocalConfig = (
     return config;
   });
 
-export const readRemoteLinkLocalConfig = Effect.gen(function* () {
+export const readRelayConfig = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
-  const filePath = yield* remoteLinkConfigPath();
+  const filePath = yield* relayConfigPath();
   const exists = yield* fs.exists(filePath).pipe(Effect.orElseSucceed(() => false));
-  if (!exists) return Option.none<RemoteLinkLocalConfig>();
+  if (!exists) return Option.none<RelayConfig>();
 
   const raw = yield* fs.readFileString(filePath).pipe(Effect.option);
-  if (Option.isNone(raw)) return Option.none<RemoteLinkLocalConfig>();
+  if (Option.isNone(raw)) return Option.none<RelayConfig>();
 
   const parsed = yield* Effect.try({
     try: () => JSON.parse(raw.value) as unknown,
     catch: () => null,
   }).pipe(Effect.option);
-  if (Option.isNone(parsed)) return Option.none<RemoteLinkLocalConfig>();
+  if (Option.isNone(parsed)) return Option.none<RelayConfig>();
 
-  return yield* Schema.decodeUnknownEffect(RemoteLinkLocalConfig)(parsed.value).pipe(
+  return yield* Schema.decodeUnknownEffect(RelayConfig)(parsed.value).pipe(
     Effect.map(Option.some),
-    Effect.orElseSucceed(() => Option.none<RemoteLinkLocalConfig>()),
+    Effect.orElseSucceed(() => Option.none<RelayConfig>()),
   );
 });
