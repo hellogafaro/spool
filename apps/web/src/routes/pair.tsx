@@ -6,8 +6,8 @@ import { claimEnvironment } from "../auth/pairing";
 import { updateActiveEnvironmentId } from "../auth/activeEnvironment";
 import { useClaimedEnvironments } from "../auth/useClaimedEnvironments";
 import { isWorkOsConfigured } from "../auth/workos";
-import { APP_DISPLAY_NAME } from "../branding";
 import { PairingPendingSurface, PairingRouteSurface } from "../components/auth/PairingRouteSurface";
+import { TrunkLogo } from "../components/TrunkLogo";
 import { Button } from "../components/ui/button";
 import { Spinner } from "../components/ui/spinner";
 
@@ -138,41 +138,36 @@ function EnvironmentPairView() {
   }, [status, navigate]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10 text-foreground">
-      <section className="w-full max-w-md space-y-5 rounded-2xl border border-border/80 bg-card/90 p-6 shadow-xl shadow-black/10 backdrop-blur-md">
-        <header className="space-y-1">
-          <p className="text-[11px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
-            {APP_DISPLAY_NAME}
-          </p>
-          <h1 className="text-2xl font-semibold tracking-tight">Pair environment</h1>
-          {environmentId ? (
-            <p className="text-sm text-muted-foreground">
+    <div className="min-h-screen bg-background px-6 py-12 text-foreground">
+      <div className="mx-auto w-full max-w-md space-y-6">
+        <TrunkLogo />
+
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Pair environment</h1>
+          <p className="text-base text-muted-foreground">
+            {environmentId ? (
               <span className="font-mono text-foreground">{environmentId}</span>
-            </p>
-          ) : null}
-        </header>
+            ) : (
+              "Open the link your environment printed."
+            )}
+          </p>
+        </div>
 
         <Body status={status} environmentId={environmentId} />
-      </section>
+      </div>
     </div>
   );
 }
 
 function Body({ status, environmentId }: { status: Status; environmentId: string | undefined }) {
-  if (!environmentId) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        This link is missing an environmentId. Open the link your environment printed.
-      </p>
-    );
-  }
+  if (!environmentId) return null;
 
   if (status.kind === "claiming" || status.kind === "idle") {
     return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <Button size="lg" disabled className="w-full gap-2 cursor-wait">
         <Spinner className="size-4" />
-        Pairing this environment to your account…
-      </div>
+        Pairing…
+      </Button>
     );
   }
 
@@ -183,7 +178,7 @@ function Body({ status, environmentId }: { status: Status; environmentId: string
   return (
     <div className="space-y-3">
       <p className="text-sm text-destructive">{status.message}</p>
-      <Button onClick={() => window.location.reload()} size="sm" variant="outline">
+      <Button onClick={() => window.location.reload()} size="lg" className="w-full">
         Try again
       </Button>
     </div>
