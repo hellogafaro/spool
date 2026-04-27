@@ -43,9 +43,16 @@ export function ProviderSetupDialog({ providerId, providerLabel, open, onOpenCha
   const keybindings = useServerKeybindings();
   const commands = getProviderCommands(providerId);
 
+  // Timestamp the threadId per dialog open. Reusing a fixed threadId after a
+  // previous setup closed would not re-fire the "started" event (T3's terminal
+  // RPC keeps the closed PTY's record), and the dialog would render an empty
+  // black viewport. Same pattern as ProviderInstallButton.
   const threadId = useMemo(
-    () => ThreadId.make(`__trunk-provider-setup__${providerId}`),
-    [providerId],
+    () =>
+      open
+        ? ThreadId.make(`__trunk-provider-setup__${providerId}__${Date.now()}`)
+        : ThreadId.make(`__trunk-provider-setup__${providerId}__inactive`),
+    [open, providerId],
   );
   const threadRef = useMemo(
     () => (activeEnvironmentId ? scopeThreadRef(activeEnvironmentId, threadId) : null),

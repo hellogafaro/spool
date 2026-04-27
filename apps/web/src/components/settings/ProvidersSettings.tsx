@@ -57,24 +57,12 @@ export function ProvidersSettings() {
     ? known.find(({ recipe }) => recipe.id === setupProviderId)
     : null;
 
-  const setProviderEnabled = useCallback(
-    (provider: ProviderKind, enabled: boolean) => {
+  const patchProvider = useCallback(
+    (provider: ProviderKind, patch: Record<string, unknown>) => {
       updateSettings({
         providers: {
           ...settings.providers,
-          [provider]: { ...settings.providers[provider], enabled },
-        },
-      });
-    },
-    [settings.providers, updateSettings],
-  );
-
-  const setBinaryPath = useCallback(
-    (provider: ProviderKind, binaryPath: string) => {
-      updateSettings({
-        providers: {
-          ...settings.providers,
-          [provider]: { ...settings.providers[provider], binaryPath },
+          [provider]: { ...settings.providers[provider], ...patch },
         },
       });
     },
@@ -190,7 +178,7 @@ export function ProvidersSettings() {
                       <Switch
                         checked={config.enabled}
                         onCheckedChange={(checked) =>
-                          setProviderEnabled(recipe.id, Boolean(checked))
+                          patchProvider(recipe.id, { enabled: Boolean(checked) })
                         }
                         aria-label={`Enable ${label}`}
                       />
@@ -219,7 +207,7 @@ export function ProvidersSettings() {
                         <Input
                           value={config.binaryPath}
                           placeholder={defaults.binaryPath || "Auto-detect"}
-                          onChange={(e) => setBinaryPath(recipe.id, e.target.value)}
+                          onChange={(e) => patchProvider(recipe.id, { binaryPath: e.target.value })}
                           className="h-7 text-xs"
                         />
                       </label>
