@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "prepare": "effect-language-service patch",
+    "prepare": "test -n \"$CI\" || effect-language-service patch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
