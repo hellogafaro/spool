@@ -156,7 +156,12 @@ describe("handlePairingRequest", () => {
     const response = await handlePairingRequest(request, url, {
       authVerifier: acceptingVerifier,
       writer,
-      claimEnvironmentOwner: async () => ({ ok: false, status: 401, reason: "invalid pair token" }),
+      claimEnvironmentOwner: async () => ({
+        ok: false,
+        status: 401,
+        code: "PAIR_TOKEN_MISMATCH",
+        message: "invalid pair token",
+      }),
       releaseEnvironmentOwner: okRelease,
     });
     expect(response.status).toBe(401);
@@ -195,7 +200,8 @@ describe("handlePairingRequest", () => {
       claimEnvironmentOwner: async () => ({
         ok: false,
         status: 409,
-        reason: "environment already claimed",
+        code: "PAIR_ALREADY_CLAIMED",
+        message: "environment already claimed",
       }),
       releaseEnvironmentOwner: okRelease,
     });
@@ -218,7 +224,8 @@ describe("handlePairingRequest", () => {
       claimEnvironmentOwner: async () => ({
         ok: false,
         status: 409,
-        reason: "taken",
+        code: "PAIR_ALREADY_CLAIMED",
+        message: "taken",
       }),
       releaseEnvironmentOwner: okRelease,
     });
@@ -248,7 +255,12 @@ describe("handlePairingRequest", () => {
 
   it("502s when the upstream write fails", async () => {
     const writer: PairingWriter = {
-      addEnvironmentId: async () => ({ ok: false, status: 502, reason: "boom" }),
+      addEnvironmentId: async () => ({
+        ok: false,
+        status: 502,
+        code: "PAIR_METADATA_WRITE_FAILED",
+        message: "boom",
+      }),
       removeEnvironmentId: async () => ({ ok: true }),
     };
     const { request, url } = makePostRequest({ environmentId: VALID_ID, token: VALID_TOKEN });

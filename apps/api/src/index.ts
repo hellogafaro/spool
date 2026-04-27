@@ -13,9 +13,11 @@ import {
   API_PATHS,
   API_PROTOCOL_VERSION,
   ENVIRONMENT_PROOF_HEADER,
+  PAIR_ERROR_CODES,
   type ControlMessage,
+  type PairErrorCode,
 } from "./protocol.ts";
-import { getWorkOsUserMetadata, getEnvironmentIds } from "./workos.ts";
+import { getEnvironmentIds, getWorkOsUserMetadata } from "./workos.ts";
 
 interface Env {
   ENVIRONMENT_ROOMS: DurableObjectNamespace;
@@ -167,10 +169,13 @@ export default {
     if (url.pathname === API_PATHS.pair) {
       const writer = resolvePairingWriter(env);
       if (!writer) {
-        return new Response("pairing not configured\n", {
-          status: 503,
-          headers: textHeaders,
-        });
+        return Response.json(
+          {
+            code: PAIR_ERROR_CODES.PAIR_NOT_CONFIGURED,
+            message: "Pairing isn't configured on this deployment (missing WORKOS_API_KEY).",
+          },
+          { status: 503 },
+        );
       }
       return handlePairingRequest(request, url, {
         authVerifier: resolveBrowserAuthVerifier(env),
@@ -181,41 +186,36 @@ export default {
           const claimUrl = new URL(
             `http://do/internal/claim?userId=${encodeURIComponent(userId)}&token=${encodeURIComponent(token)}`,
           );
-          const response = await stub.fetch(claimUrl.toString(), { method: "POST" });
+          let response: Response;
+          try {
+            response = await stub.fetch(claimUrl.toString(), { method: "POST" });
+          } catch (error) {
+            return {
+              ok: false,
+              status: 502,
+              code: PAIR_ERROR_CODES.PAIR_DO_UNAVAILABLE,
+              message:
+                error instanceof Error
+                  ? `Relay couldn't reach the room: ${error.message}`
+                  : "Relay couldn't reach the room.",
+            } as const;
+          }
           if (response.ok) return { ok: true } as const;
-          const text = (await response.text().catch(() => "")).trim();
-          if (response.status === 401) {
+          const parsed = await readDoErrorBody(response);
+          if (response.status === 401 || response.status === 409 || response.status === 410) {
             return {
               ok: false,
-              status: 401,
-              reason:
-                text ||
-                "Couldn't verify the pair token. Make sure the environment is running and the values match what its console printed.",
-            } as const;
-          }
-          if (response.status === 409) {
-            return {
-              ok: false,
-              status: 409,
-              reason:
-                text ||
-                "This environment is already paired with another account. Sign in with that account or release it first.",
-            } as const;
-          }
-          if (response.status === 410) {
-            return {
-              ok: false,
-              status: 410,
-              reason:
-                text ||
-                "This environment was released. Restart it with a fresh install to start a new pairing.",
+              status: response.status,
+              code: parsed.code ?? PAIR_ERROR_CODES.PAIR_DO_UNAVAILABLE,
+              message: parsed.message,
             } as const;
           }
           return {
             ok: false,
-            status: 502 as const,
-            reason: text || `Pairing failed (${response.status}). Try again in a moment.`,
-          };
+            status: 502,
+            code: PAIR_ERROR_CODES.PAIR_DO_UNAVAILABLE,
+            message: parsed.message || `Relay returned ${response.status}.`,
+          } as const;
         },
         releaseEnvironmentOwner: async (environmentId, userId) => {
           const id = env.ENVIRONMENT_ROOMS.idFromName(environmentId);
@@ -223,14 +223,28 @@ export default {
           const releaseUrl = new URL(
             `http://do/internal/release?userId=${encodeURIComponent(userId)}`,
           );
-          const response = await stub.fetch(releaseUrl.toString(), { method: "POST" });
+          let response: Response;
+          try {
+            response = await stub.fetch(releaseUrl.toString(), { method: "POST" });
+          } catch (error) {
+            return {
+              ok: false,
+              status: 502,
+              code: PAIR_ERROR_CODES.PAIR_DO_UNAVAILABLE,
+              message:
+                error instanceof Error
+                  ? `Relay couldn't reach the room: ${error.message}`
+                  : "Relay couldn't reach the room.",
+            } as const;
+          }
           if (response.ok) return { ok: true } as const;
-          const text = await response.text().catch(() => "");
+          const parsed = await readDoErrorBody(response);
           return {
             ok: false,
-            status: 502 as const,
-            reason: text.trim() || `release failed (${response.status})`,
-          };
+            status: 502,
+            code: PAIR_ERROR_CODES.PAIR_DO_UNAVAILABLE,
+            message: parsed.message || `Release returned ${response.status}.`,
+          } as const;
         },
       });
     }
@@ -285,6 +299,30 @@ export default {
     return env.ENVIRONMENT_ROOMS.get(id).fetch(request);
   },
 };
+
+function doError(status: number, code: PairErrorCode, message: string): Response {
+  return Response.json({ code, message }, { status });
+}
+
+async function readDoErrorBody(
+  response: Response,
+): Promise<{ readonly code: PairErrorCode | null; readonly message: string }> {
+  const text = await response.text().catch(() => "");
+  if (text.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(text) as { code?: unknown; message?: unknown };
+      const code =
+        typeof parsed.code === "string" && parsed.code in PAIR_ERROR_CODES
+          ? (parsed.code as PairErrorCode)
+          : null;
+      const message = typeof parsed.message === "string" ? parsed.message : text.trim();
+      return { code, message };
+    } catch {
+      // fall through
+    }
+  }
+  return { code: null, message: text.trim() };
+}
 
 interface PendingBrowser {
   readonly socket: WebSocket;
@@ -377,36 +415,46 @@ export class EnvironmentRoom implements DurableObject {
   private async handleClaim(url: URL): Promise<Response> {
     const userId = url.searchParams.get("userId")?.trim();
     const token = url.searchParams.get("token")?.trim();
-    if (!userId) return new Response("userId required\n", { status: 400 });
-    if (!token) return new Response("token required\n", { status: 400 });
+    if (!userId) {
+      return doError(400, PAIR_ERROR_CODES.PAIR_INVALID_BODY, "userId query param required.");
+    }
+    if (!token) {
+      return doError(400, PAIR_ERROR_CODES.PAIR_INVALID_BODY, "token query param required.");
+    }
 
     const status = await this.getStatus();
     if (status === "disabled") {
-      return new Response(
-        "This environment was released. Restart it with a fresh install to start a new pairing.\n",
-        { status: 410 },
+      return doError(
+        410,
+        PAIR_ERROR_CODES.PAIR_RELEASED,
+        "This environment was released. Restart it with a fresh install to start a new pairing.",
       );
     }
     if (status === "active") {
       const existing = (await this.state.storage.get<string>("userId")) ?? null;
       if (existing === userId) return new Response("ok\n", { status: 200 });
-      return new Response("This environment is already paired with another account.\n", {
-        status: 409,
-      });
+      return doError(
+        409,
+        PAIR_ERROR_CODES.PAIR_ALREADY_CLAIMED,
+        "This environment is already paired with another account.",
+      );
     }
 
     // status === "pending"
     const pending = (await this.state.storage.get<string>("token")) ?? null;
     if (!pending) {
-      return new Response(
-        "Environment isn't reporting yet. Make sure it's running and try again.\n",
-        { status: 401 },
+      return doError(
+        401,
+        PAIR_ERROR_CODES.PAIR_ENV_OFFLINE,
+        "Environment isn't reporting yet. Make sure it's running and try again.",
       );
     }
     if (pending !== token) {
-      return new Response("Pair token doesn't match. Re-copy it from the env console.\n", {
-        status: 401,
-      });
+      return doError(
+        401,
+        PAIR_ERROR_CODES.PAIR_TOKEN_MISMATCH,
+        "Pair token doesn't match. Re-copy it from the env console.",
+      );
     }
 
     await this.state.storage.put("userId", userId);

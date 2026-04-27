@@ -1,9 +1,15 @@
 import type { BrowserAuthVerifier } from "./auth.ts";
-import { getWorkOsUserMetadata, putWorkOsUserMetadata, getEnvironmentIds } from "./workos.ts";
+import { PAIR_ERROR_CODES, type PairErrorBody, type PairErrorCode } from "./protocol.ts";
+import { getEnvironmentIds, getWorkOsUserMetadata, putWorkOsUserMetadata } from "./workos.ts";
 
 export type PairingWriteResult =
   | { readonly ok: true }
-  | { readonly ok: false; readonly status: 502 | 503; readonly reason: string };
+  | {
+      readonly ok: false;
+      readonly status: 502 | 503;
+      readonly code: PairErrorCode;
+      readonly message: string;
+    };
 
 export interface PairingWriter {
   addEnvironmentId(userId: string, environmentId: string): Promise<PairingWriteResult>;
@@ -31,15 +37,29 @@ export function makeWorkOsPairingWriter(options: WorkOsPairingWriterOptions): Pa
     try {
       existing = await getMetadata(userId);
     } catch (error) {
-      const reason = error instanceof Error ? error.message : "metadata fetch failed";
-      return { ok: false, status: 503, reason };
+      return {
+        ok: false,
+        status: 503,
+        code: PAIR_ERROR_CODES.PAIR_METADATA_READ_FAILED,
+        message:
+          error instanceof Error
+            ? `WorkOS metadata read failed: ${error.message}`
+            : "WorkOS metadata read failed",
+      };
     }
     const next = { ...(existing ?? {}), environmentIds: update(getEnvironmentIds(existing)) };
     try {
       await putMetadata(userId, next);
     } catch (error) {
-      const reason = error instanceof Error ? error.message : "metadata write failed";
-      return { ok: false, status: 502, reason };
+      return {
+        ok: false,
+        status: 502,
+        code: PAIR_ERROR_CODES.PAIR_METADATA_WRITE_FAILED,
+        message:
+          error instanceof Error
+            ? `WorkOS metadata write failed: ${error.message}`
+            : "WorkOS metadata write failed",
+      };
     }
     return { ok: true };
   };
@@ -60,8 +80,8 @@ export interface PairingRequestBody {
 }
 
 const ENVIRONMENT_ID_PATTERN = /^[A-Z0-9]{12}$/;
-// Environment secret is 32 random bytes hex-encoded by the CLI. Bound the
-// accepted size so a malicious payload can't waste DO storage comparisons.
+// Pair token is 12 chars from T3 issuance. Bound the accepted size so a
+// malicious payload can't waste DO storage comparisons.
 const PAIR_TOKEN_MAX_LENGTH = 256;
 
 function parsePairingBody(raw: unknown): PairingRequestBody | null {
@@ -77,7 +97,12 @@ function parsePairingBody(raw: unknown): PairingRequestBody | null {
 
 export type ClaimEnvironmentOwnerResult =
   | { readonly ok: true }
-  | { readonly ok: false; readonly status: 401 | 409 | 410 | 502; readonly reason: string };
+  | {
+      readonly ok: false;
+      readonly status: 401 | 409 | 410 | 502;
+      readonly code: PairErrorCode;
+      readonly message: string;
+    };
 
 export type ClaimEnvironmentOwner = (
   environmentId: string,
@@ -87,7 +112,12 @@ export type ClaimEnvironmentOwner = (
 
 export type ReleaseEnvironmentOwnerResult =
   | { readonly ok: true }
-  | { readonly ok: false; readonly status: 502; readonly reason: string };
+  | {
+      readonly ok: false;
+      readonly status: 502;
+      readonly code: PairErrorCode;
+      readonly message: string;
+    };
 
 export type ReleaseEnvironmentOwner = (
   environmentId: string,
@@ -103,7 +133,7 @@ export interface PairingHandlerOptions {
 
 const CORS_HEADERS: Record<string, string> = {
   "access-control-allow-origin": "*",
-  "access-control-allow-methods": "POST, OPTIONS",
+  "access-control-allow-methods": "POST, DELETE, OPTIONS",
   "access-control-allow-headers": "authorization, content-type",
   "access-control-max-age": "86400",
 };
@@ -113,6 +143,24 @@ function withCors(response: Response): Response {
     response.headers.set(key, value);
   }
   return response;
+}
+
+function errorResponse(
+  status: number,
+  code: PairErrorCode,
+  message: string,
+  extraHeaders?: Record<string, string>,
+): Response {
+  const body: PairErrorBody = { code, message };
+  return withCors(
+    new Response(JSON.stringify(body), {
+      status,
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+        ...extraHeaders,
+      },
+    }),
+  );
 }
 
 export async function handlePairingRequest(
@@ -129,29 +177,37 @@ export async function handlePairingRequest(
   }
 
   if (request.method !== "POST") {
-    return withCors(
-      new Response("method not allowed\n", {
-        status: 405,
-        headers: { allow: "POST, DELETE, OPTIONS" },
-      }),
+    return errorResponse(
+      405,
+      PAIR_ERROR_CODES.PAIR_METHOD_NOT_ALLOWED,
+      `Method ${request.method} is not allowed on /pair.`,
+      { allow: "POST, DELETE, OPTIONS" },
     );
   }
 
   const auth = await options.authVerifier(request, url);
   if (!auth.ok) {
-    return withCors(new Response(`${auth.reason}\n`, { status: auth.status }));
+    return errorResponse(auth.status, PAIR_ERROR_CODES.PAIR_AUTH_FAILED, auth.reason);
   }
 
   let raw: unknown;
   try {
     raw = await request.json();
   } catch {
-    return withCors(new Response("invalid json body\n", { status: 400 }));
+    return errorResponse(
+      400,
+      PAIR_ERROR_CODES.PAIR_INVALID_BODY,
+      "Request body is not valid JSON.",
+    );
   }
 
   const body = parsePairingBody(raw);
   if (!body) {
-    return withCors(new Response("environmentId required\n", { status: 400 }));
+    return errorResponse(
+      400,
+      PAIR_ERROR_CODES.PAIR_INVALID_BODY,
+      "Body must be { environmentId: 12-char A-Z 0-9, token: non-empty string }.",
+    );
   }
 
   const claim = await options.claimEnvironmentOwner(
@@ -160,15 +216,17 @@ export async function handlePairingRequest(
     body.token,
   );
   if (!claim.ok) {
-    return withCors(new Response(`${claim.reason}\n`, { status: claim.status }));
+    return errorResponse(claim.status, claim.code, claim.message);
   }
 
   const result = await options.writer.addEnvironmentId(auth.auth.userId, body.environmentId);
   if (!result.ok) {
-    // Best-effort: roll back the DO claim so the env isn't permanently locked
-    // to a user whose metadata write failed.
-    await options.releaseEnvironmentOwner(body.environmentId, auth.auth.userId).catch(() => {});
-    return withCors(new Response(`${result.reason}\n`, { status: result.status }));
+    // Don't auto-release: the DO is now {userId, status: active} for this user.
+    // Releasing would flip status -> disabled, which is irreversible. Leaving
+    // it lets the user retry; on retry the claim is a no-op (already-by-same-user)
+    // and the writer retries the WorkOS metadata write — self-heals when WorkOS
+    // recovers.
+    return errorResponse(result.status, result.code, result.message);
   }
 
   return withCors(Response.json({ ok: true, environmentId: body.environmentId }));
@@ -181,22 +239,26 @@ async function handleDelete(
 ): Promise<Response> {
   const auth = await options.authVerifier(request, url);
   if (!auth.ok) {
-    return withCors(new Response(`${auth.reason}\n`, { status: auth.status }));
+    return errorResponse(auth.status, PAIR_ERROR_CODES.PAIR_AUTH_FAILED, auth.reason);
   }
 
   const environmentId = url.searchParams.get("environmentId")?.trim();
   if (!environmentId || !ENVIRONMENT_ID_PATTERN.test(environmentId)) {
-    return withCors(new Response("environmentId required\n", { status: 400 }));
+    return errorResponse(
+      400,
+      PAIR_ERROR_CODES.PAIR_INVALID_BODY,
+      "environmentId query parameter must be a 12-char A-Z 0-9 string.",
+    );
   }
 
   const removeResult = await options.writer.removeEnvironmentId(auth.auth.userId, environmentId);
   if (!removeResult.ok) {
-    return withCors(new Response(`${removeResult.reason}\n`, { status: removeResult.status }));
+    return errorResponse(removeResult.status, removeResult.code, removeResult.message);
   }
 
   const release = await options.releaseEnvironmentOwner(environmentId, auth.auth.userId);
   if (!release.ok) {
-    return withCors(new Response(`${release.reason}\n`, { status: release.status }));
+    return errorResponse(release.status, release.code, release.message);
   }
 
   return withCors(Response.json({ ok: true, environmentId }));
