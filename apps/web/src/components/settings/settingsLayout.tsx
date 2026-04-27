@@ -15,17 +15,28 @@ export function useRelativeTimeTick(intervalMs = 1_000) {
   return nowMs;
 }
 
+/**
+ * Trunk hides T3's General → Providers section because Trunk's
+ * /settings/providers page is the canonical surface for provider config.
+ * Title-based hide keeps T3's SettingsPanels.tsx untouched (fork-clean).
+ * Trunk's own pages set `trunkOwned` to opt out of the hide.
+ */
+const TRUNK_HIDDEN_SECTION_TITLES = new Set<string>(["Providers"]);
+
 export function SettingsSection({
   title,
   icon,
   headerAction,
+  trunkOwned,
   children,
 }: {
   title: string;
   icon?: ReactNode;
   headerAction?: ReactNode;
+  trunkOwned?: boolean;
   children: ReactNode;
 }) {
+  if (!trunkOwned && TRUNK_HIDDEN_SECTION_TITLES.has(title)) return null;
   return (
     <section className="space-y-2.5">
       <div className="flex items-center justify-between px-1">
