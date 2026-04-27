@@ -42,11 +42,34 @@ export async function putWorkOsUserMetadata(
   }
 }
 
+/**
+ * WorkOS user metadata only accepts string values (max 600 chars), so we
+ * JSON-encode the env-id list before writing and decode on read. Older
+ * values written as a raw array are still tolerated.
+ */
 export function getEnvironmentIds(metadata: Record<string, unknown> | null): string[] {
   if (!metadata) return [];
   const value = metadata.environmentIds;
-  if (!Array.isArray(value)) return [];
-  return value.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
+  if (Array.isArray(value)) {
+    return value.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
+  }
+  if (typeof value === "string" && value.length > 0) {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      if (Array.isArray(parsed)) {
+        return parsed.filter(
+          (entry): entry is string => typeof entry === "string" && entry.length > 0,
+        );
+      }
+    } catch {
+      // Fall through to empty.
+    }
+  }
+  return [];
+}
+
+export function encodeEnvironmentIds(ids: ReadonlyArray<string>): string {
+  return JSON.stringify(ids);
 }
 
 /**

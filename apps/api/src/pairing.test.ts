@@ -288,7 +288,7 @@ describe("makeWorkOsPairingWriter", () => {
     expect(result.ok).toBe(true);
     expect(lastWrite).toEqual({
       otherField: "preserved",
-      environmentIds: ["existing12", VALID_ID],
+      environmentIds: JSON.stringify(["existing12", VALID_ID]),
     });
   });
 
@@ -303,7 +303,7 @@ describe("makeWorkOsPairingWriter", () => {
     });
     const result = await writer.addEnvironmentId("user_x", VALID_ID);
     expect(result.ok).toBe(true);
-    expect(lastWrite).toEqual({ environmentIds: [VALID_ID] });
+    expect(lastWrite).toEqual({ environmentIds: JSON.stringify([VALID_ID]) });
   });
 
   it("returns 503 when the read step fails", async () => {

@@ -1,6 +1,11 @@
 import type { BrowserAuthVerifier } from "./auth.ts";
 import { PAIR_ERROR_CODES, type PairErrorBody, type PairErrorCode } from "./protocol.ts";
-import { getEnvironmentIds, getWorkOsUserMetadata, putWorkOsUserMetadata } from "./workos.ts";
+import {
+  encodeEnvironmentIds,
+  getEnvironmentIds,
+  getWorkOsUserMetadata,
+  putWorkOsUserMetadata,
+} from "./workos.ts";
 
 export type PairingWriteResult =
   | { readonly ok: true }
@@ -47,7 +52,10 @@ export function makeWorkOsPairingWriter(options: WorkOsPairingWriterOptions): Pa
             : "WorkOS metadata read failed",
       };
     }
-    const next = { ...(existing ?? {}), environmentIds: update(getEnvironmentIds(existing)) };
+    const next = {
+      ...(existing ?? {}),
+      environmentIds: encodeEnvironmentIds(update(getEnvironmentIds(existing))),
+    };
     try {
       await putMetadata(userId, next);
     } catch (error) {
