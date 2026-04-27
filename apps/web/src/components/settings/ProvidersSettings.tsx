@@ -1,49 +1,30 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { useClaimedEnvironments } from "~/auth/useClaimedEnvironments";
 import { useServerProviders } from "~/rpc/serverState";
+import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
+import { ProviderInstallButton } from "./ProviderInstallButton";
+import { ProviderSetupDialog } from "./ProviderSetupDialog";
+import { PROVIDER_COMMANDS } from "./providerCommands";
 import { SettingsPageContainer, SettingsSection } from "./settingsLayout";
 
 interface ProviderRecipe {
   readonly id: string;
   readonly fallbackLabel: string;
-  readonly install: string;
-  readonly authCommand: string;
-  readonly authNote: string;
   readonly docs: string;
 }
 
 const RECIPES: ReadonlyArray<ProviderRecipe> = [
-  {
-    id: "claudeAgent",
-    fallbackLabel: "Claude Code",
-    install: "npm install -g @anthropic-ai/claude-code",
-    authCommand: "claude login",
-    authNote: "Browser-based OAuth. Or set ANTHROPIC_API_KEY in the environment for headless auth.",
-    docs: "https://docs.claude.com/claude-code",
-  },
-  {
-    id: "codex",
-    fallbackLabel: "Codex",
-    install: "npm install -g @openai/codex",
-    authCommand: "codex login",
-    authNote: "Browser-based OAuth. Or set OPENAI_API_KEY in the environment for headless auth.",
-    docs: "https://github.com/openai/codex",
-  },
-  {
-    id: "cursorAgent",
-    fallbackLabel: "Cursor Agent",
-    install: "curl -fsSL https://cursor.com/install -o- | bash",
-    authCommand: "cursor-agent login",
-    authNote: "Authenticate via your Cursor account.",
-    docs: "https://docs.cursor.com",
-  },
+  { id: "claudeAgent", fallbackLabel: "Claude Code", docs: "https://docs.claude.com/claude-code" },
+  { id: "codex", fallbackLabel: "Codex", docs: "https://github.com/openai/codex" },
+  { id: "opencode", fallbackLabel: "OpenCode", docs: "https://opencode.ai" },
 ];
 
 export function ProvidersSettings() {
   const environments = useClaimedEnvironments();
   const liveProviders = useServerProviders();
+  const [setupProviderId, setSetupProviderId] = useState<string | null>(null);
 
   // /me no longer carries per-env online status; we just check whether the
   // user has any paired env at all. Detailed online indicator can come back
@@ -56,6 +37,10 @@ export function ProvidersSettings() {
       return { recipe, live, label: live?.displayName ?? recipe.fallbackLabel };
     });
   }, [liveProviders]);
+
+  const setupRow = setupProviderId
+    ? known.find(({ recipe }) => recipe.id === setupProviderId)
+    : null;
 
   return (
     <SettingsPageContainer>
@@ -72,83 +57,92 @@ export function ProvidersSettings() {
             </div>
           ) : null}
 
-          <ul className="space-y-3">
+          <ul className="space-y-2">
             {known.map(({ recipe, live, label }) => (
               <li
                 key={recipe.id}
-                className="space-y-3 rounded-lg border border-border/70 bg-background/40 px-3 py-3"
+                className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-card/60 px-3 py-2"
               >
-                <header className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground">{label}</p>
-                    {live?.version ? (
-                      <p className="text-xs text-muted-foreground">v{live.version}</p>
-                    ) : null}
-                  </div>
-                  <ProviderBadges live={live} hasOnlineEnv={hasOnlineEnv} />
-                </header>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-foreground">{label}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {live?.version ? `v${live.version} · ` : ""}
+                    <a
+                      className="hover:underline"
+                      href={recipe.docs}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Docs
+                    </a>
+                  </p>
+                </div>
 
-                {needsInstall(live) ? (
-                  <Step number={1} title="Install on the environment">
-                    <pre className="overflow-x-auto rounded-md bg-card/60 px-3 py-2 font-mono text-xs">
-                      {recipe.install}
-                    </pre>
-                  </Step>
-                ) : null}
-
-                {needsAuth(live) ? (
-                  <Step number={needsInstall(live) ? 2 : 1} title="Authenticate">
-                    <pre className="overflow-x-auto rounded-md bg-card/60 px-3 py-2 font-mono text-xs">
-                      {recipe.authCommand}
-                    </pre>
-                    <p className="text-xs leading-relaxed text-muted-foreground/80">
-                      {recipe.authNote}
-                    </p>
-                  </Step>
-                ) : null}
-
-                {live?.message ? (
-                  <p className="text-xs text-muted-foreground">{live.message}</p>
-                ) : null}
-
-                <p className="text-xs text-muted-foreground">
-                  Docs:{" "}
-                  <a
-                    className="text-primary hover:underline"
-                    href={recipe.docs}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {recipe.docs}
-                  </a>
-                </p>
+                <ProviderActions
+                  providerId={recipe.id}
+                  providerLabel={label}
+                  live={live}
+                  hasOnlineEnv={hasOnlineEnv}
+                  hasRecipe={Boolean(PROVIDER_COMMANDS[recipe.id])}
+                  onSetup={() => setSetupProviderId(recipe.id)}
+                />
               </li>
             ))}
           </ul>
         </div>
       </SettingsSection>
+
+      {setupRow ? (
+        <ProviderSetupDialog
+          // Force a fresh component (and therefore fresh PTY teardown of the
+          // prior provider's setup session) when the user jumps from one
+          // provider's Set up to another's without closing first.
+          key={setupRow.recipe.id}
+          providerId={setupRow.recipe.id}
+          providerLabel={setupRow.label}
+          open={setupProviderId !== null}
+          onOpenChange={(next) => {
+            if (!next) setSetupProviderId(null);
+          }}
+        />
+      ) : null}
     </SettingsPageContainer>
   );
 }
 
-function ProviderBadges({
+function ProviderActions({
+  providerId,
+  providerLabel: _providerLabel,
   live,
   hasOnlineEnv,
+  hasRecipe,
+  onSetup,
 }: {
+  providerId: string;
+  providerLabel: string;
   live: ReturnType<typeof useServerProviders>[number] | undefined;
   hasOnlineEnv: boolean;
+  hasRecipe: boolean;
+  onSetup: () => void;
 }) {
   if (!hasOnlineEnv) {
     return <Badge tone="muted">Unknown</Badge>;
   }
-  if (!live) {
-    return <Badge tone="warn">Not installed</Badge>;
-  }
-  if (!live.installed) {
-    return <Badge tone="warn">Not installed</Badge>;
+  if (!live || !live.installed) {
+    return hasRecipe ? (
+      <ProviderInstallButton providerId={providerId} />
+    ) : (
+      <Badge tone="warn">Not installed</Badge>
+    );
   }
   if (live.auth.status !== "authenticated") {
-    return <Badge tone="warn">Auth needed</Badge>;
+    return hasRecipe ? (
+      <Button size="sm" variant="outline" onClick={onSetup}>
+        Set up
+      </Button>
+    ) : (
+      <Badge tone="warn">Auth needed</Badge>
+    );
   }
   if (live.status === "ready") {
     return <Badge tone="ok">Ready</Badge>;
@@ -189,36 +183,4 @@ function Badge({
       {children}
     </span>
   );
-}
-
-function Step({
-  number,
-  title,
-  children,
-}: {
-  number: number;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-start gap-3">
-      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-card text-[11px] font-semibold text-muted-foreground">
-        {number}
-      </span>
-      <div className="min-w-0 flex-1 space-y-1.5">
-        <p className="text-sm font-medium text-foreground">{title}</p>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function needsInstall(live: ReturnType<typeof useServerProviders>[number] | undefined): boolean {
-  if (!live) return true;
-  return !live.installed;
-}
-
-function needsAuth(live: ReturnType<typeof useServerProviders>[number] | undefined): boolean {
-  if (!live) return false;
-  return live.installed && live.auth.status !== "authenticated";
 }
