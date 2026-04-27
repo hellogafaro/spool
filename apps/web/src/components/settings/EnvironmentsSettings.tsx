@@ -1,7 +1,7 @@
 import { useAuth } from "@workos-inc/authkit-react";
 import { useState } from "react";
 
-import { unclaimEnvironment } from "~/auth/pairingApi";
+import { unclaimEnvironment } from "~/auth/pairing";
 import { readActiveEnvironmentId, writeActiveEnvironmentId } from "~/auth/tokenStore";
 import { useClaimedEnvironments } from "~/auth/useClaimedEnvironments";
 import { InstallationGuide } from "../onboarding/InstallationGuide";

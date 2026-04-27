@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 
-import { PairingApiError, claimEnvironment } from "../auth/pairingApi";
+import { PairingApiError, claimEnvironment } from "../auth/pairing";
 import { writeActiveEnvironmentId } from "../auth/tokenStore";
 import { useClaimedEnvironments } from "../auth/useClaimedEnvironments";
 import { isWorkOsConfigured } from "../auth/workos";

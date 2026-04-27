@@ -4,7 +4,7 @@ import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import {
   fetchClaimedEnvironments,
   type ClaimedEnvironmentsSnapshot,
-} from "./pairingApi";
+} from "./pairing";
 
 export const CLAIMED_ENVIRONMENTS_QUERY_KEY = ["trunk", "claimedEnvironments"] as const;
 
