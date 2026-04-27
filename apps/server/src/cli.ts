@@ -1099,14 +1099,13 @@ const projectCommand = Command.make("project").pipe(
 const DEFAULT_TRUNK_APP_URL = "https://app.trunk.codes";
 
 const ensurePairing = Effect.gen(function* () {
-  const { readRemoteLinkLocalConfig, remoteLinkConfigPath, writeRemoteLinkLocalConfig } =
-    yield* Effect.promise(() => import("./remoteLink/RemoteLinkConfig.ts"));
+  const { remoteLinkConfigPath, writeRemoteLinkLocalConfig } = yield* Effect.promise(
+    () => import("./remoteLink/RemoteLinkConfig.ts"),
+  );
 
-  const existing = yield* readRemoteLinkLocalConfig;
-  if (existing._tag === "Some") {
-    return;
-  }
-
+  // Idempotent: if a valid config already exists, returns it as-is;
+  // otherwise generates a fresh environmentId + secret and writes them.
+  // Stale schemas on disk get rewritten with the current shape.
   const config = yield* writeRemoteLinkLocalConfig();
   const filePath = yield* remoteLinkConfigPath();
   const appUrl = (process.env.TRUNK_APP_URL?.trim() || DEFAULT_TRUNK_APP_URL).replace(/\/$/, "");
@@ -1114,11 +1113,11 @@ const ensurePairing = Effect.gen(function* () {
 
   yield* Console.log("");
   yield* Console.log("============================================================");
-  yield* Console.log(" Trunk environment is ready — pair it with your account:");
+  yield* Console.log(" Pair this environment with your Trunk account:");
   yield* Console.log("");
   yield* Console.log(`   ${pairUrl}`);
   yield* Console.log("");
-  yield* Console.log(" Open that URL on any device, sign in, and you're done.");
+  yield* Console.log(" Open the URL on any device, sign in, done.");
   yield* Console.log("============================================================");
   yield* Console.log("");
   yield* Console.log(`  config:         ${filePath}`);
