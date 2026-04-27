@@ -34,6 +34,9 @@ export function EnvironmentsSettings() {
         return;
       }
       await unclaimEnvironment({ environmentId: id, accessToken: token });
+      // Force a fresh session token so the removed env disappears from the
+      // `environments` JWT claim right away.
+      await auth.getAccessToken({ forceRefresh: true });
       await environments.refetch();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Could not remove environment.");

@@ -1,7 +1,8 @@
 /**
- * Browser client for the relay's /pair and /me endpoints. /pair binds an
- * environmentId to the signed-in user. /me returns the user's claimed
- * environments with live status.
+ * Browser client for the relay's /pair endpoint. The list of envs the
+ * user owns isn't fetched separately — it ships as the `environmentIds`
+ * custom claim on the WorkOS access token (configured via JWT template
+ * in the WorkOS Dashboard), so we decode it from the token directly.
  */
 
 const TRUNK_API_URL = (import.meta.env.VITE_TRUNK_API_URL as string | undefined)?.trim();
@@ -95,24 +96,40 @@ export async function unclaimEnvironment({
   }
 }
 
-export async function getClaimedEnvironmentIds(
-  accessToken: string,
-): Promise<ReadonlyArray<string>> {
-  if (!TRUNK_API_URL) return [];
-  const response = await fetch(`${TRUNK_API_URL.replace(/\/$/, "")}/me`, {
-    headers: { authorization: `Bearer ${accessToken}` },
-  });
-  if (!response.ok) {
-    const { code, message } = await readErrorBody(response);
-    throw new ApiError(
-      response.status,
-      message || `Failed to load environments (${response.status}).`,
-      code,
-    );
+/**
+ * Reads the user's paired environment IDs out of the WorkOS access token.
+ * The `environments` claim is a comma-separated string (set via the JWT
+ * template in the WorkOS Dashboard, sourced from user metadata that only
+ * accepts string values). Env IDs are `[A-Z0-9]{12}` so they can't ever
+ * contain commas — split round-trips losslessly.
+ *
+ * Returns an empty array on any decode failure: the worst case is the
+ * user lands on /onboarding for a moment until a fresh session token
+ * carries the correct claim.
+ */
+export function getClaimedEnvironmentIds(accessToken: string): ReadonlyArray<string> {
+  const payload = decodeJwtPayload(accessToken);
+  if (!payload) return [];
+  const raw = payload.environments;
+  if (typeof raw !== "string" || raw.length === 0) return [];
+  return raw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
+function decodeJwtPayload(jwt: string): Record<string, unknown> | null {
+  const parts = jwt.split(".");
+  if (parts.length !== 3) return null;
+  try {
+    const padded = parts[1]!.replace(/-/g, "+").replace(/_/g, "/");
+    const json = atob(padded.padEnd(Math.ceil(padded.length / 4) * 4, "="));
+    const parsed = JSON.parse(json) as unknown;
+    if (parsed && typeof parsed === "object") {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // Fall through.
   }
-  const body = (await response.json()) as { environmentIds?: ReadonlyArray<unknown> };
-  if (!Array.isArray(body.environmentIds)) return [];
-  return body.environmentIds.filter(
-    (entry): entry is string => typeof entry === "string" && entry.length > 0,
-  );
+  return null;
 }

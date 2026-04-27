@@ -14,7 +14,7 @@ describe("makeWorkOsOwnershipChecker", () => {
   it("allows when environmentId is in the user's environmentIds array", async () => {
     const checker = makeWorkOsOwnershipChecker({
       apiKey: "sk_test_x",
-      getMetadata: async () => ({ environmentIds: [ENV, "anotherenvi"] }),
+      getMetadata: async () => ({ environments: `${ENV},ANOTHERENV12` }),
     });
     const result = await checker("user_abc", ENV);
     expect(result.ok).toBe(true);
@@ -23,7 +23,7 @@ describe("makeWorkOsOwnershipChecker", () => {
   it("denies with 403 when environmentId is not in the array", async () => {
     const checker = makeWorkOsOwnershipChecker({
       apiKey: "sk_test_x",
-      getMetadata: async () => ({ environmentIds: ["differntenv"] }),
+      getMetadata: async () => ({ environments: "DIFFRENTNEV12" }),
     });
     const result = await checker("user_abc", ENV);
     expect(result.ok).toBe(false);
@@ -61,7 +61,7 @@ describe("makeWorkOsOwnershipChecker", () => {
       now: () => now,
       getMetadata: async () => {
         calls += 1;
-        return { environmentIds: [ENV] };
+        return { environments: ENV };
       },
     });
 
@@ -80,7 +80,7 @@ describe("makeWorkOsOwnershipChecker", () => {
       apiKey: "sk_test_x",
       getMetadata: async () => {
         calls += 1;
-        return { environmentIds: [ENV] };
+        return { environments: ENV };
       },
     });
 

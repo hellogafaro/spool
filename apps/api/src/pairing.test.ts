@@ -279,7 +279,7 @@ describe("makeWorkOsPairingWriter", () => {
     let lastWrite: Record<string, unknown> | null = null;
     const writer = makeWorkOsPairingWriter({
       apiKey: "sk_test_x",
-      getMetadata: async () => ({ otherField: "preserved", environmentIds: ["existing12"] }),
+      getMetadata: async () => ({ otherField: "preserved", environments: "EXISTING1234" }),
       putMetadata: async (_userId, metadata) => {
         lastWrite = metadata;
       },
@@ -288,7 +288,7 @@ describe("makeWorkOsPairingWriter", () => {
     expect(result.ok).toBe(true);
     expect(lastWrite).toEqual({
       otherField: "preserved",
-      environmentIds: JSON.stringify(["existing12", VALID_ID]),
+      environments: `EXISTING1234,${VALID_ID}`,
     });
   });
 
@@ -296,14 +296,14 @@ describe("makeWorkOsPairingWriter", () => {
     let lastWrite: Record<string, unknown> | null = null;
     const writer = makeWorkOsPairingWriter({
       apiKey: "sk_test_x",
-      getMetadata: async () => ({ environmentIds: [VALID_ID] }),
+      getMetadata: async () => ({ environments: VALID_ID }),
       putMetadata: async (_userId, metadata) => {
         lastWrite = metadata;
       },
     });
     const result = await writer.addEnvironmentId("user_x", VALID_ID);
     expect(result.ok).toBe(true);
-    expect(lastWrite).toEqual({ environmentIds: JSON.stringify([VALID_ID]) });
+    expect(lastWrite).toEqual({ environments: VALID_ID });
   });
 
   it("returns 503 when the read step fails", async () => {

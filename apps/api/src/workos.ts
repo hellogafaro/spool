@@ -43,34 +43,31 @@ export async function putWorkOsUserMetadata(
 }
 
 /**
- * WorkOS user metadata only accepts string values (max 600 chars), so we
- * JSON-encode the env-id list before writing and decode on read. Older
- * values written as a raw array are still tolerated.
+ * WorkOS user metadata only accepts string values (max 600 chars, ASCII).
+ * We store the env-id list as a comma-separated string under the
+ * `environments` key so the WorkOS JWT template can drop it into a
+ * session claim verbatim — `[A-Z0-9]{12}` ids can never contain commas,
+ * so a plain split round-trips losslessly.
  */
+const ENVIRONMENTS_METADATA_KEY = "environments";
+
 export function getEnvironmentIds(metadata: Record<string, unknown> | null): string[] {
   if (!metadata) return [];
-  const value = metadata.environmentIds;
-  if (Array.isArray(value)) {
-    return value.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
-  }
+  const value = metadata[ENVIRONMENTS_METADATA_KEY];
   if (typeof value === "string" && value.length > 0) {
-    try {
-      const parsed = JSON.parse(value) as unknown;
-      if (Array.isArray(parsed)) {
-        return parsed.filter(
-          (entry): entry is string => typeof entry === "string" && entry.length > 0,
-        );
-      }
-    } catch {
-      // Fall through to empty.
-    }
+    return value
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
   }
   return [];
 }
 
 export function encodeEnvironmentIds(ids: ReadonlyArray<string>): string {
-  return JSON.stringify(ids);
+  return ids.join(",");
 }
+
+export const ENVIRONMENTS_METADATA_FIELD = ENVIRONMENTS_METADATA_KEY;
 
 /**
  * Build the Vault object name for an env's credentials. We namespace

@@ -20,8 +20,6 @@ import {
 import {
   createEnvVaultObject,
   deleteEnvVaultObject,
-  getEnvironmentIds,
-  getWorkOsUserMetadata,
   readEnvVaultObject,
   type EnvVaultEntry,
 } from "./workos.ts";
@@ -77,52 +75,6 @@ function resolveOwnershipChecker(env: Env): OwnershipChecker {
   return cachedOwnershipChecker.checker;
 }
 
-const ME_CORS: Record<string, string> = {
-  "access-control-allow-origin": "*",
-  "access-control-allow-methods": "GET, OPTIONS",
-  "access-control-allow-headers": "authorization, content-type",
-  "access-control-max-age": "86400",
-};
-
-function withMeCors(response: Response): Response {
-  for (const [key, value] of Object.entries(ME_CORS)) {
-    response.headers.set(key, value);
-  }
-  return response;
-}
-
-async function handleMeRequest(request: Request, url: URL, env: Env): Promise<Response> {
-  if (request.method === "OPTIONS") {
-    return withMeCors(new Response(null, { status: 204 }));
-  }
-  if (request.method !== "GET") {
-    return withMeCors(
-      new Response("method not allowed\n", {
-        status: 405,
-        headers: { allow: "GET, OPTIONS" },
-      }),
-    );
-  }
-  const verify = resolveBrowserAuthVerifier(env);
-  const auth = await verify(request, url);
-  if (!auth.ok) {
-    return withMeCors(new Response(`${auth.reason}\n`, { status: auth.status }));
-  }
-  if (!env.WORKOS_API_KEY || env.WORKOS_API_KEY.length === 0) {
-    return withMeCors(Response.json({ userId: auth.auth.userId, environmentIds: [] }));
-  }
-  let metadata: Record<string, unknown> | null;
-  try {
-    metadata = await getWorkOsUserMetadata(env.WORKOS_API_KEY, auth.auth.userId);
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : "workos lookup failed";
-    return withMeCors(new Response(reason, { status: 503 }));
-  }
-  return withMeCors(
-    Response.json({ userId: auth.auth.userId, environmentIds: getEnvironmentIds(metadata) }),
-  );
-}
-
 function resolvePairingWriter(env: Env): PairingWriter | null {
   if (!env.WORKOS_API_KEY || env.WORKOS_API_KEY.length === 0) return null;
   if (!cachedPairingWriter || cachedPairingWriter.apiKey !== env.WORKOS_API_KEY) {
@@ -144,10 +96,6 @@ export default {
 
     if (url.pathname === API_PATHS.version) {
       return Response.json(VERSION_PAYLOAD, { headers: jsonHeaders });
-    }
-
-    if (url.pathname === API_PATHS.me) {
-      return handleMeRequest(request, url, env);
     }
 
     if (url.pathname === API_PATHS.pair) {

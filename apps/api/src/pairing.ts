@@ -54,8 +54,10 @@ export function makeWorkOsPairingWriter(options: WorkOsPairingWriterOptions): Pa
     }
     const next = {
       ...(existing ?? {}),
-      environmentIds: encodeEnvironmentIds(update(getEnvironmentIds(existing))),
+      environments: encodeEnvironmentIds(update(getEnvironmentIds(existing))),
     };
+    // Drop any legacy key from earlier shape so the metadata stays clean.
+    delete (next as Record<string, unknown>).environmentIds;
     try {
       await putMetadata(userId, next);
     } catch (error) {

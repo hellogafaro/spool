@@ -5,7 +5,6 @@ export const API_PATHS = {
   channel: "/channel",
   environment: "/environment",
   health: "/health",
-  me: "/me",
   pair: "/pair",
   version: "/version",
 } as const;

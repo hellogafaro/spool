@@ -57,8 +57,11 @@ function OnboardingRouteView() {
         token: token.trim(),
         accessToken,
       });
-      // useEnvironmentGate will pick up the new env on the next /me refetch
-      // and seed T3's store; the route effect then redirects to /.
+      // Force a session-token refresh so the freshly-paired env shows up in
+      // the `environments` JWT claim immediately. Without this, the user
+      // would have to wait for the next access-token rotation (~5 min)
+      // before useEnvironmentGate sees them as paired.
+      await auth.getAccessToken({ forceRefresh: true });
       await environments.refetch();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Pairing failed.");
