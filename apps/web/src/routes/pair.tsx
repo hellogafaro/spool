@@ -2,7 +2,7 @@ import { useAuth } from "@workos-inc/authkit-react";
 import { createFileRoute, redirect, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 
-import { ApiError, claimEnvironment } from "../auth/pairing";
+import { claimEnvironment } from "../auth/pairing";
 import { updateActiveEnvironmentId } from "../auth/activeEnvironment";
 import { useClaimedEnvironments } from "../auth/useClaimedEnvironments";
 import { isWorkOsConfigured } from "../auth/workos";
@@ -121,7 +121,10 @@ function EnvironmentPairView() {
         await environments.refetch();
         setStatus({ kind: "claimed" });
       } catch (error) {
-        setStatus({ kind: "error", message: friendlyError(error) });
+        setStatus({
+          kind: "error",
+          message: error instanceof Error ? error.message : "Couldn't pair that environment.",
+        });
       }
     })();
   }, [environmentId, auth, environments]);
@@ -194,10 +197,4 @@ function readPairTokenFromHash(): string | null {
   const params = new URLSearchParams(raw.startsWith("#") ? raw.slice(1) : raw);
   const token = params.get("token")?.trim() ?? "";
   return token.length > 0 ? token : null;
-}
-
-function friendlyError(error: unknown): string {
-  if (error instanceof ApiError) return error.message;
-  if (error instanceof Error) return error.message;
-  return "Couldn't pair that environment.";
 }
