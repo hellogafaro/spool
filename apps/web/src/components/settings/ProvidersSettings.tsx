@@ -266,6 +266,12 @@ export function ProvidersSettings() {
                         </div>
                         {error ? <p className="text-xs text-destructive">{error}</p> : null}
                       </div>
+
+                      <ProviderAdvancedFields
+                        providerId={recipe.id}
+                        config={config}
+                        patch={(patch) => patchProvider(recipe.id, patch)}
+                      />
                     </div>
                   ) : null}
                 </li>
@@ -336,6 +342,62 @@ function ProviderActions({
       <Spinner className="size-3" />
       Checking
     </span>
+  );
+}
+
+function ProviderAdvancedFields({
+  providerId,
+  config,
+  patch,
+}: {
+  providerId: ProviderKind;
+  config: Record<string, unknown>;
+  patch: (patch: Record<string, unknown>) => void;
+}) {
+  const fields: ReadonlyArray<{
+    key: string;
+    label: string;
+    placeholder?: string;
+    type?: "text" | "password";
+  }> = (() => {
+    if (providerId === "codex") {
+      return [{ key: "homePath", label: "Home path", placeholder: "Auto-detect" }];
+    }
+    if (providerId === "claudeAgent") {
+      return [{ key: "launchArgs", label: "Launch args", placeholder: "Extra CLI flags" }];
+    }
+    if (providerId === "opencode") {
+      return [
+        { key: "serverUrl", label: "Server URL", placeholder: "https://opencode.example.com" },
+        { key: "serverPassword", label: "Server password", type: "password" as const },
+      ];
+    }
+    return [];
+  })();
+
+  if (fields.length === 0) return null;
+
+  return (
+    <div className="space-y-2 border-t border-border/40 pt-3">
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+        Advanced
+      </span>
+      {fields.map((field) => {
+        const value = typeof config[field.key] === "string" ? (config[field.key] as string) : "";
+        return (
+          <label key={field.key} className="block space-y-1">
+            <span className="text-xs font-medium text-muted-foreground">{field.label}</span>
+            <Input
+              type={field.type ?? "text"}
+              value={value}
+              {...(field.placeholder ? { placeholder: field.placeholder } : {})}
+              onChange={(e) => patch({ [field.key]: e.target.value })}
+              className="h-7 text-xs"
+            />
+          </label>
+        );
+      })}
+    </div>
   );
 }
 
