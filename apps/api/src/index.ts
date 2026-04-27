@@ -268,7 +268,7 @@ async function getDoError(
 // the role and (for bridges) the channelId. Hibernation-safe per CF docs:
 // https://developers.cloudflare.com/durable-objects/best-practices/websockets/
 type WsAttachment =
-  | { readonly role: "env" }
+  | { readonly role: "env"; readonly environmentId: string }
   | { readonly role: "client"; readonly channelId: string }
   | { readonly role: "channel"; readonly channelId: string };
 
@@ -313,7 +313,7 @@ export class EnvironmentRoom extends DurableObject<Env> {
   // ── WebSocket accept handlers ─────────────────────────────────
 
   private acceptEnvSocket(socket: WebSocket, environmentId: string): void {
-    for (const existing of this.findByRole("env")) {
+    for (const existing of this.getByRole("env")) {
       try {
         existing.close(1012, "environment replaced");
       } catch {
@@ -321,7 +321,7 @@ export class EnvironmentRoom extends DurableObject<Env> {
       }
     }
     this.ctx.acceptWebSocket(socket);
-    socket.serializeAttachment({ role: "env" } satisfies WsAttachment);
+    socket.serializeAttachment({ role: "env", environmentId } satisfies WsAttachment);
     void this.getVault(environmentId).then((vault) => {
       this.sendPairStatus(socket, vault?.owner ?? null);
     });
@@ -329,7 +329,7 @@ export class EnvironmentRoom extends DurableObject<Env> {
 
   private acceptClientSocket(socket: WebSocket): void {
     this.ctx.acceptWebSocket(socket);
-    const env = this.findByRole("env")[0];
+    const env = this.getByRole("env")[0];
     if (!env) {
       socket.close(1013, "environment offline");
       return;
@@ -346,7 +346,7 @@ export class EnvironmentRoom extends DurableObject<Env> {
 
   private acceptChannelSocket(socket: WebSocket, channelId: string): void {
     this.ctx.acceptWebSocket(socket);
-    const client = this.findChannelPeer("client", channelId);
+    const client = this.getChannelPeer("client", channelId);
     if (!client) {
       socket.close(4404, "unknown channel");
       return;
@@ -384,13 +384,13 @@ export class EnvironmentRoom extends DurableObject<Env> {
         return;
       }
       if (parsed.type === "pair-token" && typeof parsed.token === "string") {
-        await this.onPairToken(parsed.token);
+        await this.onPairToken(attachment.environmentId, parsed.token);
       }
       return;
     }
 
     if (attachment.role === "client") {
-      const channel = this.findChannelPeer("channel", attachment.channelId);
+      const channel = this.getChannelPeer("channel", attachment.channelId);
       if (channel && channel.readyState === WebSocket.OPEN) {
         try {
           channel.send(msg);
@@ -406,7 +406,7 @@ export class EnvironmentRoom extends DurableObject<Env> {
     }
 
     if (attachment.role === "channel") {
-      const client = this.findChannelPeer("client", attachment.channelId);
+      const client = this.getChannelPeer("client", attachment.channelId);
       if (client && client.readyState === WebSocket.OPEN) {
         try {
           client.send(msg);
@@ -422,7 +422,7 @@ export class EnvironmentRoom extends DurableObject<Env> {
     if (!attachment) return;
 
     if (attachment.role === "env") {
-      for (const client of this.findByRole("client")) {
+      for (const client of this.getByRole("client")) {
         try {
           client.close(1013, "environment offline");
         } catch {
@@ -435,7 +435,7 @@ export class EnvironmentRoom extends DurableObject<Env> {
 
     if (attachment.role === "client") {
       this.dialBuffers.delete(attachment.channelId);
-      const channel = this.findChannelPeer("channel", attachment.channelId);
+      const channel = this.getChannelPeer("channel", attachment.channelId);
       if (channel) {
         try {
           channel.close(1001, "peer closed");
@@ -447,7 +447,7 @@ export class EnvironmentRoom extends DurableObject<Env> {
     }
 
     if (attachment.role === "channel") {
-      const client = this.findChannelPeer("client", attachment.channelId);
+      const client = this.getChannelPeer("client", attachment.channelId);
       if (client) {
         try {
           client.close(1001, "peer closed");
@@ -598,9 +598,10 @@ export class EnvironmentRoom extends DurableObject<Env> {
     return true;
   }
 
-  private async onPairToken(token: string): Promise<void> {
+  private async onPairToken(environmentId: string, token: string): Promise<void> {
     const trimmed = token.trim();
     if (trimmed.length < PAIR_TOKEN_MIN_LENGTH || trimmed.length > PAIR_TOKEN_MAX_LENGTH) return;
+    if (await this.getVault(environmentId)) return;
     await this.ctx.storage.put("token", trimmed);
     if ((await this.ctx.storage.get<string>("createdAt")) == null) {
       await this.ctx.storage.put("createdAt", new Date().toISOString());
@@ -621,12 +622,12 @@ export class EnvironmentRoom extends DurableObject<Env> {
   }
 
   private broadcastPairStatus(owner: string | null): void {
-    for (const env of this.findByRole("env")) {
+    for (const env of this.getByRole("env")) {
       this.sendPairStatus(env, owner);
     }
   }
 
-  private findByRole(role: WsAttachment["role"]): WebSocket[] {
+  private getByRole(role: WsAttachment["role"]): WebSocket[] {
     const matches: WebSocket[] = [];
     for (const ws of this.ctx.getWebSockets()) {
       const a = ws.deserializeAttachment() as WsAttachment | null;
@@ -635,7 +636,7 @@ export class EnvironmentRoom extends DurableObject<Env> {
     return matches;
   }
 
-  private findChannelPeer(role: "client" | "channel", channelId: string): WebSocket | null {
+  private getChannelPeer(role: "client" | "channel", channelId: string): WebSocket | null {
     for (const ws of this.ctx.getWebSockets()) {
       const a = ws.deserializeAttachment() as WsAttachment | null;
       if (a?.role === role && a.channelId === channelId) return ws;
