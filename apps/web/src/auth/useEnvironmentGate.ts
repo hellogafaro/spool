@@ -17,7 +17,7 @@ export function useEnvironmentGate(): { isReady: boolean } {
 
   useEffect(() => {
     if (!environments.data) return;
-    const ids = environments.data.map((entry) => entry.environmentId);
+    const ids = environments.data;
     if (ids.length === 0) {
       if (pathname !== "/onboarding" && pathname !== "/pair") {
         void navigate({ to: "/onboarding", replace: true });

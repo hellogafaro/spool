@@ -74,33 +74,14 @@ export function EnvironmentsSettings() {
             <EmptyState />
           ) : (
             <ul className="space-y-2">
-              {environments.data.map(({ environmentId: id, online, lastSeenAt }) => {
+              {environments.data.map((id) => {
                 const isActive = id === activeId;
                 return (
                   <li
                     key={id}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-card/60 px-3 py-2"
+                    className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-card/60 px-3 py-2"
                   >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`inline-block size-1.5 rounded-full ${
-                            online ? "bg-emerald-500" : "bg-muted-foreground/40"
-                          }`}
-                          aria-hidden
-                        />
-                        <p className="truncate font-mono text-sm text-foreground">{id}</p>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {online
-                          ? isActive
-                            ? "Active · Online"
-                            : "Online"
-                          : lastSeenAt
-                            ? `Offline · last seen ${formatLastSeen(lastSeenAt)}`
-                            : "Offline"}
-                      </p>
-                    </div>
+                    <p className="truncate font-mono text-sm text-foreground">{id}</p>
                     <div className="flex items-center gap-2">
                       {isActive ? (
                         <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium tracking-wide text-emerald-500 uppercase">
@@ -135,16 +116,6 @@ export function EnvironmentsSettings() {
       </SettingsSection>
     </SettingsPageContainer>
   );
-}
-
-function formatLastSeen(iso: string): string {
-  const value = Date.parse(iso);
-  if (!Number.isFinite(value)) return "recently";
-  const diffSec = Math.max(0, Math.floor((Date.now() - value) / 1000));
-  if (diffSec < 60) return "just now";
-  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
-  if (diffSec < 86_400) return `${Math.floor(diffSec / 3600)}h ago`;
-  return `${Math.floor(diffSec / 86_400)}d ago`;
 }
 
 function EmptyState() {

@@ -45,10 +45,10 @@ export function ProvidersSettings() {
   const environments = useClaimedEnvironments();
   const liveProviders = useServerProviders();
 
-  const hasOnlineEnv = useMemo(
-    () => environments.data?.some((entry) => entry.online) ?? false,
-    [environments.data],
-  );
+  // /me no longer carries per-env online status; we just check whether the
+  // user has any paired env at all. Detailed online indicator can come back
+  // later via WS connection state if needed.
+  const hasOnlineEnv = useMemo(() => (environments.data?.length ?? 0) > 0, [environments.data]);
 
   const known = useMemo(() => {
     return RECIPES.map((recipe) => {

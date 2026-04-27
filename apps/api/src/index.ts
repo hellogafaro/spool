@@ -91,25 +91,6 @@ function withMeCors(response: Response): Response {
   return response;
 }
 
-async function getEnvironmentStatus(
-  env: Env,
-  environmentId: string,
-): Promise<{ online: boolean; lastSeenAt: string | null }> {
-  try {
-    const id = env.ENVIRONMENT_ROOMS.idFromName(environmentId);
-    const stub = env.ENVIRONMENT_ROOMS.get(id);
-    const response = await stub.fetch("http://do/internal/status", { method: "GET" });
-    if (!response.ok) return { online: false, lastSeenAt: null };
-    const body = (await response.json()) as { online?: boolean; lastSeenAt?: string | null };
-    return {
-      online: Boolean(body.online),
-      lastSeenAt: typeof body.lastSeenAt === "string" ? body.lastSeenAt : null,
-    };
-  } catch {
-    return { online: false, lastSeenAt: null };
-  }
-}
-
 async function handleMeRequest(request: Request, url: URL, env: Env): Promise<Response> {
   if (request.method === "OPTIONS") {
     return withMeCors(new Response(null, { status: 204 }));
@@ -128,7 +109,7 @@ async function handleMeRequest(request: Request, url: URL, env: Env): Promise<Re
     return withMeCors(new Response(`${auth.reason}\n`, { status: auth.status }));
   }
   if (!env.WORKOS_API_KEY || env.WORKOS_API_KEY.length === 0) {
-    return withMeCors(Response.json({ userId: auth.auth.userId, environments: [] }));
+    return withMeCors(Response.json({ userId: auth.auth.userId, environmentIds: [] }));
   }
   let metadata: Record<string, unknown> | null;
   try {
@@ -137,13 +118,9 @@ async function handleMeRequest(request: Request, url: URL, env: Env): Promise<Re
     const reason = error instanceof Error ? error.message : "workos lookup failed";
     return withMeCors(new Response(reason, { status: 503 }));
   }
-  const environments = await Promise.all(
-    getEnvironmentIds(metadata).map(async (environmentId) => {
-      const status = await getEnvironmentStatus(env, environmentId);
-      return { environmentId, ...status };
-    }),
+  return withMeCors(
+    Response.json({ userId: auth.auth.userId, environmentIds: getEnvironmentIds(metadata) }),
   );
-  return withMeCors(Response.json({ userId: auth.auth.userId, environments }));
 }
 
 function resolvePairingWriter(env: Env): PairingWriter | null {

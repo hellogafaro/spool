@@ -95,15 +95,9 @@ export async function unclaimEnvironment({
   }
 }
 
-export interface ClaimedEnvironment {
-  readonly environmentId: string;
-  readonly online: boolean;
-  readonly lastSeenAt: string | null;
-}
-
-export async function getClaimedEnvironments(
+export async function getClaimedEnvironmentIds(
   accessToken: string,
-): Promise<ReadonlyArray<ClaimedEnvironment>> {
+): Promise<ReadonlyArray<string>> {
   if (!TRUNK_API_URL) return [];
   const response = await fetch(`${TRUNK_API_URL.replace(/\/$/, "")}/me`, {
     headers: { authorization: `Bearer ${accessToken}` },
@@ -116,22 +110,9 @@ export async function getClaimedEnvironments(
       code,
     );
   }
-  const body = (await response.json()) as {
-    environments?: ReadonlyArray<{
-      environmentId?: unknown;
-      online?: unknown;
-      lastSeenAt?: unknown;
-    }>;
-  };
-  if (!Array.isArray(body.environments)) return [];
-  return body.environments.flatMap((entry): ClaimedEnvironment[] => {
-    if (!entry || typeof entry.environmentId !== "string") return [];
-    return [
-      {
-        environmentId: entry.environmentId,
-        online: Boolean(entry.online),
-        lastSeenAt: typeof entry.lastSeenAt === "string" ? entry.lastSeenAt : null,
-      },
-    ];
-  });
+  const body = (await response.json()) as { environmentIds?: ReadonlyArray<unknown> };
+  if (!Array.isArray(body.environmentIds)) return [];
+  return body.environmentIds.filter(
+    (entry): entry is string => typeof entry === "string" && entry.length > 0,
+  );
 }
