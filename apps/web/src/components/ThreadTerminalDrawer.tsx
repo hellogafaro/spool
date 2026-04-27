@@ -1,5 +1,11 @@
 import { FitAddon } from "@xterm/addon-fit";
-import { CommandLineIcon, PlusIcon, RectangleGroupIcon, TrashIcon, XMarkIcon } from "@heroicons/react/16/solid";
+import {
+  CommandLineIcon,
+  PlusIcon,
+  RectangleGroupIcon,
+  TrashIcon,
+  XMarkIcon,
+} from "@heroicons/react/16/solid";
 import {
   type ResolvedKeybindingsConfig,
   type ScopedThreadRef,

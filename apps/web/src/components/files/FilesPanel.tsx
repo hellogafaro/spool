@@ -10,7 +10,13 @@ import { cn } from "~/lib/utils";
 import { useTheme } from "~/hooks/useTheme";
 import { Button } from "../ui/button";
 import { ScrollArea } from "../ui/scroll-area";
-import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, DocumentDuplicateIcon, FolderIcon } from "@heroicons/react/16/solid";
+import {
+  CheckIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  DocumentDuplicateIcon,
+  FolderIcon,
+} from "@heroicons/react/16/solid";
 import { VscodeEntryIcon } from "../chat/VscodeEntryIcon";
 import ChatMarkdown from "../ChatMarkdown";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
@@ -119,9 +125,7 @@ export const FilesPanel = memo(function FilesPanel({
   return (
     <div className="flex h-full min-w-0 flex-col bg-background">
       <div className="flex h-12 shrink-0 items-center justify-between gap-2 px-3">
-        <p className="text-base font-medium text-foreground">
-          {workspaceRoot ? "Files" : "Files"}
-        </p>
+        <p className="text-base font-medium text-foreground">{workspaceRoot ? "Files" : "Files"}</p>
         {workspaceRoot ? (
           <Button type="button" size="xs" variant="outline" onClick={collapseAll}>
             Collapse all
@@ -321,7 +325,11 @@ function FilePreview(props: {
               title={isCopied ? "Copied" : "Copy"}
               aria-label={isCopied ? "Copied" : "Copy"}
             >
-              {isCopied ? <CheckIcon className="size-3" /> : <DocumentDuplicateIcon className="size-3" />}
+              {isCopied ? (
+                <CheckIcon className="size-3" />
+              ) : (
+                <DocumentDuplicateIcon className="size-3" />
+              )}
             </button>
             <div className="p-3">
               <ChatMarkdown text={props.contents ?? ""} cwd={props.cwd} isStreaming={false} />

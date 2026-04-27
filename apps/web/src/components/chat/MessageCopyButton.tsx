@@ -72,7 +72,11 @@ export const MessageCopyButton = memo(function MessageCopyButton({
           />
         }
       >
-        {isCopied ? <CheckIcon className="size-3 text-success" /> : <DocumentDuplicateIcon className="size-3" />}
+        {isCopied ? (
+          <CheckIcon className="size-3 text-success" />
+        ) : (
+          <DocumentDuplicateIcon className="size-3" />
+        )}
       </TooltipTrigger>
       <TooltipPopup>
         <p>Copy to clipboard</p>

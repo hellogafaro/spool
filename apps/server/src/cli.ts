@@ -1098,14 +1098,6 @@ const projectCommand = Command.make("project").pipe(
 
 const DEFAULT_TRUNK_APP_URL = "https://app.trunk.codes";
 
-// Token rides in the URL fragment so HTTP referrers can't leak it. Same
-// secret the env uses to authenticate to the relay; the DO checks it on
-// claim to prove the browser actually has env console access.
-const formatPairUrl = (config: { environmentId: string; environmentSecret: string }): string => {
-  const appUrl = (process.env.TRUNK_APP_URL?.trim() || DEFAULT_TRUNK_APP_URL).replace(/\/$/, "");
-  return `${appUrl}/pair?environmentId=${config.environmentId}#token=${config.environmentSecret}`;
-};
-
 const TRUNK_ASCII_LOGO = String.raw`
    _____ ___ _   _ _  _ _  __
   |_   _| _ \ | | | \| | |/ /
@@ -1118,16 +1110,15 @@ const printPairingBanner = Effect.gen(function* () {
     () => import("./remoteLink/RemoteLinkConfig.ts"),
   );
   const config = yield* writeRemoteLinkLocalConfig();
-  const pairUrl = formatPairUrl(config);
+  const appUrl = (process.env.TRUNK_APP_URL?.trim() || DEFAULT_TRUNK_APP_URL).replace(/\/$/, "");
 
   yield* Console.log(TRUNK_ASCII_LOGO);
   yield* Console.log("Pair this environment with your Trunk account:");
   yield* Console.log("");
   yield* Console.log(`Environment ID: ${config.environmentId}`);
   yield* Console.log(`Token:          ${config.environmentSecret}`);
-  yield* Console.log(`Pair URL:       ${pairUrl}`);
   yield* Console.log("");
-  yield* Console.log("Open the Pair URL on any device, sign in, done.");
+  yield* Console.log(`Sign in at ${appUrl} and paste these on the onboarding screen.`);
   yield* Console.log("");
 });
 

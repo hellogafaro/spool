@@ -1,6 +1,6 @@
 import { Empty, EmptyDescription, EmptyHeader } from "./ui/empty";
 import { SidebarInset, SidebarTrigger } from "./ui/sidebar";
-import { SpoolLogo } from "./ui/spool-logo";
+import { TrunkLogo } from "./ui/trunk-logo";
 import { isElectron } from "../env";
 import { cn } from "~/lib/utils";
 
@@ -31,7 +31,7 @@ export function NoActiveThreadState() {
         </header>
 
         <Empty className="flex-1 p-0 text-muted-foreground/78 md:p-0">
-          <SpoolLogo className="size-9 opacity-30" />
+          <TrunkLogo className="size-9 opacity-30" />
           <EmptyHeader className="max-w-none">
             <EmptyDescription className="text-base text-inherit">
               Select an existing thread or create a new one to get started.

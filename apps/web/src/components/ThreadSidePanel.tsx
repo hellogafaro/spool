@@ -6,7 +6,11 @@ import type { ActivePlanState, LatestProposedPlanState } from "../session-logic"
 import type { ThreadPanelTab } from "../diffRouteSearch";
 import { cn } from "~/lib/utils";
 import { Button } from "./ui/button";
-import { ClipboardDocumentListIcon, CodeBracketSquareIcon, DocumentIcon } from "@heroicons/react/16/solid";
+import {
+  ClipboardDocumentListIcon,
+  CodeBracketSquareIcon,
+  DocumentIcon,
+} from "@heroicons/react/16/solid";
 import PlanSidebar from "./PlanSidebar";
 import { FilesPanel } from "./files/FilesPanel";
 import { DiffWorkerPoolProvider } from "./DiffWorkerPoolProvider";

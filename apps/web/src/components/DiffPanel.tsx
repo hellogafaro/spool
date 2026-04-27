@@ -4,7 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { scopeThreadRef } from "@t3tools/client-runtime";
 import type { TurnId } from "@t3tools/contracts";
-import { Bars3BottomLeftIcon, ChevronLeftIcon, ChevronRightIcon, ViewColumnsIcon } from "@heroicons/react/16/solid";
+import {
+  Bars3BottomLeftIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ViewColumnsIcon,
+} from "@heroicons/react/16/solid";
 import {
   type WheelEvent as ReactWheelEvent,
   useCallback,

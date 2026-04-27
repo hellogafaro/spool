@@ -11,7 +11,18 @@ import {
 } from "react";
 import { useParams } from "@tanstack/react-router";
 import { type ScopedThreadRef, type ThreadId } from "@t3tools/contracts";
-import { ArrowPathIcon, CheckCircleIcon, CheckIcon, ChevronDownIcon, ChevronUpIcon, DocumentDuplicateIcon, ExclamationCircleIcon, ExclamationTriangleIcon, InformationCircleIcon, XMarkIcon } from "@heroicons/react/16/solid";
+import {
+  ArrowPathIcon,
+  CheckCircleIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  DocumentDuplicateIcon,
+  ExclamationCircleIcon,
+  ExclamationTriangleIcon,
+  InformationCircleIcon,
+  XMarkIcon,
+} from "@heroicons/react/16/solid";
 
 import { cn } from "~/lib/utils";
 import { buttonVariants } from "~/components/ui/button";
@@ -89,7 +100,11 @@ function CopyErrorButton({ text }: { text: string }) {
       title="Copy error"
       type="button"
     >
-      {isCopied ? <CheckIcon className="size-3 text-success" /> : <DocumentDuplicateIcon className="size-3" />}
+      {isCopied ? (
+        <CheckIcon className="size-3 text-success" />
+      ) : (
+        <DocumentDuplicateIcon className="size-3" />
+      )}
     </button>
   );
 }

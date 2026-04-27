@@ -3,7 +3,15 @@ import type {
   ProjectScriptIcon,
   ResolvedKeybindingsConfig,
 } from "@t3tools/contracts";
-import { BeakerIcon, BugAntIcon, ChevronDownIcon, ClipboardDocumentCheckIcon, Cog6ToothIcon, PlayIcon, WrenchScrewdriverIcon } from "@heroicons/react/16/solid";
+import {
+  BeakerIcon,
+  BugAntIcon,
+  ChevronDownIcon,
+  ClipboardDocumentCheckIcon,
+  Cog6ToothIcon,
+  PlayIcon,
+  WrenchScrewdriverIcon,
+} from "@heroicons/react/16/solid";
 import React, { type FormEvent, type KeyboardEvent, useCallback, useMemo, useState } from "react";
 
 import {
@@ -267,9 +275,7 @@ export default function ProjectScriptsControl({
             title={`Run ${primaryScript.name}`}
           >
             <ScriptIcon icon={primaryScript.icon} />
-            <span className="sr-only @3xl/header-actions:not-sr-only ">
-              {primaryScript.name}
-            </span>
+            <span className="sr-only @3xl/header-actions:not-sr-only ">{primaryScript.name}</span>
           </Button>
           <GroupSeparator className="hidden @3xl/header-actions:block" />
           <Menu highlightItemOnHover={false}>
@@ -332,9 +338,7 @@ export default function ProjectScriptsControl({
       ) : (
         <Button size="sm" variant="outline" onClick={openAddDialog} title="Add action">
           <PlayIcon />
-          <span className="sr-only @3xl/header-actions:not-sr-only ">
-            Add action
-          </span>
+          <span className="sr-only @3xl/header-actions:not-sr-only ">Add action</span>
         </Button>
       )}
 

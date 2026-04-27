@@ -1,4 +1,9 @@
-import { ArrowDownTrayIcon, ArrowUturnRightIcon, ExclamationTriangleIcon, XMarkIcon } from "@heroicons/react/16/solid";
+import {
+  ArrowDownTrayIcon,
+  ArrowUturnRightIcon,
+  ExclamationTriangleIcon,
+  XMarkIcon,
+} from "@heroicons/react/16/solid";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import { isElectron } from "../../env";

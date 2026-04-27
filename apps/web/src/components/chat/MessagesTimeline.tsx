@@ -17,7 +17,18 @@ import { deriveTimelineEntries, formatElapsed } from "../../session-logic";
 import { type TurnDiffSummary } from "../../types";
 import { summarizeTurnDiffStats } from "../../lib/turnDiffTree";
 import ChatMarkdown from "../ChatMarkdown";
-import { ArrowUturnLeftIcon, BoltIcon, CheckIcon, CommandLineIcon, CpuChipIcon, ExclamationCircleIcon, EyeIcon, GlobeAltIcon, PencilSquareIcon, WrenchScrewdriverIcon } from "@heroicons/react/16/solid";
+import {
+  ArrowUturnLeftIcon,
+  BoltIcon,
+  CheckIcon,
+  CommandLineIcon,
+  CpuChipIcon,
+  ExclamationCircleIcon,
+  EyeIcon,
+  GlobeAltIcon,
+  PencilSquareIcon,
+  WrenchScrewdriverIcon,
+} from "@heroicons/react/16/solid";
 import { Button } from "../ui/button";
 import { buildExpandedImagePreview, ExpandedImagePreview } from "./ExpandedImagePreview";
 import { ProposedPlanCard } from "./ProposedPlanCard";
@@ -43,7 +54,7 @@ import { cn } from "~/lib/utils";
 import { useUiStateStore } from "~/uiStateStore";
 import { type TimestampFormat } from "@t3tools/contracts/settings";
 import { formatTimestamp } from "../../timestampFormat";
-import { SpoolLogo } from "../ui/spool-logo";
+import { TrunkLogo } from "../ui/trunk-logo";
 
 import {
   buildInlineTerminalContextText,
@@ -230,7 +241,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   if (rows.length === 0 && !isWorking) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-6 text-center text-muted-foreground/78">
-        <SpoolLogo className="size-9 opacity-30" />
+        <TrunkLogo className="size-9 opacity-30" />
         <p className="text-base text-inherit">Send a message to start the conversation.</p>
       </div>
     );

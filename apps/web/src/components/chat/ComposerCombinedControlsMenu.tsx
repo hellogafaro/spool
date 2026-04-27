@@ -13,7 +13,13 @@ import {
   getProviderOptionDescriptors,
 } from "@t3tools/shared/model";
 import { memo, useMemo } from "react";
-import { Bars3BottomLeftIcon, BoltIcon, ChevronDownIcon, CpuChipIcon, SparklesIcon } from "@heroicons/react/16/solid";
+import {
+  Bars3BottomLeftIcon,
+  BoltIcon,
+  ChevronDownIcon,
+  CpuChipIcon,
+  SparklesIcon,
+} from "@heroicons/react/16/solid";
 
 import {
   formatProviderKindLabel,

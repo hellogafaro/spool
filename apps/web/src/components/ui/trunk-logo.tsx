@@ -1,4 +1,4 @@
-export function SpoolLogo({ className }: { className?: string }) {
+export function TrunkLogo({ className }: { className?: string }) {
   return (
     <svg
       aria-hidden="true"

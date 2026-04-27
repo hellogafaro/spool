@@ -4,7 +4,13 @@ import { type TimestampFormat } from "@t3tools/contracts/settings";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 import ChatMarkdown from "./ChatMarkdown";
-import { ArrowPathIcon, CheckIcon, ChevronDownIcon, ChevronRightIcon, EllipsisHorizontalIcon } from "@heroicons/react/16/solid";
+import {
+  ArrowPathIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  EllipsisHorizontalIcon,
+} from "@heroicons/react/16/solid";
 import { cn } from "~/lib/utils";
 import type { ActivePlanState } from "../session-logic";
 import type { LatestProposedPlanState } from "../session-logic";

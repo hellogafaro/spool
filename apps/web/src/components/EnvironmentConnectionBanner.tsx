@@ -21,7 +21,9 @@ export function EnvironmentConnectionBanner() {
       className="border-b border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-center text-xs text-amber-700 dark:text-amber-300"
     >
       <span className="font-medium">{label}</span>
-      {detail ? <span className="ml-2 text-amber-700/80 dark:text-amber-300/80">{detail}</span> : null}
+      {detail ? (
+        <span className="ml-2 text-amber-700/80 dark:text-amber-300/80">{detail}</span>
+      ) : null}
     </div>
   );
 }

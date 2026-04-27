@@ -1,4 +1,16 @@
-import { ArchiveBoxIcon, ArrowsRightLeftIcon, ArrowsUpDownIcon, ChevronRightIcon, CloudIcon, Cog6ToothIcon, CommandLineIcon, ExclamationTriangleIcon, MagnifyingGlassIcon, PencilSquareIcon, PlusIcon } from "@heroicons/react/16/solid";
+import {
+  ArchiveBoxIcon,
+  ArrowsRightLeftIcon,
+  ArrowsUpDownIcon,
+  ChevronRightIcon,
+  CloudIcon,
+  Cog6ToothIcon,
+  CommandLineIcon,
+  ExclamationTriangleIcon,
+  MagnifyingGlassIcon,
+  PencilSquareIcon,
+  PlusIcon,
+} from "@heroicons/react/16/solid";
 import {
   prStatusIndicator,
   resolveThreadPr,
@@ -106,7 +118,7 @@ import {
   DialogPopup,
   DialogTitle,
 } from "./ui/dialog";
-import { SpoolLogo } from "./ui/spool-logo";
+import { TrunkLogo } from "./ui/trunk-logo";
 import { Input } from "./ui/input";
 import {
   Menu,
@@ -590,7 +602,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               title={terminalStatus.label}
               className={`inline-flex items-center justify-center ${terminalStatus.colorClass}`}
             >
-              <CommandLineIcon className={`size-3 ${terminalStatus.pulse ? "animate-pulse" : ""}`} />
+              <CommandLineIcon
+                className={`size-3 ${terminalStatus.pulse ? "animate-pulse" : ""}`}
+              />
             </span>
           )}
           <div className="flex min-w-12 justify-end">
@@ -2338,7 +2352,7 @@ const SidebarChromeHeader = memo(function SidebarChromeHeader({
               className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md outline-hidden ring-ring transition-colors hover:text-foreground focus-visible:ring-2"
               to="/"
             >
-              <SpoolLogo className="size-6 shrink-0 text-black dark:text-white" />
+              <TrunkLogo className="size-6 shrink-0 text-black dark:text-white" />
               <span className="sr-only">Trunk</span>
             </Link>
           }

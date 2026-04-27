@@ -80,7 +80,14 @@ import { Button } from "../ui/button";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { toastManager } from "../ui/toast";
-import { CpuChipIcon, ExclamationCircleIcon, LockClosedIcon, LockOpenIcon, PencilIcon, XMarkIcon } from "@heroicons/react/16/solid";
+import {
+  CpuChipIcon,
+  ExclamationCircleIcon,
+  LockClosedIcon,
+  LockOpenIcon,
+  PencilIcon,
+  XMarkIcon,
+} from "@heroicons/react/16/solid";
 import { proposedPlanTitle } from "../../proposedPlan";
 import {
   getProviderInteractionModeToggle,
