@@ -5,19 +5,40 @@ import { resolveEnvironmentHttpUrl } from "../environments/runtime";
 
 const loadedProjectFaviconSrcs = new Set<string>();
 
+/**
+ * SaaS environments don't expose a directly-reachable HTTP base, so
+ * resolveEnvironmentHttpUrl throws for them. Treat that as "no favicon
+ * available" and render the folder fallback.
+ */
+function tryResolveFaviconSrc(environmentId: EnvironmentId, cwd: string): string | null {
+  try {
+    return resolveEnvironmentHttpUrl({
+      environmentId,
+      pathname: "/api/project-favicon",
+      searchParams: { cwd },
+    });
+  } catch {
+    return null;
+  }
+}
+
 export function ProjectFavicon(input: {
   environmentId: EnvironmentId;
   cwd: string;
   className?: string;
 }) {
-  const src = resolveEnvironmentHttpUrl({
-    environmentId: input.environmentId,
-    pathname: "/api/project-favicon",
-    searchParams: { cwd: input.cwd },
-  });
+  const src = tryResolveFaviconSrc(input.environmentId, input.cwd);
   const [status, setStatus] = useState<"loading" | "loaded" | "error">(() =>
-    loadedProjectFaviconSrcs.has(src) ? "loaded" : "loading",
+    src && loadedProjectFaviconSrcs.has(src) ? "loaded" : "loading",
   );
+
+  if (!src) {
+    return (
+      <FolderIcon
+        className={`size-3.5 shrink-0 text-muted-foreground/50 ${input.className ?? ""}`}
+      />
+    );
+  }
 
   return (
     <>
