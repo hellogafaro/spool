@@ -1109,7 +1109,10 @@ const ensurePairing = Effect.gen(function* () {
   const config = yield* writeRemoteLinkLocalConfig();
   const filePath = yield* remoteLinkConfigPath();
   const appUrl = (process.env.TRUNK_APP_URL?.trim() || DEFAULT_TRUNK_APP_URL).replace(/\/$/, "");
-  const pairUrl = `${appUrl}/pair?environmentId=${config.environmentId}`;
+  // Token rides in the URL fragment so it isn't sent in HTTP referrers.
+  // Same secret the env uses to authenticate to the relay; the relay's DO
+  // checks it on claim to prove the browser actually has env console access.
+  const pairUrl = `${appUrl}/pair?environmentId=${config.environmentId}#token=${config.environmentSecret}`;
 
   yield* Console.log("");
   yield* Console.log("============================================================");

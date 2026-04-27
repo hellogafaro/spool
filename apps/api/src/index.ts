@@ -206,12 +206,17 @@ export default {
       return handlePairingRequest(request, url, {
         authVerifier: resolveBrowserAuthVerifier(env),
         writer,
-        claimEnvironmentOwner: async (environmentId, userId) => {
+        claimEnvironmentOwner: async (environmentId, userId, token) => {
           const id = env.ENVIRONMENT_ROOMS.idFromName(environmentId);
           const stub = env.ENVIRONMENT_ROOMS.get(id);
-          const claimUrl = new URL(`http://do/internal/claim?userId=${encodeURIComponent(userId)}`);
+          const claimUrl = new URL(
+            `http://do/internal/claim?userId=${encodeURIComponent(userId)}&token=${encodeURIComponent(token)}`,
+          );
           const response = await stub.fetch(claimUrl.toString(), { method: "POST" });
           if (response.ok) return { ok: true } as const;
+          if (response.status === 401) {
+            return { ok: false, status: 401, reason: "invalid pair token" } as const;
+          }
           if (response.status === 409) {
             return { ok: false, status: 409, reason: "environment already claimed" } as const;
           }
@@ -364,7 +369,22 @@ export class EnvironmentRoom implements DurableObject {
 
   private async handleClaim(url: URL): Promise<Response> {
     const userId = url.searchParams.get("userId")?.trim();
+    const token = url.searchParams.get("token")?.trim();
     if (!userId) return new Response("userId required\n", { status: 400 });
+    if (!token) return new Response("token required\n", { status: 400 });
+
+    // The pair token is the same secret the env uses to authenticate to the
+    // relay (TOFU'd via verifyOrAdoptProof). Matching it proves the browser
+    // got the URL the env console printed.
+    const envSecret = (await this.state.storage.get<string>("envSecret")) ?? null;
+    if (!envSecret) {
+      // Env hasn't connected yet; tell the browser to retry.
+      return new Response("environment offline; retry once it's online\n", { status: 401 });
+    }
+    if (envSecret !== token) {
+      return new Response("invalid pair token\n", { status: 401 });
+    }
+
     const existing = (await this.state.storage.get<string>("ownerUserId")) ?? null;
     if (existing && existing !== userId) {
       return new Response("environment already claimed\n", { status: 409 });

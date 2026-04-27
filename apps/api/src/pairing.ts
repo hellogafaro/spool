@@ -94,25 +94,33 @@ export function makeWorkOsPairingWriter(options: WorkOsPairingWriterOptions): Pa
 
 export interface PairingRequestBody {
   readonly environmentId: string;
+  readonly token: string;
 }
 
 const ENVIRONMENT_ID_PATTERN = /^[a-z0-9]{12}$/;
+// Environment secret is 32 random bytes hex-encoded by the CLI. Bound the
+// accepted size so a malicious payload can't waste DO storage comparisons.
+const PAIR_TOKEN_MAX_LENGTH = 256;
 
 function parsePairingBody(raw: unknown): PairingRequestBody | null {
   if (!raw || typeof raw !== "object") return null;
-  const body = raw as { environmentId?: unknown };
+  const body = raw as { environmentId?: unknown; token?: unknown };
   if (typeof body.environmentId !== "string") return null;
   if (!ENVIRONMENT_ID_PATTERN.test(body.environmentId)) return null;
-  return { environmentId: body.environmentId };
+  if (typeof body.token !== "string") return null;
+  const token = body.token.trim();
+  if (token.length === 0 || token.length > PAIR_TOKEN_MAX_LENGTH) return null;
+  return { environmentId: body.environmentId, token };
 }
 
 export type ClaimEnvironmentOwnerResult =
   | { readonly ok: true }
-  | { readonly ok: false; readonly status: 409 | 502; readonly reason: string };
+  | { readonly ok: false; readonly status: 401 | 409 | 502; readonly reason: string };
 
 export type ClaimEnvironmentOwner = (
   environmentId: string,
   userId: string,
+  token: string,
 ) => Promise<ClaimEnvironmentOwnerResult>;
 
 export type ReleaseEnvironmentOwner = (
@@ -182,7 +190,11 @@ export async function handlePairingRequest(
 
   let claimed = false;
   if (options.claimEnvironmentOwner) {
-    const claim = await options.claimEnvironmentOwner(body.environmentId, auth.auth.userId);
+    const claim = await options.claimEnvironmentOwner(
+      body.environmentId,
+      auth.auth.userId,
+      body.token,
+    );
     if (!claim.ok) {
       return withCors(new Response(`${claim.reason}\n`, { status: claim.status }));
     }

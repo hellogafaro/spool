@@ -18,11 +18,13 @@ export class PairingApiError extends Error {
 
 export interface ClaimEnvironmentOptions {
   readonly environmentId: string;
+  readonly token: string;
   readonly accessToken: string;
 }
 
 export async function claimEnvironment({
   environmentId,
+  token,
   accessToken,
 }: ClaimEnvironmentOptions): Promise<void> {
   if (!TRUNK_API_URL) {
@@ -34,7 +36,7 @@ export async function claimEnvironment({
       authorization: `Bearer ${accessToken}`,
       "content-type": "application/json",
     },
-    body: JSON.stringify({ environmentId }),
+    body: JSON.stringify({ environmentId, token }),
   });
   if (!response.ok) {
     const text = await response.text().catch(() => "");
@@ -45,10 +47,15 @@ export async function claimEnvironment({
   }
 }
 
+export interface UnclaimEnvironmentOptions {
+  readonly environmentId: string;
+  readonly accessToken: string;
+}
+
 export async function unclaimEnvironment({
   environmentId,
   accessToken,
-}: ClaimEnvironmentOptions): Promise<void> {
+}: UnclaimEnvironmentOptions): Promise<void> {
   if (!TRUNK_API_URL) {
     throw new PairingApiError(0, "VITE_TRUNK_API_URL is not configured");
   }

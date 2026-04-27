@@ -95,19 +95,34 @@ function EnvironmentPairView() {
   const triggeredRef = useRef(false);
 
   const environmentId = search.environmentId;
+  // The CLI prints a URL like /pair?environmentId=X#token=Y. Token rides in
+  // the fragment so HTTP referrers never leak it. Read it once on mount;
+  // the value isn't reactive.
+  const pairTokenRef = useRef<string | null>(null);
+  if (pairTokenRef.current === null) {
+    pairTokenRef.current = readPairTokenFromHash();
+  }
 
   useEffect(() => {
     if (!environmentId || !auth.user || triggeredRef.current) return;
+    const pairToken = pairTokenRef.current;
+    if (!pairToken) {
+      setStatus({
+        kind: "error",
+        message: "This pair link is missing its token. Open the URL the environment printed.",
+      });
+      return;
+    }
     triggeredRef.current = true;
     setStatus({ kind: "claiming" });
     void (async () => {
       try {
-        const token = await auth.getAccessToken();
-        if (!token) {
+        const accessToken = await auth.getAccessToken();
+        if (!accessToken) {
           setStatus({ kind: "error", message: "Couldn't get an access token. Try again." });
           return;
         }
-        await claimEnvironment({ environmentId, accessToken: token });
+        await claimEnvironment({ environmentId, token: pairToken, accessToken });
         writeActiveEnvironmentId(environmentId);
         await environments.refetch();
         setStatus({ kind: "claimed" });
@@ -182,6 +197,15 @@ function Body({
       </Button>
     </div>
   );
+}
+
+function readPairTokenFromHash(): string | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.location.hash;
+  if (!raw || raw.length <= 1) return null;
+  const params = new URLSearchParams(raw.startsWith("#") ? raw.slice(1) : raw);
+  const token = params.get("token")?.trim() ?? "";
+  return token.length > 0 ? token : null;
 }
 
 function friendlyError(error: unknown): string {
