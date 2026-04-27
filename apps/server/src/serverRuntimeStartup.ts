@@ -9,6 +9,7 @@ import {
 import {
   Data,
   Deferred,
+  Duration,
   Effect,
   Exit,
   Layer,
@@ -445,6 +446,10 @@ export const makeServerRuntimeStartup = Effect.gen(function* () {
           /\/$/,
           "",
         );
+        // Give the rest of startup (migrations, listen-log, reaper-fork log,
+        // heartbeat) a tick to flush stdout so the operator sees the pair
+        // banner sitting cleanly at the bottom of the boot output.
+        yield* Effect.sleep(Duration.millis(500));
         yield* runStartupPhase(
           "relay.banner",
           Console.log(
