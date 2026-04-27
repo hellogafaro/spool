@@ -2,8 +2,9 @@ import { Effect, FileSystem, Option, Path, Schema } from "effect";
 import type { PlatformError } from "effect/PlatformError";
 import * as OS from "node:os";
 
-const ENVIRONMENT_ID_PATTERN = /^[a-z0-9]{12}$/;
-const ENVIRONMENT_ID_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
+const ENVIRONMENT_ID_PATTERN = /^[A-Z0-9]{12}$/;
+// Crockford-ish: drop ambiguous chars (0/O, 1/I/L) so the value is safe to read off a console.
+const ENVIRONMENT_ID_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
 export const EnvironmentId = Schema.String.pipe(Schema.check(Schema.isPattern(ENVIRONMENT_ID_PATTERN)));
 export type EnvironmentId = typeof EnvironmentId.Type;

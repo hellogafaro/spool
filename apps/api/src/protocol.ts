@@ -17,6 +17,15 @@ export interface DialSignal {
   readonly channelId: string;
 }
 
+/** Env→relay handshake. Carries the ephemeral pair token so the DO can
+ * accept a SaaS claim that matches it. Sent on every env connect; cleared
+ * by the DO after a successful claim. */
+export interface PairTokenSignal {
+  readonly type: "pair-token";
+  readonly token: string;
+}
+
 export type ControlMessage = DialSignal;
+export type EnvironmentSignal = PairTokenSignal;
 
 export const ENVIRONMENT_PROOF_HEADER = "x-trunk-environment-proof";

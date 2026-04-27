@@ -59,7 +59,7 @@ export interface PairingRequestBody {
   readonly token: string;
 }
 
-const ENVIRONMENT_ID_PATTERN = /^[a-z0-9]{12}$/;
+const ENVIRONMENT_ID_PATTERN = /^[A-Z0-9]{12}$/;
 // Environment secret is 32 random bytes hex-encoded by the CLI. Bound the
 // accepted size so a malicious payload can't waste DO storage comparisons.
 const PAIR_TOKEN_MAX_LENGTH = 256;

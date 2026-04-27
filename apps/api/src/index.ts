@@ -351,15 +351,14 @@ export class EnvironmentRoom implements DurableObject {
     if (!userId) return new Response("userId required\n", { status: 400 });
     if (!token) return new Response("token required\n", { status: 400 });
 
-    // The pair token is the same secret the env uses to authenticate to the
-    // relay (TOFU'd via verifyOrAdoptProof). Matching it proves the browser
-    // got the URL the env console printed.
-    const envSecret = (await this.state.storage.get<string>("envSecret")) ?? null;
-    if (!envSecret) {
-      // Env hasn't connected yet; tell the browser to retry.
+    // The env pushes a fresh ephemeral pair token via the env-WS handshake.
+    // We match that here. Stays valid until the env reconnects with a new
+    // boot, or until the first successful claim consumes it.
+    const pending = (await this.state.storage.get<string>("pendingPairToken")) ?? null;
+    if (!pending) {
       return new Response("environment offline; retry once it's online\n", { status: 401 });
     }
-    if (envSecret !== token) {
+    if (pending !== token) {
       return new Response("invalid pair token\n", { status: 401 });
     }
 
@@ -370,7 +369,18 @@ export class EnvironmentRoom implements DurableObject {
     if (!existing) {
       await this.state.storage.put("userId", userId);
     }
+    await this.state.storage.delete("pendingPairToken");
     return new Response("ok\n", { status: 200 });
+  }
+
+  private async acceptPairToken(token: string): Promise<void> {
+    const trimmed = token.trim();
+    if (trimmed.length === 0 || trimmed.length > 256) return;
+    // Once a user owns the room, no more re-pairing — the user must
+    // explicitly release first.
+    const existing = (await this.state.storage.get<string>("userId")) ?? null;
+    if (existing) return;
+    await this.state.storage.put("pendingPairToken", trimmed);
   }
 
   private async handleStatus(): Promise<Response> {
@@ -390,6 +400,7 @@ export class EnvironmentRoom implements DurableObject {
     if (existing === userId) {
       await this.state.storage.delete("userId");
       await this.state.storage.delete("envSecret");
+      await this.state.storage.delete("pendingPairToken");
     }
     return new Response("ok\n", { status: 200 });
   }
@@ -397,6 +408,19 @@ export class EnvironmentRoom implements DurableObject {
   private acceptEnvironment(socket: WebSocket): void {
     this.environmentSocket?.close(1012, "environment replaced");
     this.environmentSocket = socket;
+
+    socket.addEventListener("message", (event) => {
+      if (typeof event.data !== "string") return;
+      let parsed: { type?: unknown; token?: unknown };
+      try {
+        parsed = JSON.parse(event.data) as { type?: unknown; token?: unknown };
+      } catch {
+        return;
+      }
+      if (parsed.type === "pair-token" && typeof parsed.token === "string") {
+        void this.acceptPairToken(parsed.token);
+      }
+    });
 
     socket.addEventListener("close", () => {
       if (this.environmentSocket !== socket) {

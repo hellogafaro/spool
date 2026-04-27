@@ -54,7 +54,7 @@ describe("RemoteLink", () => {
       writeRemoteLinkLocalConfig().pipe(Effect.provide(NodeServices.layer)),
     );
     expect(Schema.is(RemoteLinkLocalConfig)(written)).toBe(true);
-    expect(written.environmentId).toMatch(/^[a-z0-9]{12}$/);
+    expect(written.environmentId).toMatch(/^[A-Z0-9]{12}$/);
     expect(written.environmentSecret).toMatch(/^[0-9a-f]{64}$/);
 
     const readBack = await Effect.runPromise(

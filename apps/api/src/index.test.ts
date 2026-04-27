@@ -93,7 +93,7 @@ describe("HTTP routes", () => {
   });
 
   it("426s WS path without upgrade header", async () => {
-    const r = await SELF.fetch(url(API_PATHS.environment, { environmentId: "abcdefghjk23" }));
+    const r = await SELF.fetch(url(API_PATHS.environment, { environmentId: "ABCDEFGHJK23" }));
     expect(r.status).toBe(426);
   });
 
@@ -105,7 +105,7 @@ describe("HTTP routes", () => {
   });
 
   it("401s /environment missing proof header", async () => {
-    const r = await SELF.fetch(url(API_PATHS.environment, { environmentId: "abcdefghjk23" }), {
+    const r = await SELF.fetch(url(API_PATHS.environment, { environmentId: "ABCDEFGHJK23" }), {
       headers: { upgrade: "websocket" },
     });
     expect(r.status).toBe(401);
@@ -113,21 +113,21 @@ describe("HTTP routes", () => {
 
   it("401s /channel missing proof header", async () => {
     const r = await SELF.fetch(
-      url(API_PATHS.channel, { environmentId: "abcdefghjk23", channelId: "x" }),
+      url(API_PATHS.channel, { environmentId: "ABCDEFGHJK23", channelId: "x" }),
       { headers: { upgrade: "websocket" } },
     );
     expect(r.status).toBe(401);
   });
 
   it("400s /channel missing channelId", async () => {
-    const r = await SELF.fetch(url(API_PATHS.channel, { environmentId: "abcdefghjk23" }), {
+    const r = await SELF.fetch(url(API_PATHS.channel, { environmentId: "ABCDEFGHJK23" }), {
       headers: { upgrade: "websocket", [ENVIRONMENT_PROOF_HEADER]: "x" },
     });
     expect(r.status).toBe(400);
   });
 
   it("401s /ws missing authorization header", async () => {
-    const r = await SELF.fetch(url(API_PATHS.browser, { environmentId: "abcdefghjk23" }), {
+    const r = await SELF.fetch(url(API_PATHS.browser, { environmentId: "ABCDEFGHJK23" }), {
       headers: { upgrade: "websocket" },
     });
     expect(r.status).toBe(401);
@@ -138,7 +138,7 @@ describe("dial-back routing", () => {
   it("rejects browser when no environment is connected", async () => {
     const browser = await openSocket(
       API_PATHS.browser,
-      { environmentId: "noenvabcdef2" },
+      { environmentId: "NOENVABCDEF2" },
       { authorization: "Bearer x" },
     );
     const close = await nextClose(browser);
@@ -146,7 +146,7 @@ describe("dial-back routing", () => {
   });
 
   it("signals environment with a channel id when a browser connects", async () => {
-    const environmentId = "signalabcdef";
+    const environmentId = "SIGNALABCDEF";
     const control = await openSocket(
       API_PATHS.environment,
       { environmentId },
@@ -169,7 +169,7 @@ describe("dial-back routing", () => {
   });
 
   it("bridges bytes once environment dials back", async () => {
-    const environmentId = "bridgeabcdef";
+    const environmentId = "BRIDGEABCDEF";
     const control = await openSocket(
       API_PATHS.environment,
       { environmentId },
@@ -192,7 +192,7 @@ describe("dial-back routing", () => {
   });
 
   it("flushes browser messages buffered before the environment dials back", async () => {
-    const environmentId = "buffrabcdef2";
+    const environmentId = "BUFFRABCDEF2";
     const control = await openSocket(
       API_PATHS.environment,
       { environmentId },
@@ -239,7 +239,7 @@ describe("dial-back routing", () => {
   });
 
   it("rejects channel for unknown channel id", async () => {
-    const environmentId = "unkchabcdef2";
+    const environmentId = "UNKCHABCDEF2";
     const control = await openSocket(
       API_PATHS.environment,
       { environmentId },
@@ -256,7 +256,7 @@ describe("dial-back routing", () => {
   });
 
   it("each browser gets its own pair (multi-device)", async () => {
-    const environmentId = "multidevicen";
+    const environmentId = "MULTIDEVICEN";
     const control = await openSocket(
       API_PATHS.environment,
       { environmentId },
@@ -312,19 +312,19 @@ describe("dial-back routing", () => {
   it("isolates rooms by environmentId", async () => {
     const controlA = await openSocket(
       API_PATHS.environment,
-      { environmentId: "roomaaaaaaaa" },
+      { environmentId: "ROOMAAAAAAAA" },
       { [ENVIRONMENT_PROOF_HEADER]: "x" },
     );
     const controlB = await openSocket(
       API_PATHS.environment,
-      { environmentId: "roombbbbbbbb" },
+      { environmentId: "ROOMBBBBBBBB" },
       { [ENVIRONMENT_PROOF_HEADER]: "x" },
     );
 
     const dialPromise = nextMessage(controlA);
     const browserA = await openSocket(
       API_PATHS.browser,
-      { environmentId: "roomaaaaaaaa" },
+      { environmentId: "ROOMAAAAAAAA" },
       { authorization: "Bearer a" },
     );
 
@@ -346,7 +346,7 @@ describe("dial-back routing", () => {
   });
 
   it("evicts pending browsers when control environment disconnects", async () => {
-    const environmentId = "evictabcdef2";
+    const environmentId = "EVICTABCDEF2";
     const control = await openSocket(
       API_PATHS.environment,
       { environmentId },

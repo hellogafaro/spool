@@ -18,7 +18,7 @@ const rejectingVerifier: BrowserAuthVerifier = async () => ({
   reason: "no token",
 });
 
-const VALID_ID = "abcdefghjk23";
+const VALID_ID = "ABCDEFGHJK23";
 const VALID_TOKEN = "secret-test-token";
 
 const okClaim: ClaimEnvironmentOwner = async () => ({ ok: true });

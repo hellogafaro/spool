@@ -64,10 +64,7 @@ const openLoopback = (loopbackUrl: string, trustToken: string): WebSocket =>
     headers: { [LOOPBACK_TRUST_HEADER]: trustToken },
   } as unknown as string[]);
 
-const bridgeChannel = (
-  remote: WebSocket,
-  loopback: WebSocket,
-): Effect.Effect<void> =>
+const bridgeChannel = (remote: WebSocket, loopback: WebSocket): Effect.Effect<void> =>
   Effect.callback<void>((resume) => {
     let settled = false;
     const teardown = (code: number, reason: string) => {
@@ -142,6 +139,14 @@ const connectControl = (
     );
 
     socket.addEventListener("open", () => {
+      const pairToken = process.env.TRUNK_PAIR_TOKEN;
+      if (pairToken) {
+        try {
+          socket.send(JSON.stringify({ type: "pair-token", token: pairToken }));
+        } catch {
+          // ignore: the relay simply won't see a pair token until the next reconnect
+        }
+      }
       Effect.runFork(
         setStatus({
           status: "connected",

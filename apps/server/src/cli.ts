@@ -1105,20 +1105,36 @@ const TRUNK_ASCII_LOGO = String.raw`
     |_| |_|_\\___/|_|\_|_|\_\
 `;
 
+const PAIR_TOKEN_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+/** Fresh 12-char Crockford-ish code per boot. Lives in process.env so the
+ * RemoteLink layer can pick it up at WS connect time and ship it to the DO
+ * — never written to disk. The DO consumes it on the first successful
+ * claim, so leaking the screen later is harmless. */
+const generatePairToken = (): string => {
+  const bytes = new Uint8Array(12);
+  crypto.getRandomValues(bytes);
+  let token = "";
+  for (let index = 0; index < 12; index += 1) {
+    token += PAIR_TOKEN_ALPHABET[bytes[index]! % PAIR_TOKEN_ALPHABET.length];
+  }
+  return token;
+};
+
 const printPairingBanner = Effect.gen(function* () {
   const { writeRemoteLinkLocalConfig } = yield* Effect.promise(
     () => import("./remoteLink/RemoteLinkConfig.ts"),
   );
   const config = yield* writeRemoteLinkLocalConfig();
   const appUrl = (process.env.TRUNK_APP_URL?.trim() || DEFAULT_TRUNK_APP_URL).replace(/\/$/, "");
+  const pairToken = generatePairToken();
+  process.env.TRUNK_PAIR_TOKEN = pairToken;
 
   yield* Console.log(TRUNK_ASCII_LOGO);
-  yield* Console.log("Pair this environment with your Trunk account:");
-  yield* Console.log("");
   yield* Console.log(`Environment ID: ${config.environmentId}`);
-  yield* Console.log(`Token:          ${config.environmentSecret}`);
+  yield* Console.log(`Token: ${pairToken}`);
   yield* Console.log("");
-  yield* Console.log(`Sign in at ${appUrl} and paste these on the onboarding screen.`);
+  yield* Console.log(`Follow the instructions at ${appUrl} to add this environment.`);
   yield* Console.log("");
 });
 
