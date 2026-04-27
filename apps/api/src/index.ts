@@ -567,6 +567,16 @@ export class EnvironmentRoom extends DurableObject<Env> {
     await this.ctx.storage.deleteAll();
     await this.ctx.storage.deleteAlarm();
     this.broadcastPairStatus(null);
+    // Force the env to reconnect so its next handshake re-TOFUs into the
+    // wiped DO storage. Without this, env keeps its old WS open and we
+    // can't re-pair until the env restarts.
+    for (const env of this.getByRole("env")) {
+      try {
+        env.close(1000, "released");
+      } catch {
+        // already closing
+      }
+    }
     return new Response("ok\n", { status: 200 });
   }
 
