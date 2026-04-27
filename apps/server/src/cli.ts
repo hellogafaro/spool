@@ -1098,21 +1098,21 @@ const projectCommand = Command.make("project").pipe(
 
 const DEFAULT_TRUNK_APP_URL = "https://app.trunk.codes";
 
-const ensurePairing = Effect.gen(function* () {
+// Token rides in the URL fragment so HTTP referrers can't leak it. Same
+// secret the env uses to authenticate to the relay; the DO checks it on
+// claim to prove the browser actually has env console access.
+const formatPairUrl = (config: { environmentId: string; environmentSecret: string }): string => {
+  const appUrl = (process.env.TRUNK_APP_URL?.trim() || DEFAULT_TRUNK_APP_URL).replace(/\/$/, "");
+  return `${appUrl}/pair?environmentId=${config.environmentId}#token=${config.environmentSecret}`;
+};
+
+const printPairingBanner = Effect.gen(function* () {
   const { remoteLinkConfigPath, writeRemoteLinkLocalConfig } = yield* Effect.promise(
     () => import("./remoteLink/RemoteLinkConfig.ts"),
   );
-
-  // Idempotent: if a valid config already exists, returns it as-is;
-  // otherwise generates a fresh environmentId + secret and writes them.
-  // Stale schemas on disk get rewritten with the current shape.
   const config = yield* writeRemoteLinkLocalConfig();
   const filePath = yield* remoteLinkConfigPath();
-  const appUrl = (process.env.TRUNK_APP_URL?.trim() || DEFAULT_TRUNK_APP_URL).replace(/\/$/, "");
-  // Token rides in the URL fragment so it isn't sent in HTTP referrers.
-  // Same secret the env uses to authenticate to the relay; the relay's DO
-  // checks it on claim to prove the browser actually has env console access.
-  const pairUrl = `${appUrl}/pair?environmentId=${config.environmentId}#token=${config.environmentSecret}`;
+  const pairUrl = formatPairUrl(config);
 
   yield* Console.log("");
   yield* Console.log("============================================================");
@@ -1136,7 +1136,7 @@ const runServerCommand = (
   },
 ) =>
   Effect.gen(function* () {
-    yield* ensurePairing;
+    yield* printPairingBanner;
     const logLevel = yield* GlobalFlag.LogLevel;
     const config = yield* resolveServerConfig(flags, logLevel, options);
     return yield* runServer.pipe(Effect.provideService(ServerConfig, config));
@@ -1146,7 +1146,7 @@ const pairCommand = Command.make("pair").pipe(
   Command.withDescription(
     "Bootstrap ~/.trunk/config.json and print the one-click URL to claim this environment against your Trunk account.",
   ),
-  Command.withHandler(() => ensurePairing),
+  Command.withHandler(() => printPairingBanner),
 );
 
 const startCommand = Command.make("start", { ...sharedServerCommandFlags }).pipe(
@@ -1169,11 +1169,5 @@ const serveCommand = Command.make("serve", { ...sharedServerCommandFlags }).pipe
 export const cli = Command.make("t3", { ...sharedServerCommandFlags }).pipe(
   Command.withDescription("Run the Trunk server."),
   Command.withHandler((flags) => runServerCommand(flags)),
-  Command.withSubcommands([
-    startCommand,
-    serveCommand,
-    authCommand,
-    pairCommand,
-    projectCommand,
-  ]),
+  Command.withSubcommands([startCommand, serveCommand, authCommand, pairCommand, projectCommand]),
 );
