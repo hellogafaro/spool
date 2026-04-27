@@ -14,7 +14,7 @@ describe("makeWorkOsOwnershipChecker", () => {
   it("allows when environmentId is in the user's environmentIds array", async () => {
     const checker = makeWorkOsOwnershipChecker({
       apiKey: "sk_test_x",
-      fetchMetadata: async () => ({ environmentIds: [ENV, "anotherenvi"] }),
+      getMetadata: async () => ({ environmentIds: [ENV, "anotherenvi"] }),
     });
     const result = await checker("user_abc", ENV);
     expect(result.ok).toBe(true);
@@ -23,7 +23,7 @@ describe("makeWorkOsOwnershipChecker", () => {
   it("denies with 403 when environmentId is not in the array", async () => {
     const checker = makeWorkOsOwnershipChecker({
       apiKey: "sk_test_x",
-      fetchMetadata: async () => ({ environmentIds: ["differntenv"] }),
+      getMetadata: async () => ({ environmentIds: ["differntenv"] }),
     });
     const result = await checker("user_abc", ENV);
     expect(result.ok).toBe(false);
@@ -33,7 +33,7 @@ describe("makeWorkOsOwnershipChecker", () => {
   it("denies with 403 when metadata is empty", async () => {
     const checker = makeWorkOsOwnershipChecker({
       apiKey: "sk_test_x",
-      fetchMetadata: async () => null,
+      getMetadata: async () => null,
     });
     const result = await checker("user_abc", ENV);
     expect(result.ok).toBe(false);
@@ -43,7 +43,7 @@ describe("makeWorkOsOwnershipChecker", () => {
   it("returns 503 on lookup failure", async () => {
     const checker = makeWorkOsOwnershipChecker({
       apiKey: "sk_test_x",
-      fetchMetadata: async () => {
+      getMetadata: async () => {
         throw new Error("upstream down");
       },
     });
@@ -59,7 +59,7 @@ describe("makeWorkOsOwnershipChecker", () => {
       apiKey: "sk_test_x",
       ttlMs: 5000,
       now: () => now,
-      fetchMetadata: async () => {
+      getMetadata: async () => {
         calls += 1;
         return { environmentIds: [ENV] };
       },
@@ -78,7 +78,7 @@ describe("makeWorkOsOwnershipChecker", () => {
     let calls = 0;
     const checker = makeWorkOsOwnershipChecker({
       apiKey: "sk_test_x",
-      fetchMetadata: async () => {
+      getMetadata: async () => {
         calls += 1;
         return { environmentIds: [ENV] };
       },

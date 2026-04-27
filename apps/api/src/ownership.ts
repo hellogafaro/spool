@@ -1,3 +1,5 @@
+import { getWorkOsUserMetadata, getEnvironmentIds } from "./workos.ts";
+
 export type OwnershipResult =
   | { readonly ok: true }
   | { readonly ok: false; readonly status: 403 | 503; readonly reason: string };
@@ -13,37 +15,18 @@ interface CacheEntry {
 
 const DEFAULT_TTL_MS = 5 * 60 * 1000;
 
-interface WorkOsUserResponse {
-  readonly id?: string;
-  readonly metadata?: Record<string, unknown> | null;
-}
-
-async function fetchWorkOsUserMetadata(
-  apiKey: string,
-  userId: string,
-): Promise<Record<string, unknown> | null> {
-  const response = await fetch(`https://api.workos.com/user_management/users/${userId}`, {
-    headers: { authorization: `Bearer ${apiKey}` },
-  });
-  if (!response.ok) {
-    throw new Error(`WorkOS user fetch failed: ${response.status}`);
-  }
-  const body = (await response.json()) as WorkOsUserResponse;
-  return body.metadata ?? null;
-}
-
 export interface WorkOsOwnershipOptions {
   readonly apiKey: string;
   readonly ttlMs?: number;
-  readonly fetchMetadata?: (userId: string) => Promise<Record<string, unknown> | null>;
+  readonly getMetadata?: (userId: string) => Promise<Record<string, unknown> | null>;
   readonly now?: () => number;
 }
 
 export function makeWorkOsOwnershipChecker(options: WorkOsOwnershipOptions): OwnershipChecker {
   const ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
   const now = options.now ?? (() => Date.now());
-  const fetchMetadata =
-    options.fetchMetadata ?? ((userId) => fetchWorkOsUserMetadata(options.apiKey, userId));
+  const getMetadata =
+    options.getMetadata ?? ((userId) => getWorkOsUserMetadata(options.apiKey, userId));
   const cache = new Map<string, CacheEntry>();
 
   return async (userId, environmentId) => {
@@ -55,18 +38,13 @@ export function makeWorkOsOwnershipChecker(options: WorkOsOwnershipOptions): Own
 
     let metadata: Record<string, unknown> | null;
     try {
-      metadata = await fetchMetadata(userId);
+      metadata = await getMetadata(userId);
     } catch (error) {
       const reason = error instanceof Error ? error.message : "ownership lookup failed";
       return { ok: false, status: 503, reason };
     }
 
-    const environmentIds = Array.isArray(metadata?.environmentIds)
-      ? metadata.environmentIds.filter(
-          (entry): entry is string => typeof entry === "string" && entry.length > 0,
-        )
-      : [];
-    const result: OwnershipResult = environmentIds.includes(environmentId)
+    const result: OwnershipResult = getEnvironmentIds(metadata).includes(environmentId)
       ? { ok: true }
       : { ok: false, status: 403, reason: "user is not paired with this environment" };
 

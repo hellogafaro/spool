@@ -3,7 +3,9 @@ import type { BrowserAuthVerifier } from "./auth.ts";
 import {
   handlePairingRequest,
   makeWorkOsPairingWriter,
+  type ClaimEnvironmentOwner,
   type PairingWriter,
+  type ReleaseEnvironmentOwner,
 } from "./pairing.ts";
 
 const acceptingVerifier: BrowserAuthVerifier = async () => ({
@@ -18,6 +20,9 @@ const rejectingVerifier: BrowserAuthVerifier = async () => ({
 
 const VALID_ID = "abcdefghjk23";
 const VALID_TOKEN = "secret-test-token";
+
+const okClaim: ClaimEnvironmentOwner = async () => ({ ok: true });
+const okRelease: ReleaseEnvironmentOwner = async () => ({ ok: true });
 
 function makePostRequest(body: unknown): { request: Request; url: URL } {
   const url = new URL("https://api.test.local/pairing");
@@ -35,10 +40,15 @@ describe("handlePairingRequest", () => {
   it("rejects non-POST methods with 405", async () => {
     const url = new URL("https://api.test.local/pairing");
     const request = new Request(url.toString(), { method: "GET" });
-    const writer: PairingWriter = { addEnvironmentId: async () => ({ ok: true }), removeEnvironmentId: async () => ({ ok: true }) };
+    const writer: PairingWriter = {
+      addEnvironmentId: async () => ({ ok: true }),
+      removeEnvironmentId: async () => ({ ok: true }),
+    };
     const response = await handlePairingRequest(request, url, {
       authVerifier: acceptingVerifier,
       writer,
+      claimEnvironmentOwner: okClaim,
+      releaseEnvironmentOwner: okRelease,
     });
     expect(response.status).toBe(405);
     expect(response.headers.get("allow")).toBe("POST, DELETE, OPTIONS");
@@ -46,26 +56,39 @@ describe("handlePairingRequest", () => {
 
   it("returns auth error when token verification fails", async () => {
     const { request, url } = makePostRequest({ environmentId: VALID_ID, token: VALID_TOKEN });
-    const writer: PairingWriter = { addEnvironmentId: async () => ({ ok: true }), removeEnvironmentId: async () => ({ ok: true }) };
+    const writer: PairingWriter = {
+      addEnvironmentId: async () => ({ ok: true }),
+      removeEnvironmentId: async () => ({ ok: true }),
+    };
     const response = await handlePairingRequest(request, url, {
       authVerifier: rejectingVerifier,
       writer,
+      claimEnvironmentOwner: okClaim,
+      releaseEnvironmentOwner: okRelease,
     });
     expect(response.status).toBe(401);
   });
 
   it("400s on non-JSON body", async () => {
     const { request, url } = makePostRequest("not-json");
-    const writer: PairingWriter = { addEnvironmentId: async () => ({ ok: true }), removeEnvironmentId: async () => ({ ok: true }) };
+    const writer: PairingWriter = {
+      addEnvironmentId: async () => ({ ok: true }),
+      removeEnvironmentId: async () => ({ ok: true }),
+    };
     const response = await handlePairingRequest(request, url, {
       authVerifier: acceptingVerifier,
       writer,
+      claimEnvironmentOwner: okClaim,
+      releaseEnvironmentOwner: okRelease,
     });
     expect(response.status).toBe(400);
   });
 
   it("400s when environmentId is missing or invalid", async () => {
-    const writer: PairingWriter = { addEnvironmentId: async () => ({ ok: true }), removeEnvironmentId: async () => ({ ok: true }) };
+    const writer: PairingWriter = {
+      addEnvironmentId: async () => ({ ok: true }),
+      removeEnvironmentId: async () => ({ ok: true }),
+    };
     for (const body of [
       {},
       { environmentId: "", token: VALID_TOKEN },
@@ -76,18 +99,29 @@ describe("handlePairingRequest", () => {
       const response = await handlePairingRequest(request, url, {
         authVerifier: acceptingVerifier,
         writer,
+        claimEnvironmentOwner: okClaim,
+        releaseEnvironmentOwner: okRelease,
       });
       expect(response.status).toBe(400);
     }
   });
 
   it("400s when token is missing or empty", async () => {
-    const writer: PairingWriter = { addEnvironmentId: async () => ({ ok: true }), removeEnvironmentId: async () => ({ ok: true }) };
-    for (const body of [{ environmentId: VALID_ID }, { environmentId: VALID_ID, token: "" }, { environmentId: VALID_ID, token: "   " }]) {
+    const writer: PairingWriter = {
+      addEnvironmentId: async () => ({ ok: true }),
+      removeEnvironmentId: async () => ({ ok: true }),
+    };
+    for (const body of [
+      { environmentId: VALID_ID },
+      { environmentId: VALID_ID, token: "" },
+      { environmentId: VALID_ID, token: "   " },
+    ]) {
       const { request, url } = makePostRequest(body);
       const response = await handlePairingRequest(request, url, {
         authVerifier: acceptingVerifier,
         writer,
+        claimEnvironmentOwner: okClaim,
+        releaseEnvironmentOwner: okRelease,
       });
       expect(response.status).toBe(400);
     }
@@ -107,20 +141,23 @@ describe("handlePairingRequest", () => {
         calls.push({ environmentId, userId, token });
         return { ok: true };
       },
+      releaseEnvironmentOwner: okRelease,
     });
     expect(response.status).toBe(200);
-    expect(calls).toEqual([
-      { environmentId: VALID_ID, userId: "user_test", token: VALID_TOKEN },
-    ]);
+    expect(calls).toEqual([{ environmentId: VALID_ID, userId: "user_test", token: VALID_TOKEN }]);
   });
 
   it("returns 401 when claimEnvironmentOwner rejects the token", async () => {
-    const writer: PairingWriter = { addEnvironmentId: async () => ({ ok: true }), removeEnvironmentId: async () => ({ ok: true }) };
+    const writer: PairingWriter = {
+      addEnvironmentId: async () => ({ ok: true }),
+      removeEnvironmentId: async () => ({ ok: true }),
+    };
     const { request, url } = makePostRequest({ environmentId: VALID_ID, token: "wrong" });
     const response = await handlePairingRequest(request, url, {
       authVerifier: acceptingVerifier,
       writer,
       claimEnvironmentOwner: async () => ({ ok: false, status: 401, reason: "invalid pair token" }),
+      releaseEnvironmentOwner: okRelease,
     });
     expect(response.status).toBe(401);
   });
@@ -138,6 +175,8 @@ describe("handlePairingRequest", () => {
     const response = await handlePairingRequest(request, url, {
       authVerifier: acceptingVerifier,
       writer,
+      claimEnvironmentOwner: okClaim,
+      releaseEnvironmentOwner: okRelease,
     });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true, environmentId: VALID_ID });
@@ -145,7 +184,10 @@ describe("handlePairingRequest", () => {
   });
 
   it("returns 409 when claimEnvironmentOwner reports a collision", async () => {
-    const writer: PairingWriter = { addEnvironmentId: async () => ({ ok: true }), removeEnvironmentId: async () => ({ ok: true }) };
+    const writer: PairingWriter = {
+      addEnvironmentId: async () => ({ ok: true }),
+      removeEnvironmentId: async () => ({ ok: true }),
+    };
     const { request, url } = makePostRequest({ environmentId: VALID_ID, token: VALID_TOKEN });
     const response = await handlePairingRequest(request, url, {
       authVerifier: acceptingVerifier,
@@ -155,6 +197,7 @@ describe("handlePairingRequest", () => {
         status: 409,
         reason: "environment already claimed",
       }),
+      releaseEnvironmentOwner: okRelease,
     });
     expect(response.status).toBe(409);
   });
@@ -177,6 +220,7 @@ describe("handlePairingRequest", () => {
         status: 409,
         reason: "taken",
       }),
+      releaseEnvironmentOwner: okRelease,
     });
     expect(writes).toBe(0);
   });
@@ -195,6 +239,8 @@ describe("handlePairingRequest", () => {
     const response = await handlePairingRequest(request, url, {
       authVerifier: acceptingVerifier,
       writer,
+      claimEnvironmentOwner: okClaim,
+      releaseEnvironmentOwner: okRelease,
     });
     expect(response.status).toBe(200);
     expect(calls).toEqual([{ kind: "remove", userId: "user_test", environmentId: VALID_ID }]);
@@ -202,12 +248,15 @@ describe("handlePairingRequest", () => {
 
   it("502s when the upstream write fails", async () => {
     const writer: PairingWriter = {
-      addEnvironmentId: async () => ({ ok: false, status: 502, reason: "boom" }), removeEnvironmentId: async () => ({ ok: true }),
+      addEnvironmentId: async () => ({ ok: false, status: 502, reason: "boom" }),
+      removeEnvironmentId: async () => ({ ok: true }),
     };
     const { request, url } = makePostRequest({ environmentId: VALID_ID, token: VALID_TOKEN });
     const response = await handlePairingRequest(request, url, {
       authVerifier: acceptingVerifier,
       writer,
+      claimEnvironmentOwner: okClaim,
+      releaseEnvironmentOwner: okRelease,
     });
     expect(response.status).toBe(502);
   });
@@ -218,7 +267,7 @@ describe("makeWorkOsPairingWriter", () => {
     let lastWrite: Record<string, unknown> | null = null;
     const writer = makeWorkOsPairingWriter({
       apiKey: "sk_test_x",
-      fetchMetadata: async () => ({ otherField: "preserved", environmentIds: ["existing12"] }),
+      getMetadata: async () => ({ otherField: "preserved", environmentIds: ["existing12"] }),
       putMetadata: async (_userId, metadata) => {
         lastWrite = metadata;
       },
@@ -235,7 +284,7 @@ describe("makeWorkOsPairingWriter", () => {
     let lastWrite: Record<string, unknown> | null = null;
     const writer = makeWorkOsPairingWriter({
       apiKey: "sk_test_x",
-      fetchMetadata: async () => ({ environmentIds: [VALID_ID] }),
+      getMetadata: async () => ({ environmentIds: [VALID_ID] }),
       putMetadata: async (_userId, metadata) => {
         lastWrite = metadata;
       },
@@ -248,7 +297,7 @@ describe("makeWorkOsPairingWriter", () => {
   it("returns 503 when the read step fails", async () => {
     const writer = makeWorkOsPairingWriter({
       apiKey: "sk_test_x",
-      fetchMetadata: async () => {
+      getMetadata: async () => {
         throw new Error("upstream down");
       },
       putMetadata: async () => undefined,
@@ -261,7 +310,7 @@ describe("makeWorkOsPairingWriter", () => {
   it("returns 502 when the write step fails", async () => {
     const writer = makeWorkOsPairingWriter({
       apiKey: "sk_test_x",
-      fetchMetadata: async () => null,
+      getMetadata: async () => null,
       putMetadata: async () => {
         throw new Error("forbidden");
       },

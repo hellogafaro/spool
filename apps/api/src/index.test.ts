@@ -54,7 +54,11 @@ async function pairBrowserToEnvironment(
   authHeader: string,
 ): Promise<{ browser: WebSocket; channel: WebSocket; channelId: string }> {
   const dialPromise = nextMessage(control);
-  const browser = await openSocket(API_PATHS.browser, { environmentId }, { authorization: authHeader });
+  const browser = await openSocket(
+    API_PATHS.browser,
+    { environmentId },
+    { authorization: authHeader },
+  );
   const dialEvent = await dialPromise;
   const dial = JSON.parse(String(dialEvent.data)) as ControlMessage;
   expect(dial.type).toBe("dial");

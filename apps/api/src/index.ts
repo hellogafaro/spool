@@ -8,17 +8,14 @@ import {
   makeWorkOsOwnershipChecker,
   type OwnershipChecker,
 } from "./ownership.ts";
-import {
-  handlePairingRequest,
-  makeWorkOsPairingWriter,
-  type PairingWriter,
-} from "./pairing.ts";
+import { handlePairingRequest, makeWorkOsPairingWriter, type PairingWriter } from "./pairing.ts";
 import {
   API_PATHS,
   API_PROTOCOL_VERSION,
   ENVIRONMENT_PROOF_HEADER,
   type ControlMessage,
 } from "./protocol.ts";
+import { getWorkOsUserMetadata, getEnvironmentIds } from "./workos.ts";
 
 interface Env {
   ENVIRONMENT_ROOMS: DurableObjectNamespace;
@@ -46,11 +43,7 @@ const jsonHeaders = {
   "content-type": "application/json; charset=utf-8",
 };
 
-const WS_PATHS = new Set<string>([
-  API_PATHS.browser,
-  API_PATHS.channel,
-  API_PATHS.environment,
-]);
+const WS_PATHS = new Set<string>([API_PATHS.browser, API_PATHS.channel, API_PATHS.environment]);
 
 function resolveBrowserAuthVerifier(env: Env): BrowserAuthVerifier {
   if (env.WORKOS_CLIENT_ID && env.WORKOS_CLIENT_ID.length > 0) {
@@ -89,14 +82,7 @@ function withMeCors(response: Response): Response {
   return response;
 }
 
-function readEnvironmentIdsFromMetadata(metadata: Record<string, unknown> | null): string[] {
-  if (!metadata) return [];
-  const value = metadata.environmentIds;
-  if (!Array.isArray(value)) return [];
-  return value.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
-}
-
-async function fetchEnvironmentStatus(
+async function getEnvironmentStatus(
   env: Env,
   environmentId: string,
 ): Promise<{ online: boolean; lastSeenAt: string | null }> {
@@ -135,27 +121,17 @@ async function handleMeRequest(request: Request, url: URL, env: Env): Promise<Re
   if (!env.WORKOS_API_KEY || env.WORKOS_API_KEY.length === 0) {
     return withMeCors(Response.json({ userId: auth.auth.userId, environmentIds: [] }));
   }
-  let metadata: Record<string, unknown> | null = null;
+  let metadata: Record<string, unknown> | null;
   try {
-    const workosResponse = await fetch(
-      `https://api.workos.com/user_management/users/${auth.auth.userId}`,
-      { headers: { authorization: `Bearer ${env.WORKOS_API_KEY}` } },
-    );
-    if (!workosResponse.ok) {
-      return withMeCors(
-        new Response(`workos lookup failed (${workosResponse.status})`, { status: 502 }),
-      );
-    }
-    const body = (await workosResponse.json()) as { metadata?: Record<string, unknown> | null };
-    metadata = body.metadata ?? null;
+    metadata = await getWorkOsUserMetadata(env.WORKOS_API_KEY, auth.auth.userId);
   } catch (error) {
     const reason = error instanceof Error ? error.message : "workos lookup failed";
     return withMeCors(new Response(reason, { status: 503 }));
   }
-  const environmentIds = readEnvironmentIdsFromMetadata(metadata);
+  const environmentIds = getEnvironmentIds(metadata);
   const environments = await Promise.all(
     environmentIds.map(async (environmentId) => {
-      const status = await fetchEnvironmentStatus(env, environmentId);
+      const status = await getEnvironmentStatus(env, environmentId);
       return { environmentId, ...status };
     }),
   );

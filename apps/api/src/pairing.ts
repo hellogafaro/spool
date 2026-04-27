@@ -1,4 +1,5 @@
 import type { BrowserAuthVerifier } from "./auth.ts";
+import { getWorkOsUserMetadata, putWorkOsUserMetadata, getEnvironmentIds } from "./workos.ts";
 
 export type PairingWriteResult =
   | { readonly ok: true }
@@ -11,55 +12,16 @@ export interface PairingWriter {
 
 interface WorkOsPairingWriterOptions {
   readonly apiKey: string;
-  readonly fetchMetadata?: (userId: string) => Promise<Record<string, unknown> | null>;
+  readonly getMetadata?: (userId: string) => Promise<Record<string, unknown> | null>;
   readonly putMetadata?: (userId: string, metadata: Record<string, unknown>) => Promise<void>;
 }
 
-async function defaultFetchMetadata(
-  apiKey: string,
-  userId: string,
-): Promise<Record<string, unknown> | null> {
-  const response = await fetch(`https://api.workos.com/user_management/users/${userId}`, {
-    headers: { authorization: `Bearer ${apiKey}` },
-  });
-  if (!response.ok) {
-    throw new Error(`WorkOS user fetch failed: ${response.status}`);
-  }
-  const body = (await response.json()) as { metadata?: Record<string, unknown> | null };
-  return body.metadata ?? null;
-}
-
-async function defaultPutMetadata(
-  apiKey: string,
-  userId: string,
-  metadata: Record<string, unknown>,
-): Promise<void> {
-  const response = await fetch(`https://api.workos.com/user_management/users/${userId}`, {
-    method: "PUT",
-    headers: {
-      authorization: `Bearer ${apiKey}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ metadata }),
-  });
-  if (!response.ok) {
-    throw new Error(`WorkOS user update failed: ${response.status}`);
-  }
-}
-
-function readEnvironmentIds(metadata: Record<string, unknown> | null): string[] {
-  if (!metadata) return [];
-  const value = metadata.environmentIds;
-  if (!Array.isArray(value)) return [];
-  return value.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
-}
-
 export function makeWorkOsPairingWriter(options: WorkOsPairingWriterOptions): PairingWriter {
-  const fetchMetadata =
-    options.fetchMetadata ?? ((userId) => defaultFetchMetadata(options.apiKey, userId));
+  const getMetadata =
+    options.getMetadata ?? ((userId) => getWorkOsUserMetadata(options.apiKey, userId));
   const putMetadata =
     options.putMetadata ??
-    ((userId, metadata) => defaultPutMetadata(options.apiKey, userId, metadata));
+    ((userId, metadata) => putWorkOsUserMetadata(options.apiKey, userId, metadata));
 
   const writeUpdatedIds = async (
     userId: string,
@@ -67,12 +29,12 @@ export function makeWorkOsPairingWriter(options: WorkOsPairingWriterOptions): Pa
   ): Promise<PairingWriteResult> => {
     let existing: Record<string, unknown> | null;
     try {
-      existing = await fetchMetadata(userId);
+      existing = await getMetadata(userId);
     } catch (error) {
       const reason = error instanceof Error ? error.message : "metadata fetch failed";
       return { ok: false, status: 503, reason };
     }
-    const next = { ...(existing ?? {}), environmentIds: update(readEnvironmentIds(existing)) };
+    const next = { ...(existing ?? {}), environmentIds: update(getEnvironmentIds(existing)) };
     try {
       await putMetadata(userId, next);
     } catch (error) {
@@ -123,16 +85,20 @@ export type ClaimEnvironmentOwner = (
   token: string,
 ) => Promise<ClaimEnvironmentOwnerResult>;
 
+export type ReleaseEnvironmentOwnerResult =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly status: 502; readonly reason: string };
+
 export type ReleaseEnvironmentOwner = (
   environmentId: string,
   userId: string,
-) => Promise<{ readonly ok: true } | { readonly ok: false; readonly status: 502; readonly reason: string }>;
+) => Promise<ReleaseEnvironmentOwnerResult>;
 
 export interface PairingHandlerOptions {
   readonly authVerifier: BrowserAuthVerifier;
   readonly writer: PairingWriter;
-  readonly claimEnvironmentOwner?: ClaimEnvironmentOwner;
-  readonly releaseEnvironmentOwner?: ReleaseEnvironmentOwner;
+  readonly claimEnvironmentOwner: ClaimEnvironmentOwner;
+  readonly releaseEnvironmentOwner: ReleaseEnvironmentOwner;
 }
 
 const CORS_HEADERS: Record<string, string> = {
@@ -188,26 +154,20 @@ export async function handlePairingRequest(
     return withCors(new Response("environmentId required\n", { status: 400 }));
   }
 
-  let claimed = false;
-  if (options.claimEnvironmentOwner) {
-    const claim = await options.claimEnvironmentOwner(
-      body.environmentId,
-      auth.auth.userId,
-      body.token,
-    );
-    if (!claim.ok) {
-      return withCors(new Response(`${claim.reason}\n`, { status: claim.status }));
-    }
-    claimed = true;
+  const claim = await options.claimEnvironmentOwner(
+    body.environmentId,
+    auth.auth.userId,
+    body.token,
+  );
+  if (!claim.ok) {
+    return withCors(new Response(`${claim.reason}\n`, { status: claim.status }));
   }
 
   const result = await options.writer.addEnvironmentId(auth.auth.userId, body.environmentId);
   if (!result.ok) {
-    if (claimed && options.releaseEnvironmentOwner) {
-      // Best-effort: roll back the DO claim so the env isn't permanently locked
-      // to a user whose metadata write failed.
-      await options.releaseEnvironmentOwner(body.environmentId, auth.auth.userId).catch(() => {});
-    }
+    // Best-effort: roll back the DO claim so the env isn't permanently locked
+    // to a user whose metadata write failed.
+    await options.releaseEnvironmentOwner(body.environmentId, auth.auth.userId).catch(() => {});
     return withCors(new Response(`${result.reason}\n`, { status: result.status }));
   }
 
@@ -234,11 +194,9 @@ async function handleDelete(
     return withCors(new Response(`${removeResult.reason}\n`, { status: removeResult.status }));
   }
 
-  if (options.releaseEnvironmentOwner) {
-    const release = await options.releaseEnvironmentOwner(environmentId, auth.auth.userId);
-    if (!release.ok) {
-      return withCors(new Response(`${release.reason}\n`, { status: release.status }));
-    }
+  const release = await options.releaseEnvironmentOwner(environmentId, auth.auth.userId);
+  if (!release.ok) {
+    return withCors(new Response(`${release.reason}\n`, { status: release.status }));
   }
 
   return withCors(Response.json({ ok: true, environmentId }));

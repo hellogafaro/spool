@@ -1,19 +1,26 @@
 /**
- * Client for the relay's /pairing and /me endpoints. /pairing appends
- * an environmentId to the authenticated user's WorkOS metadata.
- * /me returns the user's claimed environmentIds.
+ * Browser client for the relay's /pairing and /me endpoints. /pairing
+ * binds an environmentId to the signed-in user (DO + WorkOS metadata).
+ * /me returns the user's claimed environments with live status.
  */
 
 const TRUNK_API_URL = (import.meta.env.VITE_TRUNK_API_URL as string | undefined)?.trim();
 
-export class PairingApiError extends Error {
+export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
   ) {
     super(message);
-    this.name = "PairingApiError";
+    this.name = "ApiError";
   }
+}
+
+function pairingUrl(): string {
+  if (!TRUNK_API_URL) {
+    throw new ApiError(0, "VITE_TRUNK_API_URL is not configured");
+  }
+  return `${TRUNK_API_URL.replace(/\/$/, "")}/pairing`;
 }
 
 export interface ClaimEnvironmentOptions {
@@ -27,10 +34,7 @@ export async function claimEnvironment({
   token,
   accessToken,
 }: ClaimEnvironmentOptions): Promise<void> {
-  if (!TRUNK_API_URL) {
-    throw new PairingApiError(0, "VITE_TRUNK_API_URL is not configured");
-  }
-  const response = await fetch(`${TRUNK_API_URL.replace(/\/$/, "")}/pairing`, {
+  const response = await fetch(pairingUrl(), {
     method: "POST",
     headers: {
       authorization: `Bearer ${accessToken}`,
@@ -40,7 +44,7 @@ export async function claimEnvironment({
   });
   if (!response.ok) {
     const text = await response.text().catch(() => "");
-    throw new PairingApiError(
+    throw new ApiError(
       response.status,
       text.trim() || `Pairing failed with status ${response.status}`,
     );
@@ -56,10 +60,7 @@ export async function unclaimEnvironment({
   environmentId,
   accessToken,
 }: UnclaimEnvironmentOptions): Promise<void> {
-  if (!TRUNK_API_URL) {
-    throw new PairingApiError(0, "VITE_TRUNK_API_URL is not configured");
-  }
-  const url = new URL(`${TRUNK_API_URL.replace(/\/$/, "")}/pairing`);
+  const url = new URL(pairingUrl());
   url.searchParams.set("environmentId", environmentId);
   const response = await fetch(url.toString(), {
     method: "DELETE",
@@ -67,7 +68,7 @@ export async function unclaimEnvironment({
   });
   if (!response.ok) {
     const text = await response.text().catch(() => "");
-    throw new PairingApiError(
+    throw new ApiError(
       response.status,
       text.trim() || `Unclaim failed with status ${response.status}`,
     );
@@ -85,17 +86,7 @@ export interface ClaimedEnvironmentsSnapshot {
   readonly environments: ReadonlyArray<ClaimedEnvironmentSummary>;
 }
 
-export class MeApiError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message);
-    this.name = "MeApiError";
-  }
-}
-
-export async function fetchClaimedEnvironments(
+export async function getClaimedEnvironments(
   accessToken: string,
 ): Promise<ClaimedEnvironmentsSnapshot> {
   if (!TRUNK_API_URL) {
@@ -105,7 +96,7 @@ export async function fetchClaimedEnvironments(
     headers: { authorization: `Bearer ${accessToken}` },
   });
   if (!response.ok) {
-    throw new MeApiError(response.status, `Failed to load environments (${response.status})`);
+    throw new ApiError(response.status, `Failed to load environments (${response.status})`);
   }
   const body = (await response.json()) as {
     environmentIds?: ReadonlyArray<string>;
@@ -133,11 +124,4 @@ export async function fetchClaimedEnvironments(
         lastSeenAt: null,
       }));
   return { environmentIds, environments };
-}
-
-export async function fetchClaimedEnvironmentIds(accessToken: string): Promise<string[]> {
-  const snapshot = await fetchClaimedEnvironments(accessToken).catch(() => ({
-    environmentIds: [] as ReadonlyArray<string>,
-  }));
-  return [...snapshot.environmentIds];
 }

@@ -1,13 +1,8 @@
 import { useAuth } from "@workos-inc/authkit-react";
-import {
-  createFileRoute,
-  redirect,
-  useNavigate,
-  useSearch,
-} from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 
-import { PairingApiError, claimEnvironment } from "../auth/pairing";
+import { ApiError, claimEnvironment } from "../auth/pairing";
 import { writeActiveEnvironmentId } from "../auth/tokenStore";
 import { useClaimedEnvironments } from "../auth/useClaimedEnvironments";
 import { isWorkOsConfigured } from "../auth/workos";
@@ -54,8 +49,7 @@ function PairRoutePendingView() {
 
 function LegacyT3PairView() {
   const parentContext = Route.useRouteContext();
-  const authGateState = (parentContext as { authGateState?: unknown })
-    .authGateState as
+  const authGateState = (parentContext as { authGateState?: unknown }).authGateState as
     | {
         readonly status: "authenticated" | "requires-auth";
         readonly auth?: Parameters<typeof PairingRouteSurface>[0]["auth"];
@@ -161,13 +155,7 @@ function EnvironmentPairView() {
   );
 }
 
-function Body({
-  status,
-  environmentId,
-}: {
-  status: Status;
-  environmentId: string | undefined;
-}) {
+function Body({ status, environmentId }: { status: Status; environmentId: string | undefined }) {
   if (!environmentId) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -209,7 +197,7 @@ function readPairTokenFromHash(): string | null {
 }
 
 function friendlyError(error: unknown): string {
-  if (error instanceof PairingApiError) {
+  if (error instanceof ApiError) {
     if (error.status === 401) return "Your session expired. Sign in again.";
     if (error.status === 409) return "That environment is already paired with another account.";
     return error.message;

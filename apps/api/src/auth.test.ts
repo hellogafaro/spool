@@ -1,9 +1,6 @@
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { describe, expect, it } from "vitest";
-import {
-  makeWorkOsBrowserAuthVerifier,
-  presenceOnlyBrowserAuthVerifier,
-} from "./auth.ts";
+import { makeWorkOsBrowserAuthVerifier, presenceOnlyBrowserAuthVerifier } from "./auth.ts";
 
 async function makeTestSetup() {
   const { publicKey, privateKey } = await generateKeyPair("RS256", { extractable: true });
@@ -17,11 +14,7 @@ async function makeTestSetup() {
 
   const fetchSpy = async (input: RequestInfo | URL): Promise<Response> => {
     const requestUrl =
-      input instanceof Request
-        ? new URL(input.url)
-        : input instanceof URL
-          ? input
-          : new URL(input);
+      input instanceof Request ? new URL(input.url) : input instanceof URL ? input : new URL(input);
     if (requestUrl.toString() === jwksUrl.toString()) {
       return Response.json({ keys: [jwk] });
     }
@@ -46,7 +39,10 @@ async function makeTestSetup() {
   return { clientId, sign, restore };
 }
 
-function makeRequest(headers: Record<string, string>, queryToken?: string): { request: Request; url: URL } {
+function makeRequest(
+  headers: Record<string, string>,
+  queryToken?: string,
+): { request: Request; url: URL } {
   const url = new URL("https://api.test.local/ws?serverId=abc");
   if (queryToken) url.searchParams.set("token", queryToken);
   return { request: new Request(url.toString(), { headers }), url };

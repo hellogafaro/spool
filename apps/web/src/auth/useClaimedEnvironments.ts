@@ -1,10 +1,7 @@
 import { useAuth } from "@workos-inc/authkit-react";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 
-import {
-  fetchClaimedEnvironments,
-  type ClaimedEnvironmentsSnapshot,
-} from "./pairing";
+import { getClaimedEnvironments, type ClaimedEnvironmentsSnapshot } from "./pairing";
 
 export const CLAIMED_ENVIRONMENTS_QUERY_KEY = ["trunk", "claimedEnvironments"] as const;
 
@@ -26,7 +23,7 @@ export function useClaimedEnvironments(): UseQueryResult<ClaimedEnvironmentsSnap
     queryFn: async () => {
       const token = await auth.getAccessToken();
       if (!token) return EMPTY_SNAPSHOT;
-      return await fetchClaimedEnvironments(token);
+      return await getClaimedEnvironments(token);
     },
   });
 }
