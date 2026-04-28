@@ -134,10 +134,14 @@ export const issueHeadlessServeAccessInfo = Effect.fn("issueHeadlessServeAccessI
   const serverConfig = yield* ServerConfig;
   const httpServer = yield* HttpServer.HttpServer;
   const serverAuth = yield* ServerAuth;
-  const connectionString = resolveHeadlessConnectionString(
-    serverConfig.host,
-    resolveListeningPort(httpServer.address, serverConfig.port),
-  );
+  const publicUrl = process.env.TRUNK_PUBLIC_URL?.trim();
+  const connectionString =
+    publicUrl && publicUrl.length > 0
+      ? publicUrl.replace(/\/$/, "")
+      : resolveHeadlessConnectionString(
+          serverConfig.host,
+          resolveListeningPort(httpServer.address, serverConfig.port),
+        );
   const issued = yield* serverAuth.issuePairingCredential({ role: "owner" });
 
   return {
