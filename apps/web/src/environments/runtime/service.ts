@@ -23,7 +23,7 @@ import {
   markPromotedDraftThreadsByRef,
   useComposerDraftStore,
 } from "~/composerDraftStore";
-import { getCurrentAccessToken } from "~/auth/workos";
+import { getCurrentAccessToken, isWorkOsConfigured } from "~/auth/workos";
 import { ensureLocalApi } from "~/localApi";
 import { collectActiveTerminalThreadIds } from "~/lib/terminalStateCleanup";
 import { deriveOrchestrationBatchEffects } from "~/orchestrationEventEffects";
@@ -1053,6 +1053,16 @@ export function requireEnvironmentConnection(environmentId: EnvironmentId): Envi
 }
 
 export function getPrimaryEnvironmentConnection(): EnvironmentConnection {
+  if (isWorkOsConfigured) {
+    const activeId = useStore.getState().activeEnvironmentId;
+    if (activeId) {
+      const connection = environmentConnections.get(activeId);
+      if (connection) return connection;
+    }
+    const first = environmentConnections.values().next();
+    if (!first.done) return first.value;
+    throw new Error("No saved environments are connected yet.");
+  }
   return createPrimaryEnvironmentConnection();
 }
 
@@ -1191,7 +1201,9 @@ export function startEnvironmentConnectionService(queryClient: QueryClient): () 
     },
   );
 
-  createPrimaryEnvironmentConnection();
+  if (!isWorkOsConfigured) {
+    createPrimaryEnvironmentConnection();
+  }
 
   const unsubscribeSavedEnvironments = useSavedEnvironmentRegistryStore.subscribe(() => {
     if (!hasSavedEnvironmentRegistryHydrated()) {

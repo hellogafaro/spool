@@ -3,7 +3,9 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { CommandLineIcon, CubeTransparentIcon } from "@heroicons/react/16/solid";
 
-import { claimEnvironment } from "../auth/pairing";
+import { addSavedEnvironment } from "../environments/runtime";
+import { upsertSavedEnv } from "../auth/savedEnvApi";
+import { ensureLocalApi } from "../localApi";
 import { useClaimedEnvironments } from "../auth/useClaimedEnvironments";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -33,8 +35,9 @@ function OnboardingRouteView() {
   const navigate = useNavigate();
 
   const [installTab, setInstallTab] = useState<InstallTab>("local");
-  const [environmentId, setEnvironmentId] = useState("");
-  const [token, setToken] = useState("");
+  const [environmentUrl, setEnvironmentUrl] = useState("");
+  const [pairToken, setPairToken] = useState("");
+  const [label, setLabel] = useState("");
   const [pairing, setPairing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,16 +55,23 @@ function OnboardingRouteView() {
     try {
       const accessToken = await auth.getAccessToken();
       if (!accessToken) throw new Error("Couldn't get an access token. Try again.");
-      await claimEnvironment({
-        environmentId: environmentId.trim(),
-        token: token.trim(),
-        accessToken,
+      const record = await addSavedEnvironment({
+        host: environmentUrl.trim(),
+        pairingCode: pairToken.trim(),
+        label: label.trim() || "Environment",
       });
-      // Force a session-token refresh so the freshly-paired env shows up in
-      // the `environments` JWT claim immediately. Without this, the user
-      // would have to wait for the next access-token rotation (~5 min)
-      // before useEnvironmentGate sees them as paired.
-      await auth.getAccessToken({ forceRefresh: true });
+      const bearer = await ensureLocalApi().persistence.getSavedEnvironmentSecret(
+        record.environmentId,
+      );
+      if (bearer) {
+        await upsertSavedEnv({
+          environmentUrl: record.httpBaseUrl,
+          environmentId: record.environmentId,
+          label: record.label,
+          bearer,
+          accessToken,
+        });
+      }
       await environments.refetch();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Pairing failed.");
@@ -110,35 +120,50 @@ function OnboardingRouteView() {
 
           <Step title="Paste the values it printed">
             <p className="text-sm text-muted-foreground">
-              On first boot, Trunk prints an Environment ID and a Token in the console. Copy them
-              here.
+              On first boot, Trunk prints a URL and a pair token in the console. Run it behind
+              Tailscale, a Cloudflare tunnel, or on localhost — never expose it to the public
+              internet.
             </p>
             <div className="space-y-1.5">
-              <Label htmlFor="environment-id" className="text-sm">
-                Environment ID
+              <Label htmlFor="environment-url" className="text-sm">
+                Environment URL
               </Label>
               <Input
-                id="environment-id"
-                value={environmentId}
-                onChange={(event) => setEnvironmentId(event.target.value)}
-                placeholder="ABCDEFGHJK23"
+                id="environment-url"
+                type="url"
+                value={environmentUrl}
+                onChange={(event) => setEnvironmentUrl(event.target.value)}
+                placeholder="https://t3.tailnet.ts.net"
                 autoComplete="off"
                 spellCheck={false}
                 required
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="token" className="text-sm">
-                Token
+              <Label htmlFor="pair-token" className="text-sm">
+                Pair token
               </Label>
               <Input
-                id="token"
-                value={token}
-                onChange={(event) => setToken(event.target.value)}
-                placeholder="WFEBK4Q3TDGQ"
+                id="pair-token"
+                value={pairToken}
+                onChange={(event) => setPairToken(event.target.value)}
+                placeholder="paste the token from the console"
                 autoComplete="off"
                 spellCheck={false}
                 required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="env-label" className="text-sm">
+                Label
+              </Label>
+              <Input
+                id="env-label"
+                value={label}
+                onChange={(event) => setLabel(event.target.value)}
+                placeholder="Laptop"
+                autoComplete="off"
+                spellCheck={false}
               />
             </div>
           </Step>

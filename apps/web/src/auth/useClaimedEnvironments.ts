@@ -1,18 +1,13 @@
 import { useAuth } from "@workos-inc/authkit-react";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 
-import { getClaimedEnvironmentIds } from "./pairing";
+import { getSavedEnvs, type SavedEnvRecord } from "./savedEnvApi";
 
-export const CLAIMED_ENVIRONMENTS_QUERY_KEY = ["trunk", "claimedEnvironments"] as const;
+export const CLAIMED_ENVIRONMENTS_QUERY_KEY = ["trunk", "savedEnvironments"] as const;
 
 /**
- * Returns the env IDs the signed-in user owns. The list lives in the
- * WorkOS access token under the `environmentIds` custom claim (set via
- * the JWT template in the WorkOS Dashboard), so reading it is just a
- * decode of the bearer — no relay round-trip.
- *
- * Wrapped in TanStack Query so consumers can `refetch()` after pairing
- * to pick up the freshly-rotated session.
+ * Returns the env IDs the signed-in user has saved on the Worker. Backed
+ * by GET /env on the Trunk Worker, which reads from WorkOS Vault.
  */
 export function useClaimedEnvironments(): UseQueryResult<ReadonlyArray<string>, Error> {
   const auth = useAuth();
@@ -27,7 +22,8 @@ export function useClaimedEnvironments(): UseQueryResult<ReadonlyArray<string>, 
     queryFn: async () => {
       const token = await auth.getAccessToken();
       if (!token) return [];
-      return getClaimedEnvironmentIds(token);
+      const records: ReadonlyArray<SavedEnvRecord> = await getSavedEnvs(token);
+      return records.map((record) => record.environmentId);
     },
   });
 }
