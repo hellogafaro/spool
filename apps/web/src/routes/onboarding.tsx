@@ -1,6 +1,6 @@
 import { useAuth } from "@workos-inc/authkit-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { CommandLineIcon, CubeTransparentIcon } from "@heroicons/react/16/solid";
 
 import { addSavedEnvironment } from "../environments/runtime";
@@ -40,6 +40,7 @@ function OnboardingRouteView() {
   const [label, setLabel] = useState("");
   const [pairing, setPairing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const pairingInFlightRef = useRef(false);
 
   useEffect(() => {
     if (environments.data && environments.data.length > 0) {
@@ -49,7 +50,8 @@ function OnboardingRouteView() {
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (pairing) return;
+    if (pairingInFlightRef.current) return;
+    pairingInFlightRef.current = true;
     setError(null);
     setPairing(true);
     try {
@@ -76,6 +78,7 @@ function OnboardingRouteView() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Pairing failed.");
     } finally {
+      pairingInFlightRef.current = false;
       setPairing(false);
     }
   };
