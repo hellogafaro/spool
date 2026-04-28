@@ -1,77 +1,31 @@
 /**
- * WorkOS API helpers used by the relay:
- *   - User metadata (`environments`) for the public list of envs a user owns.
- *   - Vault objects holding each env's auth secret. Owner identity lives in
- *     `key_context.owner` so the value stays a pure secret.
+ * WorkOS Vault helpers used by the saved-env Worker.
+ *
+ * Vault is the sole source of truth for a user's saved envs. Each entry's
+ * value is the T3 bearer; key_context carries the ownership and metadata.
+ *
+ * Schema:
+ *   name:    env-<userId>-<environmentId>
+ *   value:   <T3 bearer session token>
+ *   key_context:
+ *     owner:           <workos-user-id>
+ *     environmentUrl:  https://t3.example.com
+ *     label:           Laptop
  */
 
 const WORKOS_API = "https://api.workos.com";
-const WORKOS_USERS_URL = `${WORKOS_API}/user_management/users`;
 const WORKOS_VAULT_URL = `${WORKOS_API}/vault/v1/kv`;
 
-export async function getUserMetadata(
-  apiKey: string,
-  userId: string,
-): Promise<Record<string, unknown> | null> {
-  const response = await fetch(`${WORKOS_USERS_URL}/${userId}`, {
-    headers: { authorization: `Bearer ${apiKey}` },
-  });
-  if (!response.ok) {
-    throw new Error(`WorkOS user fetch failed: ${response.status}`);
-  }
-  const body = (await response.json()) as { metadata?: Record<string, unknown> | null };
-  return body.metadata ?? null;
-}
-
-export async function updateUserMetadata(
-  apiKey: string,
-  userId: string,
-  metadata: Record<string, unknown>,
-): Promise<void> {
-  const response = await fetch(`${WORKOS_USERS_URL}/${userId}`, {
-    method: "PUT",
-    headers: {
-      authorization: `Bearer ${apiKey}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ metadata }),
-  });
-  if (!response.ok) {
-    throw new Error(`WorkOS user update failed: ${response.status}`);
-  }
-}
-
-/**
- * WorkOS user metadata only accepts string values (max 600 chars, ASCII).
- * The env-id list is stored as a comma-separated string under `environments`
- * so the WorkOS JWT template drops it into a session claim verbatim.
- * `[A-Z0-9]{12}` ids never contain commas — split round-trips losslessly.
- */
-const ENVIRONMENTS_METADATA_KEY = "environments";
-
-export function getEnvironments(metadata: Record<string, unknown> | null): string[] {
-  if (!metadata) return [];
-  const value = metadata[ENVIRONMENTS_METADATA_KEY];
-  if (typeof value === "string" && value.length > 0) {
-    return value
-      .split(",")
-      .map((entry) => entry.trim())
-      .filter((entry) => entry.length > 0);
-  }
-  return [];
-}
-
-export function encodeEnvironments(ids: ReadonlyArray<string>): string {
-  return ids.join(",");
-}
-
-export function getVaultName(environmentId: string): string {
-  return `env:${environmentId}`;
+export interface VaultKeyContext {
+  readonly owner: string;
+  readonly environmentUrl: string;
+  readonly label: string;
 }
 
 export interface VaultEntry {
-  readonly secret: string;
-  readonly owner: string;
+  readonly name: string;
+  readonly value: string;
+  readonly keyContext: VaultKeyContext;
 }
 
 interface VaultObjectResponse {
@@ -81,17 +35,44 @@ interface VaultObjectResponse {
   readonly key_context?: Record<string, string>;
 }
 
-/**
- * Stores an env's auth secret. Value is the raw secret string. Owner identity
- * lives in `key_context.owner` (server-stored, returned on read) so the
- * encrypted value stays a single-purpose secret. `key_context.environment`
- * binds the DEK uniquely per env.
- */
+interface VaultListResponse {
+  readonly data: ReadonlyArray<VaultObjectResponse>;
+  readonly list_metadata?: { readonly after?: string };
+}
+
+function toVaultEntry(raw: VaultObjectResponse): VaultEntry | null {
+  const kc = raw.key_context ?? {};
+  if (
+    typeof raw.value !== "string" ||
+    typeof kc.owner !== "string" ||
+    typeof kc.environmentUrl !== "string" ||
+    typeof kc.label !== "string"
+  ) {
+    return null;
+  }
+  return {
+    name: raw.name,
+    value: raw.value,
+    keyContext: { owner: kc.owner, environmentUrl: kc.environmentUrl, label: kc.label },
+  };
+}
+
+export function getVaultName(userId: string, environmentId: string): string {
+  return `env-${userId}-${environmentId}`;
+}
+
+export function parseEnvironmentIdFromName(name: string, userId: string): string | null {
+  const prefix = `env-${userId}-`;
+  if (!name.startsWith(prefix)) return null;
+  const id = name.slice(prefix.length);
+  return id.length > 0 ? id : null;
+}
+
 export async function upsertVault(
   apiKey: string,
-  environmentId: string,
-  secret: string,
-  owner: string,
+  name: string,
+  value: string,
+  keyContext: VaultKeyContext,
 ): Promise<void> {
   const response = await fetch(WORKOS_VAULT_URL, {
     method: "POST",
@@ -99,47 +80,29 @@ export async function upsertVault(
       authorization: `Bearer ${apiKey}`,
       "content-type": "application/json",
     },
-    body: JSON.stringify({
-      name: getVaultName(environmentId),
-      value: secret,
-      key_context: { environment: environmentId, owner },
-    }),
+    body: JSON.stringify({ name, value, key_context: keyContext }),
   });
   if (!response.ok) {
     const text = await response.text().catch(() => "");
-    throw new Error(`Vault create failed: ${response.status} ${text}`.trim());
+    throw new Error(`Vault upsert failed: ${response.status} ${text}`.trim());
   }
 }
 
-/**
- * Reads back the env's vault entry. Returns null on 404 so callers can
- * distinguish "no record" from transient errors.
- */
-export async function getVault(apiKey: string, environmentId: string): Promise<VaultEntry | null> {
-  const url = `${WORKOS_VAULT_URL}/name/${encodeURIComponent(getVaultName(environmentId))}`;
-  const response = await fetch(url, {
-    headers: { authorization: `Bearer ${apiKey}` },
-  });
+export async function getVaultByName(apiKey: string, name: string): Promise<VaultEntry | null> {
+  const url = `${WORKOS_VAULT_URL}/name/${encodeURIComponent(name)}`;
+  const response = await fetch(url, { headers: { authorization: `Bearer ${apiKey}` } });
   if (response.status === 404) return null;
   if (!response.ok) {
     const text = await response.text().catch(() => "");
     throw new Error(`Vault read failed: ${response.status} ${text}`.trim());
   }
   const body = (await response.json()) as VaultObjectResponse;
-  const owner = body.key_context?.owner;
-  if (typeof body.value !== "string" || typeof owner !== "string") return null;
-  return { secret: body.value, owner };
+  return toVaultEntry(body);
 }
 
-/**
- * Deletes the env's Vault object. Vault deletes by id, so we resolve
- * name → id first. Idempotent: missing entries are treated as already-deleted.
- */
-export async function deleteVault(apiKey: string, environmentId: string): Promise<void> {
-  const lookupUrl = `${WORKOS_VAULT_URL}/name/${encodeURIComponent(getVaultName(environmentId))}`;
-  const lookup = await fetch(lookupUrl, {
-    headers: { authorization: `Bearer ${apiKey}` },
-  });
+export async function deleteVaultByName(apiKey: string, name: string): Promise<void> {
+  const lookupUrl = `${WORKOS_VAULT_URL}/name/${encodeURIComponent(name)}`;
+  const lookup = await fetch(lookupUrl, { headers: { authorization: `Bearer ${apiKey}` } });
   if (lookup.status === 404) return;
   if (!lookup.ok) {
     const text = await lookup.text().catch(() => "");
@@ -155,4 +118,52 @@ export async function deleteVault(apiKey: string, environmentId: string): Promis
     const text = await response.text().catch(() => "");
     throw new Error(`Vault delete failed: ${response.status} ${text}`.trim());
   }
+}
+
+const VAULT_LIST_PAGE_SIZE = 100;
+const VAULT_LIST_MAX_PAGES = 10;
+
+export async function getVaultsByPrefix(
+  apiKey: string,
+  prefix: string,
+): Promise<ReadonlyArray<VaultEntry>> {
+  const out: VaultEntry[] = [];
+  let after: string | null = null;
+  for (let page = 0; page < VAULT_LIST_MAX_PAGES; page += 1) {
+    const url = new URL(WORKOS_VAULT_URL);
+    url.searchParams.set("limit", String(VAULT_LIST_PAGE_SIZE));
+    if (after) url.searchParams.set("after", after);
+    const response = await fetch(url.toString(), {
+      headers: { authorization: `Bearer ${apiKey}` },
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`Vault list failed: ${response.status} ${text}`.trim());
+    }
+    const body = (await response.json()) as VaultListResponse;
+    for (const raw of body.data) {
+      if (!raw.name.startsWith(prefix)) continue;
+      const entry = toVaultEntry(raw);
+      if (entry) out.push(entry);
+    }
+    after = body.list_metadata?.after ?? null;
+    if (!after) break;
+  }
+  return out;
+}
+
+export async function patchVaultKeyContext(
+  apiKey: string,
+  name: string,
+  patch: Partial<VaultKeyContext>,
+): Promise<VaultEntry | null> {
+  const existing = await getVaultByName(apiKey, name);
+  if (!existing) return null;
+  const nextKeyContext: VaultKeyContext = {
+    owner: existing.keyContext.owner,
+    environmentUrl: patch.environmentUrl ?? existing.keyContext.environmentUrl,
+    label: patch.label ?? existing.keyContext.label,
+  };
+  await upsertVault(apiKey, name, existing.value, nextKeyContext);
+  return { name, value: existing.value, keyContext: nextKeyContext };
 }

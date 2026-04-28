@@ -5,14 +5,6 @@
   "main": "src/index.ts",
   "compatibility_date": "2025-09-06",
   "routes": [{ "pattern": "api.trunk.codes", "custom_domain": true }],
-  "durable_objects": {
-    "bindings": [
-      {
-        "name": "ENVIRONMENT_ROOMS",
-        "class_name": "EnvironmentRoom",
-      },
-    ],
-  },
   "migrations": [
     {
       "tag": "v1",
@@ -21,6 +13,10 @@
     {
       "tag": "v2",
       "renamed_classes": [{ "from": "ServerRoom", "to": "EnvironmentRoom" }],
+    },
+    {
+      "tag": "v3",
+      "deleted_classes": ["EnvironmentRoom"],
     },
   ],
   "observability": {
