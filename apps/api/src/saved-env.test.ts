@@ -22,65 +22,84 @@ interface VaultStub {
   readonly id: string;
   name: string;
   value: string;
-  key_context: { owner: string; environmentUrl: string; label: string };
+  key_context: { owner: string };
 }
 
-function makeVaultStore(initial: ReadonlyArray<VaultStub> = []): {
-  readonly entries: VaultStub[];
+interface UserStub {
+  metadata: Record<string, unknown>;
+}
+
+function makeStores(
+  input: {
+    readonly vault?: ReadonlyArray<VaultStub>;
+    readonly users?: Record<string, UserStub>;
+  } = {},
+): {
+  readonly vault: VaultStub[];
+  readonly users: Record<string, UserStub>;
   readonly fetchSpy: typeof globalThis.fetch;
 } {
-  const entries: VaultStub[] = initial.map((entry) => ({ ...entry }));
-  let nextId = entries.length + 1;
+  const vault: VaultStub[] = (input.vault ?? []).map((entry) => structuredClone(entry));
+  const users: Record<string, UserStub> = { ...input.users };
+  let nextId = vault.length + 1;
 
-  const fetchSpy = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  const fetchSpy = (async (rawInput: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const request =
-      input instanceof Request
-        ? input
-        : new Request(typeof input === "string" ? input : input.toString(), init);
+      rawInput instanceof Request
+        ? rawInput
+        : new Request(typeof rawInput === "string" ? rawInput : rawInput.toString(), init);
     const url = new URL(request.url);
-    if (!url.pathname.startsWith("/vault/v1/kv")) {
+
+    if (url.pathname.startsWith("/vault/v1/kv")) {
+      if (request.method === "POST" && url.pathname === "/vault/v1/kv") {
+        const body = (await request.json()) as VaultStub;
+        const existing = vault.find((entry) => entry.name === body.name);
+        if (existing) {
+          existing.value = body.value;
+          existing.key_context = body.key_context;
+          return Response.json(existing);
+        }
+        const created: VaultStub = {
+          id: `vault_${nextId++}`,
+          name: body.name,
+          value: body.value,
+          key_context: body.key_context,
+        };
+        vault.push(created);
+        return Response.json(created);
+      }
+      if (request.method === "GET" && url.pathname.startsWith("/vault/v1/kv/name/")) {
+        const name = decodeURIComponent(url.pathname.replace("/vault/v1/kv/name/", ""));
+        const found = vault.find((entry) => entry.name === name);
+        return found ? Response.json(found) : new Response("not found", { status: 404 });
+      }
+      if (request.method === "DELETE" && url.pathname.startsWith("/vault/v1/kv/")) {
+        const id = decodeURIComponent(url.pathname.replace("/vault/v1/kv/", ""));
+        const index = vault.findIndex((entry) => entry.id === id);
+        if (index >= 0) vault.splice(index, 1);
+        return new Response(null, { status: 204 });
+      }
       return new Response("not stubbed", { status: 500 });
     }
 
-    if (request.method === "POST" && url.pathname === "/vault/v1/kv") {
-      const body = (await request.json()) as VaultStub;
-      const existing = entries.find((entry) => entry.name === body.name);
-      if (existing) {
-        existing.value = body.value;
-        existing.key_context = body.key_context;
-        return Response.json(existing);
+    if (url.pathname.startsWith("/user_management/users/")) {
+      const userId = decodeURIComponent(url.pathname.replace("/user_management/users/", ""));
+      if (request.method === "GET") {
+        const user = users[userId] ?? { metadata: {} };
+        return Response.json({ metadata: user.metadata });
       }
-      const created: VaultStub = {
-        id: `vault_${nextId++}`,
-        name: body.name,
-        value: body.value,
-        key_context: body.key_context,
-      };
-      entries.push(created);
-      return Response.json(created);
-    }
-
-    if (request.method === "GET" && url.pathname.startsWith("/vault/v1/kv/name/")) {
-      const name = decodeURIComponent(url.pathname.replace("/vault/v1/kv/name/", ""));
-      const found = entries.find((entry) => entry.name === name);
-      return found ? Response.json(found) : new Response("not found", { status: 404 });
-    }
-
-    if (request.method === "GET" && url.pathname === "/vault/v1/kv") {
-      return Response.json({ data: entries, list_metadata: {} });
-    }
-
-    if (request.method === "DELETE" && url.pathname.startsWith("/vault/v1/kv/")) {
-      const id = decodeURIComponent(url.pathname.replace("/vault/v1/kv/", ""));
-      const index = entries.findIndex((entry) => entry.id === id);
-      if (index >= 0) entries.splice(index, 1);
-      return new Response(null, { status: 204 });
+      if (request.method === "PUT") {
+        const body = (await request.json()) as { metadata: Record<string, unknown> };
+        users[userId] = { metadata: body.metadata };
+        return Response.json({ metadata: body.metadata });
+      }
+      return new Response("not stubbed", { status: 500 });
     }
 
     return new Response("not stubbed", { status: 500 });
   }) as typeof globalThis.fetch;
 
-  return { entries, fetchSpy };
+  return { vault, users, fetchSpy };
 }
 
 function makeRequest(
@@ -99,6 +118,12 @@ function makeRequest(
 
 function makeOptions(verifier: ClientAuthVerifier = acceptingVerifier): SavedEnvHandlerOptions {
   return { authVerifier: verifier, workosApiKey: "sk_test_x" };
+}
+
+function metadataSavedEnvs(users: Record<string, UserStub>, userId: string): unknown {
+  const raw = users[userId]?.metadata.savedEnvs;
+  if (typeof raw !== "string") return null;
+  return JSON.parse(raw);
 }
 
 let originalFetch: typeof globalThis.fetch;
@@ -133,8 +158,8 @@ describe("handleSavedEnvRequest", () => {
   });
 
   describe("POST /env", () => {
-    it("creates a Vault entry and returns the public record", async () => {
-      const { entries, fetchSpy } = makeVaultStore();
+    it("writes the bearer to vault and the env list to user metadata", async () => {
+      const { vault, users, fetchSpy } = makeStores();
       globalThis.fetch = fetchSpy;
       const { request, url } = makeRequest("POST", "/env", {
         environmentUrl: ENV_URL,
@@ -149,18 +174,17 @@ describe("handleSavedEnvRequest", () => {
         label: LABEL,
         environmentUrl: ENV_URL,
       });
-      expect(entries).toHaveLength(1);
-      expect(entries[0]?.name).toBe(`env-user_test-${ENV_ID}`);
-      expect(entries[0]?.value).toBe(BEARER);
-      expect(entries[0]?.key_context).toEqual({
-        owner: "user_test",
-        environmentUrl: ENV_URL,
-        label: LABEL,
-      });
+      expect(vault).toHaveLength(1);
+      expect(vault[0]?.name).toBe(`env-user_test-${ENV_ID}`);
+      expect(vault[0]?.value).toBe(BEARER);
+      expect(vault[0]?.key_context).toEqual({ owner: "user_test" });
+      expect(metadataSavedEnvs(users, "user_test")).toEqual([
+        { environmentId: ENV_ID, environmentUrl: ENV_URL, label: LABEL },
+      ]);
     });
 
     it("400s on missing fields", async () => {
-      const { fetchSpy } = makeVaultStore();
+      const { fetchSpy } = makeStores();
       globalThis.fetch = fetchSpy;
       const cases: Array<Record<string, unknown>> = [
         {},
@@ -176,7 +200,7 @@ describe("handleSavedEnvRequest", () => {
     });
 
     it("400s on http:// URL to non-localhost", async () => {
-      const { fetchSpy } = makeVaultStore();
+      const { fetchSpy } = makeStores();
       globalThis.fetch = fetchSpy;
       const { request, url } = makeRequest("POST", "/env", {
         environmentUrl: "http://t3.example.com",
@@ -189,7 +213,7 @@ describe("handleSavedEnvRequest", () => {
     });
 
     it("accepts http://localhost URLs", async () => {
-      const { fetchSpy } = makeVaultStore();
+      const { fetchSpy } = makeStores();
       globalThis.fetch = fetchSpy;
       const { request, url } = makeRequest("POST", "/env", {
         environmentUrl: "http://localhost:3773",
@@ -203,25 +227,18 @@ describe("handleSavedEnvRequest", () => {
   });
 
   describe("GET /env", () => {
-    it("lists only the user's envs and omits bearers", async () => {
-      const { fetchSpy } = makeVaultStore([
-        {
-          id: "vault_1",
-          name: `env-user_test-${ENV_ID}`,
-          value: BEARER,
-          key_context: { owner: "user_test", environmentUrl: ENV_URL, label: LABEL },
-        },
-        {
-          id: "vault_2",
-          name: "env-user_other-XYZAAAAAAAAA",
-          value: "other-bearer",
-          key_context: {
-            owner: "user_other",
-            environmentUrl: "https://other.example.com",
-            label: "Other",
+    it("lists envs from user metadata", async () => {
+      const { fetchSpy } = makeStores({
+        users: {
+          user_test: {
+            metadata: {
+              savedEnvs: JSON.stringify([
+                { environmentId: ENV_ID, environmentUrl: ENV_URL, label: LABEL },
+              ]),
+            },
           },
         },
-      ]);
+      });
       globalThis.fetch = fetchSpy;
       const { request, url } = makeRequest("GET", "/env");
       const response = await handleSavedEnvRequest(request, url, makeOptions());
@@ -232,7 +249,7 @@ describe("handleSavedEnvRequest", () => {
     });
 
     it("returns empty list when user has none", async () => {
-      const { fetchSpy } = makeVaultStore();
+      const { fetchSpy } = makeStores();
       globalThis.fetch = fetchSpy;
       const { request, url } = makeRequest("GET", "/env");
       const response = await handleSavedEnvRequest(request, url, makeOptions());
@@ -242,14 +259,25 @@ describe("handleSavedEnvRequest", () => {
 
   describe("GET /env/<id>", () => {
     it("returns the full record including the bearer for the owner", async () => {
-      const { fetchSpy } = makeVaultStore([
-        {
-          id: "vault_1",
-          name: `env-user_test-${ENV_ID}`,
-          value: BEARER,
-          key_context: { owner: "user_test", environmentUrl: ENV_URL, label: LABEL },
+      const { fetchSpy } = makeStores({
+        vault: [
+          {
+            id: "vault_1",
+            name: `env-user_test-${ENV_ID}`,
+            value: BEARER,
+            key_context: { owner: "user_test" },
+          },
+        ],
+        users: {
+          user_test: {
+            metadata: {
+              savedEnvs: JSON.stringify([
+                { environmentId: ENV_ID, environmentUrl: ENV_URL, label: LABEL },
+              ]),
+            },
+          },
         },
-      ]);
+      });
       globalThis.fetch = fetchSpy;
       const { request, url } = makeRequest("GET", `/env/${ENV_ID}`);
       const response = await handleSavedEnvRequest(request, url, makeOptions());
@@ -262,30 +290,34 @@ describe("handleSavedEnvRequest", () => {
       });
     });
 
-    it("404s when the env doesn't belong to this user", async () => {
-      const { fetchSpy } = makeVaultStore([
-        {
-          id: "vault_1",
-          name: "env-user_other-OTHERIDXXXXX",
-          value: "x",
-          key_context: { owner: "user_other", environmentUrl: ENV_URL, label: LABEL },
-        },
-      ]);
+    it("404s when the env is not in the user's metadata", async () => {
+      const { fetchSpy } = makeStores();
       globalThis.fetch = fetchSpy;
-      const { request, url } = makeRequest("GET", "/env/OTHERIDXXXXX");
+      const { request, url } = makeRequest("GET", `/env/${ENV_ID}`);
       const response = await handleSavedEnvRequest(request, url, makeOptions());
       expect(response.status).toBe(404);
     });
 
     it("403s when key_context.owner doesn't match the JWT subject", async () => {
-      const { fetchSpy } = makeVaultStore([
-        {
-          id: "vault_1",
-          name: `env-user_test-${ENV_ID}`,
-          value: BEARER,
-          key_context: { owner: "user_other", environmentUrl: ENV_URL, label: LABEL },
+      const { fetchSpy } = makeStores({
+        vault: [
+          {
+            id: "vault_1",
+            name: `env-user_test-${ENV_ID}`,
+            value: BEARER,
+            key_context: { owner: "user_other" },
+          },
+        ],
+        users: {
+          user_test: {
+            metadata: {
+              savedEnvs: JSON.stringify([
+                { environmentId: ENV_ID, environmentUrl: ENV_URL, label: LABEL },
+              ]),
+            },
+          },
         },
-      ]);
+      });
       globalThis.fetch = fetchSpy;
       const { request, url } = makeRequest("GET", `/env/${ENV_ID}`);
       const response = await handleSavedEnvRequest(request, url, makeOptions());
@@ -294,15 +326,18 @@ describe("handleSavedEnvRequest", () => {
   });
 
   describe("PATCH /env/<id>", () => {
-    it("updates the label and returns the public record", async () => {
-      const { entries, fetchSpy } = makeVaultStore([
-        {
-          id: "vault_1",
-          name: `env-user_test-${ENV_ID}`,
-          value: BEARER,
-          key_context: { owner: "user_test", environmentUrl: ENV_URL, label: "Old" },
+    it("updates the label in user metadata and returns the public record", async () => {
+      const { users, fetchSpy } = makeStores({
+        users: {
+          user_test: {
+            metadata: {
+              savedEnvs: JSON.stringify([
+                { environmentId: ENV_ID, environmentUrl: ENV_URL, label: "Old" },
+              ]),
+            },
+          },
         },
-      ]);
+      });
       globalThis.fetch = fetchSpy;
       const { request, url } = makeRequest("PATCH", `/env/${ENV_ID}`, { label: "New" });
       const response = await handleSavedEnvRequest(request, url, makeOptions());
@@ -312,71 +347,55 @@ describe("handleSavedEnvRequest", () => {
         label: "New",
         environmentUrl: ENV_URL,
       });
-      expect(entries[0]?.key_context.label).toBe("New");
+      expect(metadataSavedEnvs(users, "user_test")).toEqual([
+        { environmentId: ENV_ID, environmentUrl: ENV_URL, label: "New" },
+      ]);
     });
 
     it("404s when the env doesn't exist", async () => {
-      const { fetchSpy } = makeVaultStore();
+      const { fetchSpy } = makeStores();
       globalThis.fetch = fetchSpy;
       const { request, url } = makeRequest("PATCH", `/env/${ENV_ID}`, { label: "New" });
       const response = await handleSavedEnvRequest(request, url, makeOptions());
       expect(response.status).toBe(404);
     });
-
-    it("403s when ownership doesn't match", async () => {
-      const { fetchSpy } = makeVaultStore([
-        {
-          id: "vault_1",
-          name: `env-user_test-${ENV_ID}`,
-          value: BEARER,
-          key_context: { owner: "user_other", environmentUrl: ENV_URL, label: LABEL },
-        },
-      ]);
-      globalThis.fetch = fetchSpy;
-      const { request, url } = makeRequest("PATCH", `/env/${ENV_ID}`, { label: "New" });
-      const response = await handleSavedEnvRequest(request, url, makeOptions());
-      expect(response.status).toBe(403);
-    });
   });
 
   describe("DELETE /env/<id>", () => {
-    it("removes the entry and returns 204", async () => {
-      const { entries, fetchSpy } = makeVaultStore([
-        {
-          id: "vault_1",
-          name: `env-user_test-${ENV_ID}`,
-          value: BEARER,
-          key_context: { owner: "user_test", environmentUrl: ENV_URL, label: LABEL },
+    it("removes both the vault entry and the metadata entry", async () => {
+      const { vault, users, fetchSpy } = makeStores({
+        vault: [
+          {
+            id: "vault_1",
+            name: `env-user_test-${ENV_ID}`,
+            value: BEARER,
+            key_context: { owner: "user_test" },
+          },
+        ],
+        users: {
+          user_test: {
+            metadata: {
+              savedEnvs: JSON.stringify([
+                { environmentId: ENV_ID, environmentUrl: ENV_URL, label: LABEL },
+              ]),
+            },
+          },
         },
-      ]);
+      });
       globalThis.fetch = fetchSpy;
       const { request, url } = makeRequest("DELETE", `/env/${ENV_ID}`);
       const response = await handleSavedEnvRequest(request, url, makeOptions());
       expect(response.status).toBe(204);
-      expect(entries).toHaveLength(0);
+      expect(vault).toHaveLength(0);
+      expect(metadataSavedEnvs(users, "user_test")).toEqual([]);
     });
 
-    it("204s idempotently when the entry is already gone", async () => {
-      const { fetchSpy } = makeVaultStore();
+    it("204s idempotently when the env is already gone", async () => {
+      const { fetchSpy } = makeStores();
       globalThis.fetch = fetchSpy;
       const { request, url } = makeRequest("DELETE", `/env/${ENV_ID}`);
       const response = await handleSavedEnvRequest(request, url, makeOptions());
       expect(response.status).toBe(204);
-    });
-
-    it("403s when ownership doesn't match", async () => {
-      const { fetchSpy } = makeVaultStore([
-        {
-          id: "vault_1",
-          name: `env-user_test-${ENV_ID}`,
-          value: BEARER,
-          key_context: { owner: "user_other", environmentUrl: ENV_URL, label: LABEL },
-        },
-      ]);
-      globalThis.fetch = fetchSpy;
-      const { request, url } = makeRequest("DELETE", `/env/${ENV_ID}`);
-      const response = await handleSavedEnvRequest(request, url, makeOptions());
-      expect(response.status).toBe(403);
     });
   });
 });

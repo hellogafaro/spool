@@ -1,30 +1,30 @@
 /**
- * /env REST endpoints. Stateless: each handler verifies the WorkOS JWT,
- * derives the userId, and reads/writes WorkOS Vault. No data-path code.
+ * /env REST endpoints. Each handler verifies the WorkOS JWT, derives the userId,
+ * and reads/writes WorkOS Vault (bearer) and user metadata (env list).
  */
 
 import type { ClientAuthVerifier } from "./auth.ts";
 import { withCors } from "./cors.ts";
 import {
+  deleteSavedEnv,
   deleteVaultByName,
+  getSavedEnvs,
   getVaultByName,
   getVaultName,
-  getVaultsByPrefix,
-  parseEnvironmentIdFromName,
-  patchVaultKeyContext,
+  upsertSavedEnv,
   upsertVault,
-  type VaultEntry,
+  type SavedEnvEntry,
 } from "./workos.ts";
 
 export const ENV_ERROR_CODES = {
   ENV_AUTH_FAILED: "ENV_AUTH_FAILED",
   ENV_INVALID_BODY: "ENV_INVALID_BODY",
-  ENV_INVALID_URL: "ENV_INVALID_URL",
   ENV_NOT_FOUND: "ENV_NOT_FOUND",
   ENV_FORBIDDEN: "ENV_FORBIDDEN",
   ENV_METHOD_NOT_ALLOWED: "ENV_METHOD_NOT_ALLOWED",
   ENV_NOT_CONFIGURED: "ENV_NOT_CONFIGURED",
   ENV_VAULT_UNAVAILABLE: "ENV_VAULT_UNAVAILABLE",
+  ENV_METADATA_UNAVAILABLE: "ENV_METADATA_UNAVAILABLE",
 } as const;
 
 export type EnvErrorCode = (typeof ENV_ERROR_CODES)[keyof typeof ENV_ERROR_CODES];
@@ -126,16 +126,6 @@ function parseUpdateBody(raw: unknown): UpdateEnvBody | null {
   return { label };
 }
 
-function toPublicRecord(entry: VaultEntry, userId: string): PublicEnvRecord | null {
-  const environmentId = parseEnvironmentIdFromName(entry.name, userId);
-  if (!environmentId) return null;
-  return {
-    environmentId,
-    label: entry.keyContext.label,
-    environmentUrl: entry.keyContext.environmentUrl,
-  };
-}
-
 function readEnvironmentIdFromPath(pathname: string): string | null {
   const match = pathname.match(/^\/env\/([^/]+)\/?$/);
   if (!match) return null;
@@ -147,6 +137,14 @@ function readEnvironmentIdFromPath(pathname: string): string | null {
 function isValidEnvironmentIdShape(id: string): boolean {
   if (id.length === 0 || id.length > ENVIRONMENT_ID_MAX_LENGTH) return false;
   return /^[A-Za-z0-9._-]+$/.test(id);
+}
+
+function toPublicRecord(entry: SavedEnvEntry): PublicEnvRecord {
+  return {
+    environmentId: entry.environmentId,
+    label: entry.label,
+    environmentUrl: entry.environmentUrl,
+  };
 }
 
 export async function handleSavedEnvRequest(
@@ -235,8 +233,6 @@ async function handleCreate(
   try {
     await upsertVault(options.workosApiKey, getVaultName(userId, body.environmentId), body.bearer, {
       owner: userId,
-      environmentUrl: body.environmentUrl,
-      label: body.label,
     });
   } catch (error) {
     return errorResponse(
@@ -244,6 +240,21 @@ async function handleCreate(
       502,
       ENV_ERROR_CODES.ENV_VAULT_UNAVAILABLE,
       error instanceof Error ? error.message : "Vault write failed.",
+    );
+  }
+
+  try {
+    await upsertSavedEnv(options.workosApiKey, userId, {
+      environmentId: body.environmentId,
+      environmentUrl: body.environmentUrl,
+      label: body.label,
+    });
+  } catch (error) {
+    return errorResponse(
+      request,
+      502,
+      ENV_ERROR_CODES.ENV_METADATA_UNAVAILABLE,
+      error instanceof Error ? error.message : "User metadata write failed.",
     );
   }
 
@@ -260,22 +271,22 @@ async function handleList(
   userId: string,
   options: SavedEnvHandlerOptions,
 ): Promise<Response> {
-  let entries: ReadonlyArray<VaultEntry>;
+  let entries: ReadonlyArray<SavedEnvEntry>;
   try {
-    entries = await getVaultsByPrefix(options.workosApiKey, `env-${userId}-`);
+    entries = await getSavedEnvs(options.workosApiKey, userId);
   } catch (error) {
     return errorResponse(
       request,
       502,
-      ENV_ERROR_CODES.ENV_VAULT_UNAVAILABLE,
-      error instanceof Error ? error.message : "Vault list failed.",
+      ENV_ERROR_CODES.ENV_METADATA_UNAVAILABLE,
+      error instanceof Error ? error.message : "User metadata read failed.",
     );
   }
-  const records = entries
-    .filter((entry) => entry.keyContext.owner === userId)
-    .map((entry) => toPublicRecord(entry, userId))
-    .filter((record): record is PublicEnvRecord => record !== null);
-  return withCors(request, Response.json(records), ENV_ALLOWED_METHODS);
+  return withCors(
+    request,
+    Response.json(entries.map((entry) => toPublicRecord(entry))),
+    ENV_ALLOWED_METHODS,
+  );
 }
 
 async function handleRead(
@@ -284,17 +295,18 @@ async function handleRead(
   userId: string,
   options: SavedEnvHandlerOptions,
 ): Promise<Response> {
-  let entry: VaultEntry | null;
+  let entries: ReadonlyArray<SavedEnvEntry>;
   try {
-    entry = await getVaultByName(options.workosApiKey, getVaultName(userId, environmentId));
+    entries = await getSavedEnvs(options.workosApiKey, userId);
   } catch (error) {
     return errorResponse(
       request,
       502,
-      ENV_ERROR_CODES.ENV_VAULT_UNAVAILABLE,
-      error instanceof Error ? error.message : "Vault read failed.",
+      ENV_ERROR_CODES.ENV_METADATA_UNAVAILABLE,
+      error instanceof Error ? error.message : "User metadata read failed.",
     );
   }
+  const entry = entries.find((candidate) => candidate.environmentId === environmentId);
   if (!entry) {
     return errorResponse(
       request,
@@ -303,7 +315,27 @@ async function handleRead(
       "No saved environment with that id.",
     );
   }
-  if (entry.keyContext.owner !== userId) {
+
+  let bearerEntry;
+  try {
+    bearerEntry = await getVaultByName(options.workosApiKey, getVaultName(userId, environmentId));
+  } catch (error) {
+    return errorResponse(
+      request,
+      502,
+      ENV_ERROR_CODES.ENV_VAULT_UNAVAILABLE,
+      error instanceof Error ? error.message : "Vault read failed.",
+    );
+  }
+  if (!bearerEntry) {
+    return errorResponse(
+      request,
+      404,
+      ENV_ERROR_CODES.ENV_NOT_FOUND,
+      "No bearer is stored for that environment. Re-pair from this device.",
+    );
+  }
+  if (bearerEntry.keyContext.owner !== userId) {
     return errorResponse(
       request,
       403,
@@ -312,10 +344,8 @@ async function handleRead(
     );
   }
   const record: FullEnvRecord = {
-    environmentId,
-    label: entry.keyContext.label,
-    environmentUrl: entry.keyContext.environmentUrl,
-    bearer: entry.value,
+    ...toPublicRecord(entry),
+    bearer: bearerEntry.value,
   };
   return withCors(request, Response.json(record), ENV_ALLOWED_METHODS);
 }
@@ -346,21 +376,19 @@ async function handleUpdate(
       "Body must be { label?: string }.",
     );
   }
-  if (body.label === undefined) {
-    return handleRead(request, environmentId, userId, options);
-  }
 
-  let existing: VaultEntry | null;
+  let entries: ReadonlyArray<SavedEnvEntry>;
   try {
-    existing = await getVaultByName(options.workosApiKey, getVaultName(userId, environmentId));
+    entries = await getSavedEnvs(options.workosApiKey, userId);
   } catch (error) {
     return errorResponse(
       request,
       502,
-      ENV_ERROR_CODES.ENV_VAULT_UNAVAILABLE,
-      error instanceof Error ? error.message : "Vault read failed.",
+      ENV_ERROR_CODES.ENV_METADATA_UNAVAILABLE,
+      error instanceof Error ? error.message : "User metadata read failed.",
     );
   }
+  const existing = entries.find((entry) => entry.environmentId === environmentId);
   if (!existing) {
     return errorResponse(
       request,
@@ -369,44 +397,23 @@ async function handleUpdate(
       "No saved environment with that id.",
     );
   }
-  if (existing.keyContext.owner !== userId) {
-    return errorResponse(
-      request,
-      403,
-      ENV_ERROR_CODES.ENV_FORBIDDEN,
-      "You don't own this saved environment.",
-    );
+
+  if (body.label === undefined) {
+    return withCors(request, Response.json(toPublicRecord(existing)), ENV_ALLOWED_METHODS);
   }
 
-  let updated: VaultEntry | null;
+  const updated: SavedEnvEntry = { ...existing, label: body.label };
   try {
-    updated = await patchVaultKeyContext(
-      options.workosApiKey,
-      getVaultName(userId, environmentId),
-      { label: body.label },
-    );
+    await upsertSavedEnv(options.workosApiKey, userId, updated);
   } catch (error) {
     return errorResponse(
       request,
       502,
-      ENV_ERROR_CODES.ENV_VAULT_UNAVAILABLE,
-      error instanceof Error ? error.message : "Vault update failed.",
+      ENV_ERROR_CODES.ENV_METADATA_UNAVAILABLE,
+      error instanceof Error ? error.message : "User metadata write failed.",
     );
   }
-  if (!updated) {
-    return errorResponse(
-      request,
-      404,
-      ENV_ERROR_CODES.ENV_NOT_FOUND,
-      "No saved environment with that id.",
-    );
-  }
-  const record: PublicEnvRecord = {
-    environmentId,
-    label: updated.keyContext.label,
-    environmentUrl: updated.keyContext.environmentUrl,
-  };
-  return withCors(request, Response.json(record), ENV_ALLOWED_METHODS);
+  return withCors(request, Response.json(toPublicRecord(updated)), ENV_ALLOWED_METHODS);
 }
 
 async function handleDelete(
@@ -415,28 +422,6 @@ async function handleDelete(
   userId: string,
   options: SavedEnvHandlerOptions,
 ): Promise<Response> {
-  let existing: VaultEntry | null;
-  try {
-    existing = await getVaultByName(options.workosApiKey, getVaultName(userId, environmentId));
-  } catch (error) {
-    return errorResponse(
-      request,
-      502,
-      ENV_ERROR_CODES.ENV_VAULT_UNAVAILABLE,
-      error instanceof Error ? error.message : "Vault read failed.",
-    );
-  }
-  if (!existing) {
-    return withCors(request, new Response(null, { status: 204 }), ENV_ALLOWED_METHODS);
-  }
-  if (existing.keyContext.owner !== userId) {
-    return errorResponse(
-      request,
-      403,
-      ENV_ERROR_CODES.ENV_FORBIDDEN,
-      "You don't own this saved environment.",
-    );
-  }
   try {
     await deleteVaultByName(options.workosApiKey, getVaultName(userId, environmentId));
   } catch (error) {
@@ -445,6 +430,16 @@ async function handleDelete(
       502,
       ENV_ERROR_CODES.ENV_VAULT_UNAVAILABLE,
       error instanceof Error ? error.message : "Vault delete failed.",
+    );
+  }
+  try {
+    await deleteSavedEnv(options.workosApiKey, userId, environmentId);
+  } catch (error) {
+    return errorResponse(
+      request,
+      502,
+      ENV_ERROR_CODES.ENV_METADATA_UNAVAILABLE,
+      error instanceof Error ? error.message : "User metadata write failed.",
     );
   }
   return withCors(request, new Response(null, { status: 204 }), ENV_ALLOWED_METHODS);
