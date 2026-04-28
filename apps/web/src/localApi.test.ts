@@ -293,7 +293,7 @@ describe("wsApi", () => {
     rpcClientMock.server.getConfig.mockResolvedValue(baseServerConfig);
     const { createLocalApi } = await import("./localApi");
 
-    const api = createLocalApi(rpcClientMock as never);
+    const api = createLocalApi(() => rpcClientMock as never);
 
     await expect(api.server.getConfig()).resolves.toEqual(baseServerConfig);
     expect(rpcClientMock.server.getConfig).toHaveBeenCalledWith();
@@ -467,7 +467,7 @@ describe("wsApi", () => {
     rpcClientMock.server.refreshProviders.mockResolvedValue({ providers: nextProviders });
     const { createLocalApi } = await import("./localApi");
 
-    const api = createLocalApi(rpcClientMock as never);
+    const api = createLocalApi(() => rpcClientMock as never);
 
     await expect(api.server.refreshProviders()).resolves.toEqual({ providers: nextProviders });
     expect(rpcClientMock.server.refreshProviders).toHaveBeenCalledWith();
@@ -481,7 +481,7 @@ describe("wsApi", () => {
     rpcClientMock.server.updateSettings.mockResolvedValue(nextSettings);
     const { createLocalApi } = await import("./localApi");
 
-    const api = createLocalApi(rpcClientMock as never);
+    const api = createLocalApi(() => rpcClientMock as never);
 
     await expect(api.server.updateSettings({ enableAssistantStreaming: true })).resolves.toEqual(
       nextSettings,
@@ -496,7 +496,7 @@ describe("wsApi", () => {
     getWindowForTest().desktopBridge = makeDesktopBridge({ showContextMenu });
 
     const { createLocalApi } = await import("./localApi");
-    const api = createLocalApi(rpcClientMock as never);
+    const api = createLocalApi(() => rpcClientMock as never);
     const items = [{ id: "delete", label: "Delete" }] as const;
 
     await expect(api.contextMenu.show(items)).resolves.toBe("delete");
@@ -508,7 +508,7 @@ describe("wsApi", () => {
     getWindowForTest().desktopBridge = makeDesktopBridge({ pickFolder });
 
     const { createLocalApi } = await import("./localApi");
-    const api = createLocalApi(rpcClientMock as never);
+    const api = createLocalApi(() => rpcClientMock as never);
 
     await expect(api.dialogs.pickFolder({ initialPath: "/tmp/workspace" })).resolves.toBe(
       "/tmp/project",
@@ -520,7 +520,7 @@ describe("wsApi", () => {
     showContextMenuFallbackMock.mockResolvedValue("rename");
     const { createLocalApi } = await import("./localApi");
 
-    const api = createLocalApi(rpcClientMock as never);
+    const api = createLocalApi(() => rpcClientMock as never);
     const items = [{ id: "rename", label: "Rename" }] as const;
 
     await expect(api.contextMenu.show(items, { x: 4, y: 5 })).resolves.toBe("rename");
@@ -562,7 +562,7 @@ describe("wsApi", () => {
     });
 
     const { createLocalApi } = await import("./localApi");
-    const api = createLocalApi(rpcClientMock as never);
+    const api = createLocalApi(() => rpcClientMock as never);
 
     await api.persistence.getClientSettings();
     await api.persistence.setClientSettings(clientSettings);
@@ -586,7 +586,7 @@ describe("wsApi", () => {
 
   it("falls back to browser storage for persistence when the desktop bridge is missing", async () => {
     const { createLocalApi } = await import("./localApi");
-    const api = createLocalApi(rpcClientMock as never);
+    const api = createLocalApi(() => rpcClientMock as never);
     const clientSettings = {
       autoOpenPlanSidebar: false,
       confirmThreadArchive: true,

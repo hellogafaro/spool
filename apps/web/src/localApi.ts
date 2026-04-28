@@ -26,7 +26,7 @@ import {
 
 let cachedApi: LocalApi | undefined;
 
-export function createLocalApi(rpcClient: WsRpcClient): LocalApi {
+export function createLocalApi(getRpcClient: () => WsRpcClient): LocalApi {
   return {
     dialogs: {
       pickFolder: async (options) => {
@@ -41,7 +41,7 @@ export function createLocalApi(rpcClient: WsRpcClient): LocalApi {
       },
     },
     shell: {
-      openInEditor: (cwd, editor) => rpcClient.shell.openInEditor({ cwd, editor }),
+      openInEditor: (cwd, editor) => getRpcClient().shell.openInEditor({ cwd, editor }),
       openExternal: async (url) => {
         if (window.desktopBridge) {
           const opened = await window.desktopBridge.openExternal(url);
@@ -110,11 +110,11 @@ export function createLocalApi(rpcClient: WsRpcClient): LocalApi {
       },
     },
     server: {
-      getConfig: rpcClient.server.getConfig,
-      refreshProviders: rpcClient.server.refreshProviders,
-      upsertKeybinding: rpcClient.server.upsertKeybinding,
-      getSettings: rpcClient.server.getSettings,
-      updateSettings: rpcClient.server.updateSettings,
+      getConfig: (...args) => getRpcClient().server.getConfig(...args),
+      refreshProviders: (...args) => getRpcClient().server.refreshProviders(...args),
+      upsertKeybinding: (...args) => getRpcClient().server.upsertKeybinding(...args),
+      getSettings: (...args) => getRpcClient().server.getSettings(...args),
+      updateSettings: (...args) => getRpcClient().server.updateSettings(...args),
     },
   };
 }
@@ -128,7 +128,7 @@ export function readLocalApi(): LocalApi | undefined {
     return cachedApi;
   }
 
-  cachedApi = createLocalApi(getPrimaryEnvironmentConnection().client);
+  cachedApi = createLocalApi(() => getPrimaryEnvironmentConnection().client);
   return cachedApi;
 }
 
