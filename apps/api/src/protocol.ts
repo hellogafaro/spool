@@ -66,7 +66,19 @@ export interface PairTokenSignal {
   readonly token: string;
 }
 
-export type ControlMessage = DialSignal | PairStatusSignal;
-export type EnvironmentSignal = PairTokenSignal;
+/** Env→relay liveness probe; DO replies with EnvironmentPongSignal so the env can detect half-open TCP. */
+export interface EnvironmentPingSignal {
+  readonly type: "env-ping";
+  readonly id: string;
+}
+
+/** Relay→env reply to EnvironmentPingSignal; echoes the ping id. */
+export interface EnvironmentPongSignal {
+  readonly type: "env-pong";
+  readonly id: string;
+}
+
+export type ControlMessage = DialSignal | PairStatusSignal | EnvironmentPongSignal;
+export type EnvironmentSignal = PairTokenSignal | EnvironmentPingSignal;
 
 export const ENVIRONMENT_PROOF_HEADER = "x-trunk-environment-proof";

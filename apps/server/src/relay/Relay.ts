@@ -31,6 +31,10 @@ const PROOF_HEADER = "x-trunk-environment-proof";
 const CONTROL_PATH = "/environment";
 const CHANNEL_PATH = "/channel";
 
+const PING_INTERVAL_MS = 20_000;
+const PING_GRACE_MS = 60_000;
+const HEARTBEAT_MISS_CLOSE_CODE = 4000;
+
 interface DialSignal {
   readonly type: "dial";
   readonly channelId: string;
@@ -124,6 +128,41 @@ const connectControl = (
     controlUrl.searchParams.set("environmentId", local.environmentId);
     const socket = openWithProof(controlUrl, local.environmentSecret);
 
+    let pingTimer: ReturnType<typeof setInterval> | null = null;
+    let watchdogTimer: ReturnType<typeof setInterval> | null = null;
+    let lastPongAt = Date.now();
+
+    const stopHeartbeat = () => {
+      if (pingTimer !== null) {
+        clearInterval(pingTimer);
+        pingTimer = null;
+      }
+      if (watchdogTimer !== null) {
+        clearInterval(watchdogTimer);
+        watchdogTimer = null;
+      }
+    };
+
+    const startHeartbeat = () => {
+      lastPongAt = Date.now();
+      pingTimer = setInterval(() => {
+        if (socket.readyState !== WebSocket.OPEN) return;
+        try {
+          socket.send(JSON.stringify({ type: "env-ping", id: crypto.randomUUID() }));
+        } catch {
+          // ignore: watchdog will catch a wedged socket
+        }
+      }, PING_INTERVAL_MS);
+      watchdogTimer = setInterval(() => {
+        if (Date.now() - lastPongAt <= PING_GRACE_MS) return;
+        try {
+          socket.close(HEARTBEAT_MISS_CLOSE_CODE, "heartbeat-miss");
+        } catch {
+          // ignore: already closing
+        }
+      }, PING_INTERVAL_MS);
+    };
+
     Effect.runFork(
       setStatus({ status: "connecting", environmentId: local.environmentId, lastError: null }),
     );
@@ -137,6 +176,7 @@ const connectControl = (
           // ignore: the relay will see the next push on the next reconnect
         }
       });
+      startHeartbeat();
       Effect.runFork(
         setStatus({
           status: "connected",
@@ -148,21 +188,21 @@ const connectControl = (
     });
 
     socket.addEventListener("message", (event) => {
-      let signal: DialSignal | undefined;
+      lastPongAt = Date.now();
+      let parsed: { type?: unknown; channelId?: unknown; id?: unknown };
       try {
-        const parsed = JSON.parse(String(event.data)) as { type?: unknown; channelId?: unknown };
-        if (parsed.type === "dial" && typeof parsed.channelId === "string") {
-          signal = { type: "dial", channelId: parsed.channelId };
-        }
+        parsed = JSON.parse(String(event.data)) as typeof parsed;
       } catch {
-        // ignore non-JSON or malformed control frames
+        return;
       }
-      if (signal) {
+      if (parsed.type === "dial" && typeof parsed.channelId === "string") {
+        const signal: DialSignal = { type: "dial", channelId: parsed.channelId };
         Effect.runFork(handleDial(apiUrl, local, loopbackUrl, trustToken, signal.channelId));
       }
     });
 
     const finish = (error: string | null) => {
+      stopHeartbeat();
       Effect.runFork(
         setStatus({
           status: "disconnected",
@@ -182,6 +222,7 @@ const connectControl = (
     });
 
     return Effect.sync(() => {
+      stopHeartbeat();
       try {
         socket.close();
       } catch {

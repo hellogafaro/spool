@@ -377,7 +377,7 @@ export class EnvironmentRoom extends DurableObject<Env> {
 
     if (attachment.role === "env") {
       if (typeof msg !== "string") return;
-      let parsed: { type?: unknown; token?: unknown };
+      let parsed: { type?: unknown; token?: unknown; id?: unknown };
       try {
         parsed = JSON.parse(msg) as typeof parsed;
       } catch {
@@ -385,6 +385,15 @@ export class EnvironmentRoom extends DurableObject<Env> {
       }
       if (parsed.type === "pair-token" && typeof parsed.token === "string") {
         await this.onPairToken(attachment.environmentId, parsed.token);
+        return;
+      }
+      if (parsed.type === "env-ping" && typeof parsed.id === "string") {
+        const pong: ControlMessage = { type: "env-pong", id: parsed.id };
+        try {
+          ws.send(JSON.stringify(pong));
+        } catch {
+          // ignore: env reconnects via its heartbeat-miss path
+        }
       }
       return;
     }

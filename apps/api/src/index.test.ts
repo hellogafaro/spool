@@ -355,6 +355,65 @@ describe("dial-back routing", () => {
     controlB.close();
   });
 
+  it("replies env-pong with the matching id for an env-ping", async () => {
+    const environmentId = "HEARTBTABCDE";
+    const control = await openSocket(
+      API_PATHS.environment,
+      { environmentId },
+      { [ENVIRONMENT_PROOF_HEADER]: "x" },
+    );
+
+    const pingId = "ping-1234";
+    const messagePromise = new Promise<MessageEvent>((resolve) => {
+      const handler = (event: Event) => {
+        const parsed = JSON.parse(String((event as MessageEvent).data)) as { type?: unknown };
+        if (parsed.type === "env-pong") {
+          control.removeEventListener("message", handler);
+          resolve(event as MessageEvent);
+        }
+      };
+      control.addEventListener("message", handler);
+    });
+
+    control.send(JSON.stringify({ type: "env-ping", id: pingId }));
+    const event = await messagePromise;
+    const parsed = JSON.parse(String(event.data)) as { type: string; id: string };
+    expect(parsed).toEqual({ type: "env-pong", id: pingId });
+
+    control.close();
+  });
+
+  it("ignores malformed heartbeat frames without closing the env socket", async () => {
+    const environmentId = "BADPINGABCDE";
+    const control = await openSocket(
+      API_PATHS.environment,
+      { environmentId },
+      { [ENVIRONMENT_PROOF_HEADER]: "x" },
+    );
+
+    control.send(JSON.stringify({ type: "env-ping" }));
+    control.send(JSON.stringify({ type: "env-ping", id: 42 }));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(control.readyState).toBe(WebSocket.OPEN);
+
+    const messagePromise = new Promise<MessageEvent>((resolve) => {
+      const handler = (event: Event) => {
+        const parsed = JSON.parse(String((event as MessageEvent).data)) as { type?: unknown };
+        if (parsed.type === "env-pong") {
+          control.removeEventListener("message", handler);
+          resolve(event as MessageEvent);
+        }
+      };
+      control.addEventListener("message", handler);
+    });
+    control.send(JSON.stringify({ type: "env-ping", id: "after-bad" }));
+    const event = await messagePromise;
+    const parsed = JSON.parse(String(event.data)) as { id: string };
+    expect(parsed.id).toBe("after-bad");
+
+    control.close();
+  });
+
   it("evicts pending browsers when control environment disconnects", async () => {
     const environmentId = "EVICTABCDEF2";
     const control = await openSocket(
