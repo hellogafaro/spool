@@ -2,8 +2,9 @@ import { useAuth } from "@workos-inc/authkit-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { CommandLineIcon, CubeTransparentIcon } from "@heroicons/react/16/solid";
+import type { EnvironmentId } from "@t3tools/contracts";
 
-import { addSavedEnvironment } from "../environments/runtime";
+import { addSavedEnvironment, removeSavedEnvironment } from "../environments/runtime";
 import { upsertSavedEnv } from "../auth/savedEnvApi";
 import { ensureLocalApi } from "../localApi";
 import { useClaimedEnvironments } from "../auth/useClaimedEnvironments";
@@ -54,28 +55,42 @@ function OnboardingRouteView() {
     pairingInFlightRef.current = true;
     setError(null);
     setPairing(true);
+    const trimmedUrl = environmentUrl.trim();
+    if (!isAcceptableEnvironmentUrl(trimmedUrl)) {
+      pairingInFlightRef.current = false;
+      setPairing(false);
+      setError("Environment URL must start with https:// or http://localhost.");
+      return;
+    }
+    let createdRecordId: EnvironmentId | null = null;
     try {
       const accessToken = await auth.getAccessToken();
       if (!accessToken) throw new Error("Couldn't get an access token. Try again.");
       const record = await addSavedEnvironment({
-        host: environmentUrl.trim(),
+        host: trimmedUrl,
         pairingCode: pairToken.trim(),
         label: label.trim() || "Environment",
       });
+      createdRecordId = record.environmentId;
       const bearer = await ensureLocalApi().persistence.getSavedEnvironmentSecret(
         record.environmentId,
       );
-      if (bearer) {
-        await upsertSavedEnv({
-          environmentUrl: record.httpBaseUrl,
-          environmentId: record.environmentId,
-          label: record.label,
-          bearer,
-          accessToken,
-        });
+      if (!bearer) {
+        throw new Error("Pairing succeeded locally but no bearer was issued. Try again.");
       }
+      await upsertSavedEnv({
+        environmentUrl: record.httpBaseUrl,
+        environmentId: record.environmentId,
+        label: record.label,
+        bearer,
+        accessToken,
+      });
+      createdRecordId = null;
       await environments.refetch();
     } catch (e) {
+      if (createdRecordId) {
+        await removeSavedEnvironment(createdRecordId).catch(() => undefined);
+      }
       setError(e instanceof Error ? e.message : "Pairing failed.");
     } finally {
       pairingInFlightRef.current = false;
@@ -210,6 +225,21 @@ function LocalGuide() {
       <CodeBlock>{"trunk start"}</CodeBlock>
     </div>
   );
+}
+
+function isAcceptableEnvironmentUrl(value: string): boolean {
+  if (value.length === 0) return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol === "https:") return true;
+  if (parsed.protocol === "http:") {
+    return parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+  }
+  return false;
 }
 
 function ContainerGuide() {

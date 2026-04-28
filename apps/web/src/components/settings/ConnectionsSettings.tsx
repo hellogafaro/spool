@@ -1,5 +1,5 @@
 import { PlusIcon, QrCodeIcon } from "@heroicons/react/16/solid";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type AuthClientSession,
   type AuthPairingLink,
@@ -919,7 +919,10 @@ export function ConnectionsSettings() {
     }
   }, []);
 
+  const addBackendInFlightRef = useRef(false);
   const handleAddSavedBackend = useCallback(async () => {
+    if (addBackendInFlightRef.current) return;
+    addBackendInFlightRef.current = true;
     setIsAddingSavedBackend(true);
     setSavedBackendError(null);
     try {
@@ -953,6 +956,7 @@ export function ConnectionsSettings() {
         }),
       );
     } finally {
+      addBackendInFlightRef.current = false;
       setIsAddingSavedBackend(false);
     }
   }, [

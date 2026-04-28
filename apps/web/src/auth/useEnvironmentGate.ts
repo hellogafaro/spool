@@ -94,15 +94,8 @@ export function useEnvironmentGate(): { isReady: boolean } {
     };
   }, [auth, environments.data]);
 
-  const registryById = useSavedEnvironmentRegistryStore((state) => state.byId);
-  const hasHydratedConnection = environments.data?.some(
-    (environmentId) => registryById[environmentId as EnvironmentId] !== undefined,
-  );
   const isReady =
-    !!environments.data &&
-    (environments.data.length === 0
-      ? pathname === "/onboarding"
-      : hasHydratedConnection === true || pathname === "/onboarding");
+    !!environments.data && (environments.data.length > 0 || pathname === "/onboarding");
 
   return { isReady };
 }
