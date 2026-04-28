@@ -6,8 +6,8 @@ import { createHashHistory, createBrowserHistory } from "@tanstack/react-router"
 import "@xterm/xterm/css/xterm.css";
 import "./index.css";
 
+import { writeBrowserSavedEnvironmentRegistry } from "./clientPersistenceStorage";
 import { isElectron } from "./env";
-import { ensureLocalApi } from "./localApi";
 import { getRouter } from "./router";
 import { APP_DISPLAY_NAME } from "./branding";
 import { syncDocumentWindowControlsOverlayClass } from "./lib/windowControlsOverlay";
@@ -16,11 +16,11 @@ import { AuthProvider, isWorkOsConfigured } from "./auth/workos";
 // Trunk SaaS has no UI to add T3-style remote backends, so the saved-env
 // registry should always be empty. Clear any residue from prior local-T3
 // testing so its UUID-keyed entries don't trigger 1013 reconnect storms
-// against the relay on every boot.
-if (isWorkOsConfigured) {
-  void ensureLocalApi()
-    .persistence.setSavedEnvironmentRegistry([])
-    .catch(() => undefined);
+// against the relay on every boot. Direct localStorage write — bypasses
+// localApi to avoid pulling in the primary-env resolution that doesn't
+// apply in SaaS.
+if (isWorkOsConfigured && typeof window !== "undefined") {
+  writeBrowserSavedEnvironmentRegistry([]);
 }
 
 // Electron loads the app from a file-backed shell, so hash history avoids path resolution issues.
