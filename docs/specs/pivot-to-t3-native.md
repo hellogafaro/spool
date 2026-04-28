@@ -42,6 +42,7 @@ key_context:
 ```
 
 Notes:
+
 - `name` carries the listing boundary (`name_prefix=env-<userId>-`). One Vault list call returns just that user's envs.
 - `environmentId` is parsed from the name; not duplicated in key_context.
 - `environmentUrl` stores the http base URL. Web derives `wss://` by scheme swap at use.
@@ -54,11 +55,13 @@ Four endpoints, REST-shaped. Each requires a valid WorkOS JWT. Worker is a dumb 
 ### `POST /env`
 
 Body:
+
 ```
 { environmentUrl: string, environmentId: string, label: string, bearer: string }
 ```
 
 Steps:
+
 1. Verify JWT, extract `userId`.
 2. Validate `environmentUrl` is `https://` or `http://localhost`.
 3. `upsertVault(name=env-<userId>-<environmentId>, value=bearer, key_context={owner: userId, environmentUrl, label})`.
@@ -85,12 +88,14 @@ Body: `{ label: string }`. Updates `key_context.label`. Owner check. Optional �
 ## Web changes
 
 Drop:
+
 - `apps/web/src/environments/primary/*` — entire directory.
 - `getPrimaryEnvironmentConnection()` and all callers.
 - The "primary env" concept from the store; `activeEnvironmentId` either dies or becomes a UI-only selector for which saved env is in focus.
 - WS heartbeat code (relay-specific, irrelevant for direct env connection).
 
 Add:
+
 - Empty-state route: if `listSavedEnvironmentRecords().length === 0`, redirect to `/welcome` → onboarding-styled `/pair`.
 - `/pair` page flow:
   1. User pastes `environmentUrl`, `pairToken`, `label`.
@@ -103,23 +108,27 @@ Add:
 - Security checklist on `/pair`: "Is this env behind Tailscale, CF Tunnel, or localhost?" with link to `docs/security.md`.
 
 Reuse:
+
 - `apps/web/src/environments/remote/*` — already implements the saved-env runtime path and the bootstrap call to the env. Wire it as the only path.
 - `SavedEnvironmentRecord` type stays. Worker maps `environmentUrl` ↔ T3's `httpBaseUrl` at the API boundary.
 
 ## Server changes
 
 Drop:
+
 - `apps/server/src/relay/*` — Relay, RelayConfig, RelayState, pairToken, banner, deviceFlow.
 - `~/.trunk/config.json` writer.
 - Relay layer wiring in the runtime composition.
 - Heartbeat protocol added in `3e41d222`.
 
 Keep:
+
 - Everything else. Server becomes upstream T3 with no Trunk-specific code.
 
 ## Trunk Worker changes
 
 Replace `apps/api/*` wholesale:
+
 - Drop `EnvironmentRoom` Durable Object, `pairing.ts` (handlePairingRequest + writer), `ownership.ts`, `protocol.ts`, all WS bridging.
 - Drop `environments` user-metadata writer in `workos.ts`. The `environments` claim is no longer used.
 - Keep `auth.ts` (WorkOS JWT verifier).
@@ -131,14 +140,14 @@ Worker target size: ~80 LOC of route handlers + the Vault helpers. No data-path 
 
 ## Threat model
 
-| Risk | Mitigation |
-|------|-----------|
-| WorkOS account compromise | Attacker reads Vault → has bearers. Same surface as managed mode. WorkOS 2FA, conditional access. |
-| Bearer in transit (Worker → web) | TLS to Worker. Bearer in JSON body, short-lived TTL. Web caches in memory only. |
-| Stolen bearer on a device | T3 supports per-session revoke. User clicks "rotate" → Worker re-runs pair on user's behalf with a fresh token. |
-| Env URL exposure | User responsibility — Tailscale / CF Tunnel / localhost. Trunk validates URL is `https://`-or-localhost; refuses public `http://`. |
-| Trunk Worker compromise | Can read all Vault entries. Mitigation: scope Worker's WorkOS API key to JWT verify + Vault read/write only. |
-| Replaying old saved-env list | Vault is source of truth. Worker reads on every list call; localStorage cache is informational only. |
+| Risk                             | Mitigation                                                                                                                         |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| WorkOS account compromise        | Attacker reads Vault → has bearers. Same surface as managed mode. WorkOS 2FA, conditional access.                                  |
+| Bearer in transit (Worker → web) | TLS to Worker. Bearer in JSON body, short-lived TTL. Web caches in memory only.                                                    |
+| Stolen bearer on a device        | T3 supports per-session revoke. User clicks "rotate" → Worker re-runs pair on user's behalf with a fresh token.                    |
+| Env URL exposure                 | User responsibility — Tailscale / CF Tunnel / localhost. Trunk validates URL is `https://`-or-localhost; refuses public `http://`. |
+| Trunk Worker compromise          | Can read all Vault entries. Mitigation: scope Worker's WorkOS API key to JWT verify + Vault read/write only.                       |
+| Replaying old saved-env list     | Vault is source of truth. Worker reads on every list call; localStorage cache is informational only.                               |
 
 ## What goes away from this week's work
 

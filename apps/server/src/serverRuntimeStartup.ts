@@ -33,17 +33,12 @@ import { ServerEnvironment } from "./environment/Services/ServerEnvironment.ts";
 import { AnalyticsService } from "./telemetry/Services/AnalyticsService.ts";
 import { ServerAuth } from "./auth/Services/ServerAuth.ts";
 import { ProviderSessionReaper } from "./provider/Services/ProviderSessionReaper.ts";
-import { publishPairToken } from "./relay/pairToken.ts";
-import { readRelayConfig } from "./relay/RelayConfig.ts";
-import { formatPairBanner } from "./relay/banner.ts";
 import {
   formatHeadlessServeOutput,
   formatHostForUrl,
   isWildcardHost,
   issueHeadlessServeAccessInfo,
 } from "./startupAccess.ts";
-
-const DEFAULT_TRUNK_APP_URL = "https://app.trunk.codes";
 
 export class ServerRuntimeStartupError extends Data.TaggedError("ServerRuntimeStartupError")<{
   readonly message: string;
@@ -294,15 +289,6 @@ export const makeServerRuntimeStartup = Effect.gen(function* () {
 
   const commandGate = yield* makeCommandGate;
   const httpListening = yield* Deferred.make<void>();
-  // Resolved by the relay-managed branch once it has the pair credential.
-  // A separate post-startup fork awaits this and prints the banner so the
-  // pair info is the chronologically-last write to stdout regardless of
-  // which other startup forks (reaper, heartbeat) flush first.
-  const pairBannerReady = yield* Deferred.make<{
-    readonly environmentId: string;
-    readonly token: string;
-    readonly appUrl: string;
-  }>();
   const reactorScope = yield* Scope.make("sequential");
 
   yield* Effect.addFinalizer(() => Scope.close(reactorScope, Exit.void));
@@ -444,25 +430,7 @@ export const makeServerRuntimeStartup = Effect.gen(function* () {
 
       yield* Effect.logDebug("startup phase: recording startup heartbeat");
       yield* launchStartupHeartbeat;
-      const relayConfig = yield* readRelayConfig;
-      const isRelayManaged = Option.isSome(relayConfig);
-      if (isRelayManaged) {
-        yield* Effect.logDebug("startup phase: relay-managed, issuing pair credential");
-        const accessInfo = yield* issueHeadlessServeAccessInfo();
-        publishPairToken(accessInfo.token);
-        const appUrl = (process.env.TRUNK_APP_URL?.trim() || DEFAULT_TRUNK_APP_URL).replace(
-          /\/$/,
-          "",
-        );
-        // Resolve the banner-ready deferred so the dedicated post-startup fork
-        // (forked once outside this fork — see below) can print after every
-        // other startup-time fork has had its first message flushed.
-        yield* Deferred.succeed(pairBannerReady, {
-          environmentId: relayConfig.value.environmentId,
-          token: accessInfo.token,
-          appUrl,
-        }).pipe(Effect.orDie);
-      } else if (serverConfig.startupPresentation === "headless") {
+      if (serverConfig.startupPresentation === "headless") {
         yield* Effect.logDebug("startup phase: headless access info");
         const accessInfo = yield* issueHeadlessServeAccessInfo();
         yield* runStartupPhase(
@@ -480,18 +448,6 @@ export const makeServerRuntimeStartup = Effect.gen(function* () {
         yield* runStartupPhase("browser.open", maybeOpenBrowser(startupBrowserTarget));
       }
       yield* Effect.logDebug("startup phase: complete");
-    }),
-  );
-
-  // Banner fork: stays parked on the pairBannerReady Deferred until the
-  // relay-managed branch resolves it. Printing here (outside the main
-  // startup fork) means the banner runs after every startup phase has
-  // concluded its synchronous work, so the operator sees a clean block
-  // of pair info at the bottom of the boot output instead of mid-stream.
-  yield* Effect.forkScoped(
-    Effect.gen(function* () {
-      const accessInfo = yield* Deferred.await(pairBannerReady);
-      yield* runStartupPhase("relay.banner", Console.log(formatPairBanner(accessInfo)));
     }),
   );
 

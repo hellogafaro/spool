@@ -1096,17 +1096,6 @@ const projectCommand = Command.make("project").pipe(
   Command.withSubcommands([projectAddCommand, projectRemoveCommand, projectRenameCommand]),
 );
 
-/**
- * Bootstrap the relay config so an environmentId exists on disk. The
- * pair banner itself is printed later by the runtime startup phase that
- * actually issues the T3 pair credential — running here would be too early
- * (auth/db layers aren't up yet).
- */
-const ensureRelayBootstrapped = Effect.gen(function* () {
-  const { writeRelayConfig } = yield* Effect.promise(() => import("./relay/RelayConfig.ts"));
-  yield* writeRelayConfig();
-});
-
 const runServerCommand = (
   flags: CliServerFlags,
   options?: {
@@ -1115,18 +1104,10 @@ const runServerCommand = (
   },
 ) =>
   Effect.gen(function* () {
-    yield* ensureRelayBootstrapped;
     const logLevel = yield* GlobalFlag.LogLevel;
     const config = yield* resolveServerConfig(flags, logLevel, options);
     return yield* runServer.pipe(Effect.provideService(ServerConfig, config));
   });
-
-const pairCommand = Command.make("pair").pipe(
-  Command.withDescription(
-    "Bootstrap ~/.trunk/config.json. Run `trunk start` to print the pair credentials.",
-  ),
-  Command.withHandler(() => ensureRelayBootstrapped),
-);
 
 const startCommand = Command.make("start", { ...sharedServerCommandFlags }).pipe(
   Command.withDescription("Run the Trunk server."),
@@ -1148,5 +1129,5 @@ const serveCommand = Command.make("serve", { ...sharedServerCommandFlags }).pipe
 export const cli = Command.make("t3", { ...sharedServerCommandFlags }).pipe(
   Command.withDescription("Run the Trunk server."),
   Command.withHandler((flags) => runServerCommand(flags)),
-  Command.withSubcommands([startCommand, serveCommand, authCommand, pairCommand, projectCommand]),
+  Command.withSubcommands([startCommand, serveCommand, authCommand, projectCommand]),
 );
