@@ -3,9 +3,14 @@ import { Outlet, createFileRoute, redirect, useLocation } from "@tanstack/react-
 import { useEffect, useState } from "react";
 
 import { useSettingsRestore } from "../components/settings/SettingsPanels";
+import {
+  SettingsTerminalButton,
+  SettingsTerminalDrawer,
+} from "../components/settings/SettingsTerminalDrawer";
 import { Button } from "../components/ui/button";
 import { SidebarInset, SidebarTrigger } from "../components/ui/sidebar";
 import { isElectron } from "../env";
+import { isTerminalFocused } from "../lib/terminalFocus";
 
 function RestoreDefaultsButton({ onRestored }: { onRestored: () => void }) {
   const { changedSettingLabels, restoreDefaults } = useSettingsRestore(onRestored);
@@ -32,7 +37,7 @@ function SettingsContentLayout() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !isTerminalFocused()) {
         event.preventDefault();
         window.history.back();
       }
@@ -52,11 +57,10 @@ function SettingsContentLayout() {
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <SidebarTrigger className="size-7 shrink-0 md:hidden" />
               <span className="text-sm font-medium text-foreground">Settings</span>
-              {showRestoreDefaults ? (
-                <div className="ms-auto flex items-center gap-2">
-                  <RestoreDefaultsButton onRestored={handleRestored} />
-                </div>
-              ) : null}
+              <div className="ms-auto flex items-center gap-2">
+                <SettingsTerminalButton />
+                {showRestoreDefaults ? <RestoreDefaultsButton onRestored={handleRestored} /> : null}
+              </div>
             </div>
           </header>
         )}
@@ -66,17 +70,17 @@ function SettingsContentLayout() {
             <span className="text-xs font-medium tracking-wide text-muted-foreground/70">
               Settings
             </span>
-            {showRestoreDefaults ? (
-              <div className="ms-auto flex items-center gap-2">
-                <RestoreDefaultsButton onRestored={handleRestored} />
-              </div>
-            ) : null}
+            <div className="ms-auto flex items-center gap-2">
+              <SettingsTerminalButton />
+              {showRestoreDefaults ? <RestoreDefaultsButton onRestored={handleRestored} /> : null}
+            </div>
           </div>
         )}
 
         <div key={restoreSignal} className="min-h-0 flex flex-1 flex-col">
           <Outlet />
         </div>
+        <SettingsTerminalDrawer />
       </div>
     </SidebarInset>
   );

@@ -13,6 +13,7 @@ import { Throttler } from "@tanstack/react-pacer";
 import {
   createKnownEnvironment,
   getKnownEnvironmentWsBaseUrl,
+  parseScopedThreadKey,
   scopedThreadKey,
   scopeProjectRef,
   scopeThreadRef,
@@ -67,6 +68,7 @@ import {
   derivePhysicalProjectKey,
 } from "../../logicalProject";
 import { getClientSettings } from "~/hooks/useSettings";
+import { isSettingsTerminalThreadId } from "~/settings-terminal";
 
 type EnvironmentServiceState = {
   readonly queryClient: QueryClient;
@@ -608,6 +610,12 @@ function reconcileSnapshotDerivedState() {
     })),
     draftThreadKeys: useComposerDraftStore.getState().listDraftThreadKeys(),
   });
+  for (const threadKey of Object.keys(useTerminalStateStore.getState().terminalStateByThreadKey)) {
+    const threadRef = parseScopedThreadKey(threadKey);
+    if (threadRef && isSettingsTerminalThreadId(threadRef.threadId)) {
+      activeThreadKeys.add(threadKey);
+    }
+  }
   useTerminalStateStore.getState().removeOrphanedTerminalStates(activeThreadKeys);
 }
 
@@ -773,6 +781,10 @@ function createEnvironmentConnectionHandlers() {
     },
     applyTerminalEvent: (event: TerminalEvent, environmentId: EnvironmentId) => {
       const threadRef = scopeThreadRef(environmentId, ThreadId.make(event.threadId));
+      if (isSettingsTerminalThreadId(event.threadId)) {
+        useTerminalStateStore.getState().applyTerminalEvent(threadRef, event);
+        return;
+      }
       const serverThread = selectThreadByRef(useStore.getState(), threadRef);
       const hasDraftThread =
         useComposerDraftStore.getState().getDraftThreadByRef(threadRef) !== null;

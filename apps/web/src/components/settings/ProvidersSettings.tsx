@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { CommandLineIcon, XMarkIcon } from "@heroicons/react/16/solid";
+import { XMarkIcon } from "@heroicons/react/16/solid";
 import { type ProviderKind } from "@t3tools/contracts";
 import { DEFAULT_UNIFIED_SETTINGS } from "@t3tools/contracts/settings";
 import { normalizeModelSlug } from "@t3tools/shared/model";
@@ -18,7 +18,6 @@ import {
   getProviderEnvironmentUnavailableMessage,
   type ProviderEnvironmentState,
 } from "./provider-environment-state";
-import { SettingsTerminalDialog } from "./SettingsTerminalDialog";
 import { SettingsPageContainer, SettingsSection } from "./settingsLayout";
 
 interface ProviderRecipe {
@@ -44,7 +43,6 @@ export function ProvidersSettings() {
   const settings = useSettings();
   const { updateSettings } = useUpdateSettings();
   const runtimeById = useSavedEnvironmentRuntimeStore((state) => state.byId);
-  const [terminalOpen, setTerminalOpen] = useState(false);
   const [customModelInput, setCustomModelInput] = useState<Partial<Record<ProviderKind, string>>>(
     {},
   );
@@ -144,16 +142,7 @@ export function ProvidersSettings() {
 
   return (
     <SettingsPageContainer>
-      <SettingsSection
-        title="Providers"
-        trunkOwned
-        headerAction={
-          <Button size="sm" variant="outline" onClick={() => setTerminalOpen(true)}>
-            <CommandLineIcon className="size-4" />
-            Terminal
-          </Button>
-        }
-      >
+      <SettingsSection title="Providers" trunkOwned>
         <div className="space-y-4 px-4 py-4 sm:px-5">
           <p className="text-xs leading-relaxed text-muted-foreground/80">
             CLIs that drive your coding sessions live on the environment, not on this device. Status
@@ -273,8 +262,6 @@ export function ProvidersSettings() {
           </SettingsSection>
         );
       })}
-
-      <SettingsTerminalDialog open={terminalOpen} onOpenChange={setTerminalOpen} />
     </SettingsPageContainer>
   );
 }
