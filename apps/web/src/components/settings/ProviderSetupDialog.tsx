@@ -110,7 +110,7 @@ export function ProviderSetupDialog({ providerId, providerLabel, open, onOpenCha
         await api.terminal.write({
           threadId,
           terminalId: TERMINAL_ID,
-          data: `${commands.setup}\r`,
+          data: `${commands.setup}\n`,
         });
         if (disposed) {
           await closeTerminal().catch(() => undefined);

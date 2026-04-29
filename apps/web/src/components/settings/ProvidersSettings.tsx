@@ -85,6 +85,16 @@ export function ProvidersSettings() {
     [settings.providers, updateSettings],
   );
 
+  const handleSetupProvider = useCallback(
+    (provider: ProviderKind) => {
+      if (!settings.providers[provider].enabled) {
+        patchProvider(provider, { enabled: true });
+      }
+      setSetupProviderId(provider);
+    },
+    [patchProvider, settings.providers],
+  );
+
   const addCustomModel = useCallback(
     (provider: ProviderKind) => {
       const raw = customModelInput[provider] ?? "";
@@ -188,7 +198,7 @@ export function ProvidersSettings() {
                         live={live}
                         environmentState={environmentState}
                         hasRecipe={Boolean(PROVIDER_COMMANDS[recipe.id])}
-                        onSetup={() => setSetupProviderId(recipe.id)}
+                        onSetup={() => handleSetupProvider(recipe.id)}
                       />
                       <Switch
                         checked={config.enabled}
@@ -339,6 +349,15 @@ function ProviderActions({
         <Spinner className="size-3" />
         Checking
       </span>
+    );
+  }
+  if (!live.enabled) {
+    return hasRecipe ? (
+      <Button size="sm" variant="outline" onClick={onSetup}>
+        Set up
+      </Button>
+    ) : (
+      <Badge tone="muted">Disabled</Badge>
     );
   }
   if (!live.installed) {
