@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { ChevronDownIcon, XMarkIcon } from "@heroicons/react/16/solid";
+import { CommandLineIcon, XMarkIcon } from "@heroicons/react/16/solid";
 import { type ProviderKind } from "@t3tools/contracts";
 import { DEFAULT_UNIFIED_SETTINGS } from "@t3tools/contracts/settings";
 import { normalizeModelSlug } from "@t3tools/shared/model";
@@ -9,18 +9,16 @@ import { useSavedEnvironmentRuntimeStore } from "~/environments/runtime";
 import { useSettings, useUpdateSettings } from "~/hooks/useSettings";
 import { MAX_CUSTOM_MODEL_LENGTH } from "~/modelSelection";
 import { useServerConfig, useServerProviders } from "~/rpc/serverState";
-import { cn } from "~/lib/utils";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Spinner } from "../ui/spinner";
 import { Switch } from "../ui/switch";
-import { ProviderSetupDialog } from "./ProviderSetupDialog";
 import {
   getProviderEnvironmentState,
   getProviderEnvironmentUnavailableMessage,
   type ProviderEnvironmentState,
 } from "./provider-environment-state";
-import { PROVIDER_COMMANDS } from "./providerCommands";
+import { SettingsTerminalDialog } from "./SettingsTerminalDialog";
 import { SettingsPageContainer, SettingsSection } from "./settingsLayout";
 
 interface ProviderRecipe {
@@ -30,10 +28,14 @@ interface ProviderRecipe {
 }
 
 const RECIPES: ReadonlyArray<ProviderRecipe> = [
-  { id: "claudeAgent", fallbackLabel: "Claude Code", docs: "https://docs.claude.com/claude-code" },
+  {
+    id: "claudeAgent",
+    fallbackLabel: "Claude Code",
+    docs: "https://code.claude.com/docs/en/setup",
+  },
   { id: "codex", fallbackLabel: "Codex", docs: "https://github.com/openai/codex" },
-  { id: "cursor", fallbackLabel: "Cursor", docs: "https://docs.cursor.com/cli" },
-  { id: "opencode", fallbackLabel: "OpenCode", docs: "https://opencode.ai" },
+  { id: "cursor", fallbackLabel: "Cursor", docs: "https://docs.cursor.com/en/cli" },
+  { id: "opencode", fallbackLabel: "OpenCode", docs: "https://opencode.ai/docs/" },
 ];
 
 export function ProvidersSettings() {
@@ -42,8 +44,7 @@ export function ProvidersSettings() {
   const settings = useSettings();
   const { updateSettings } = useUpdateSettings();
   const runtimeById = useSavedEnvironmentRuntimeStore((state) => state.byId);
-  const [setupProviderId, setSetupProviderId] = useState<ProviderKind | null>(null);
-  const [openDetails, setOpenDetails] = useState<Partial<Record<ProviderKind, boolean>>>({});
+  const [terminalOpen, setTerminalOpen] = useState(false);
   const [customModelInput, setCustomModelInput] = useState<Partial<Record<ProviderKind, string>>>(
     {},
   );
@@ -69,10 +70,6 @@ export function ProvidersSettings() {
     });
   }, [liveProviders]);
 
-  const setupRow = setupProviderId
-    ? known.find(({ recipe }) => recipe.id === setupProviderId)
-    : null;
-
   const patchProvider = useCallback(
     (provider: ProviderKind, patch: Record<string, unknown>) => {
       updateSettings({
@@ -83,16 +80,6 @@ export function ProvidersSettings() {
       });
     },
     [settings.providers, updateSettings],
-  );
-
-  const handleSetupProvider = useCallback(
-    (provider: ProviderKind) => {
-      if (!settings.providers[provider].enabled) {
-        patchProvider(provider, { enabled: true });
-      }
-      setSetupProviderId(provider);
-    },
-    [patchProvider, settings.providers],
   );
 
   const addCustomModel = useCallback(
@@ -157,7 +144,16 @@ export function ProvidersSettings() {
 
   return (
     <SettingsPageContainer>
-      <SettingsSection title="Providers" trunkOwned>
+      <SettingsSection
+        title="Providers"
+        trunkOwned
+        headerAction={
+          <Button size="sm" variant="outline" onClick={() => setTerminalOpen(true)}>
+            <CommandLineIcon className="size-4" />
+            Terminal
+          </Button>
+        }
+      >
         <div className="space-y-4 px-4 py-4 sm:px-5">
           <p className="text-xs leading-relaxed text-muted-foreground/80">
             CLIs that drive your coding sessions live on the environment, not on this device. Status
@@ -169,154 +165,116 @@ export function ProvidersSettings() {
               {getProviderEnvironmentUnavailableMessage(environmentState)}
             </div>
           ) : null}
-
-          <ul className="space-y-2">
-            {known.map(({ recipe, live, label }) => {
-              const config = settings.providers[recipe.id];
-              const defaults = DEFAULT_UNIFIED_SETTINGS.providers[recipe.id];
-              const isOpen = Boolean(openDetails[recipe.id]);
-              const error = customModelError[recipe.id] ?? null;
-              return (
-                <li key={recipe.id} className="rounded-md border border-border/70 bg-card/60">
-                  <div className="flex items-center justify-between gap-3 px-3 py-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">{label}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {live?.version ? `v${live.version} · ` : ""}
-                        <a
-                          className="hover:underline"
-                          href={recipe.docs}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Docs
-                        </a>
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <ProviderActions
-                        live={live}
-                        environmentState={environmentState}
-                        hasRecipe={Boolean(PROVIDER_COMMANDS[recipe.id])}
-                        onSetup={() => handleSetupProvider(recipe.id)}
-                      />
-                      <Switch
-                        checked={config.enabled}
-                        onCheckedChange={(checked) =>
-                          patchProvider(recipe.id, { enabled: Boolean(checked) })
-                        }
-                        aria-label={`Enable ${label}`}
-                      />
-                      <Button
-                        size="icon-xs"
-                        variant="ghost"
-                        className="size-6 text-muted-foreground hover:text-foreground"
-                        onClick={() =>
-                          setOpenDetails((prev) => ({ ...prev, [recipe.id]: !prev[recipe.id] }))
-                        }
-                        aria-label={`Toggle ${label} details`}
-                      >
-                        <ChevronDownIcon
-                          className={cn("size-3.5 transition-transform", isOpen && "rotate-180")}
-                        />
-                      </Button>
-                    </div>
-                  </div>
-
-                  {isOpen ? (
-                    <div className="space-y-3 border-t border-border/70 px-3 py-3">
-                      <label className="block space-y-1">
-                        <span className="text-xs font-medium text-muted-foreground">
-                          Binary path
-                        </span>
-                        <Input
-                          value={config.binaryPath}
-                          placeholder={defaults.binaryPath || "Auto-detect"}
-                          onChange={(e) => patchProvider(recipe.id, { binaryPath: e.target.value })}
-                          className="h-7 text-xs"
-                        />
-                      </label>
-
-                      <div className="space-y-1.5">
-                        <span className="text-xs font-medium text-muted-foreground">
-                          Custom models
-                        </span>
-                        {config.customModels.length > 0 ? (
-                          <ul className="space-y-1">
-                            {config.customModels.map((slug) => (
-                              <li
-                                key={slug}
-                                className="flex items-center justify-between gap-2 rounded border border-border/60 bg-background/40 px-2 py-1"
-                              >
-                                <code className="truncate text-xs text-foreground">{slug}</code>
-                                <Button
-                                  size="icon-xs"
-                                  variant="ghost"
-                                  className="size-5 text-muted-foreground hover:text-destructive"
-                                  onClick={() => removeCustomModel(recipe.id, slug)}
-                                  aria-label={`Remove ${slug}`}
-                                >
-                                  <XMarkIcon className="size-3" />
-                                </Button>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : null}
-                        <div className="flex gap-1.5">
-                          <Input
-                            value={customModelInput[recipe.id] ?? ""}
-                            placeholder="Add a model slug"
-                            onChange={(e) =>
-                              setCustomModelInput((prev) => ({
-                                ...prev,
-                                [recipe.id]: e.target.value,
-                              }))
-                            }
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault();
-                                addCustomModel(recipe.id);
-                              }
-                            }}
-                            className="h-7 text-xs"
-                          />
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7"
-                            onClick={() => addCustomModel(recipe.id)}
-                          >
-                            Add
-                          </Button>
-                        </div>
-                        {error ? <p className="text-xs text-destructive">{error}</p> : null}
-                      </div>
-
-                      <ProviderAdvancedFields
-                        providerId={recipe.id}
-                        config={config}
-                        patch={(patch) => patchProvider(recipe.id, patch)}
-                      />
-                    </div>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
         </div>
       </SettingsSection>
 
-      {setupRow ? (
-        <ProviderSetupDialog
-          key={setupRow.recipe.id}
-          providerId={setupRow.recipe.id}
-          providerLabel={setupRow.label}
-          open={setupProviderId !== null}
-          onOpenChange={(next) => {
-            if (!next) setSetupProviderId(null);
-          }}
-        />
-      ) : null}
+      {known.map(({ recipe, live, label }) => {
+        const config = settings.providers[recipe.id];
+        const defaults = DEFAULT_UNIFIED_SETTINGS.providers[recipe.id];
+        const error = customModelError[recipe.id] ?? null;
+        return (
+          <SettingsSection
+            key={recipe.id}
+            title={label}
+            trunkOwned
+            headerAction={
+              <ProviderActions
+                live={live}
+                environmentState={environmentState}
+                enabled={config.enabled}
+                label={label}
+                onEnabledChange={(enabled) => patchProvider(recipe.id, { enabled })}
+              />
+            }
+          >
+            <div className="space-y-4 px-4 py-4 sm:px-5">
+              <p className="text-xs leading-relaxed text-muted-foreground/80">
+                Use the environment terminal and follow the{" "}
+                <a
+                  className="text-foreground underline-offset-2 hover:underline"
+                  href={recipe.docs}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  official {label} instructions
+                </a>{" "}
+                to install and authenticate this CLI.
+              </p>
+
+              <label className="block space-y-1">
+                <span className="text-xs font-medium text-muted-foreground">Binary path</span>
+                <Input
+                  value={config.binaryPath}
+                  placeholder={defaults.binaryPath || "Auto-detect"}
+                  onChange={(e) => patchProvider(recipe.id, { binaryPath: e.target.value })}
+                  className="h-7 text-xs"
+                />
+              </label>
+
+              <div className="space-y-1.5">
+                <span className="text-xs font-medium text-muted-foreground">Custom models</span>
+                {config.customModels.length > 0 ? (
+                  <ul className="space-y-1">
+                    {config.customModels.map((slug) => (
+                      <li
+                        key={slug}
+                        className="flex items-center justify-between gap-2 rounded border border-border/60 bg-background/40 px-2 py-1"
+                      >
+                        <code className="truncate text-xs text-foreground">{slug}</code>
+                        <Button
+                          size="icon-xs"
+                          variant="ghost"
+                          className="size-5 text-muted-foreground hover:text-destructive"
+                          onClick={() => removeCustomModel(recipe.id, slug)}
+                          aria-label={`Remove ${slug}`}
+                        >
+                          <XMarkIcon className="size-3" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                <div className="flex gap-1.5">
+                  <Input
+                    value={customModelInput[recipe.id] ?? ""}
+                    placeholder="Add a model slug"
+                    onChange={(e) =>
+                      setCustomModelInput((prev) => ({
+                        ...prev,
+                        [recipe.id]: e.target.value,
+                      }))
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addCustomModel(recipe.id);
+                      }
+                    }}
+                    className="h-7 text-xs"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7"
+                    onClick={() => addCustomModel(recipe.id)}
+                  >
+                    Add
+                  </Button>
+                </div>
+                {error ? <p className="text-xs text-destructive">{error}</p> : null}
+              </div>
+
+              <ProviderAdvancedFields
+                providerId={recipe.id}
+                config={config}
+                patch={(patch) => patchProvider(recipe.id, patch)}
+              />
+            </div>
+          </SettingsSection>
+        );
+      })}
+
+      <SettingsTerminalDialog open={terminalOpen} onOpenChange={setTerminalOpen} />
     </SettingsPageContainer>
   );
 }
@@ -324,53 +282,60 @@ export function ProvidersSettings() {
 function ProviderActions({
   live,
   environmentState,
-  hasRecipe,
-  onSetup,
+  enabled,
+  onEnabledChange,
+  label,
 }: {
   live: ReturnType<typeof useServerProviders>[number] | undefined;
   environmentState: ProviderEnvironmentState;
-  hasRecipe: boolean;
-  onSetup: () => void;
+  enabled: boolean;
+  onEnabledChange: (enabled: boolean) => void;
+  label: string;
 }) {
-  if (environmentState === "connecting") {
-    return (
-      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-        <Spinner className="size-3" />
-        Connecting
-      </span>
-    );
-  }
-  if (environmentState !== "connected") {
-    return <Badge tone="muted">Unknown</Badge>;
-  }
-  if (!live) {
-    return (
-      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-        <Spinner className="size-3" />
-        Checking
-      </span>
-    );
-  }
+  const status = (() => {
+    if (environmentState === "connecting") {
+      return (
+        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+          <Spinner className="size-3" />
+          Connecting
+        </span>
+      );
+    }
+    if (environmentState !== "connected") {
+      return <Badge tone="muted">Unknown</Badge>;
+    }
+    if (!live) {
+      return (
+        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+          <Spinner className="size-3" />
+          Checking
+        </span>
+      );
+    }
+    return <ProviderStatusBadge live={live} />;
+  })();
+
+  return (
+    <span className="flex items-center gap-2">
+      {status}
+      <Switch
+        checked={enabled}
+        onCheckedChange={(checked) => onEnabledChange(Boolean(checked))}
+        aria-label={`Enable ${label}`}
+      />
+    </span>
+  );
+}
+
+function ProviderStatusBadge({ live }: { live: ReturnType<typeof useServerProviders>[number] }) {
   if (!live.enabled) {
-    return hasRecipe ? (
-      <Button size="sm" variant="outline" onClick={onSetup}>
-        Set up
-      </Button>
-    ) : (
-      <Badge tone="muted">Disabled</Badge>
-    );
+    return <Badge tone="muted">Disabled</Badge>;
   }
   if (!live.installed) {
     return <Badge tone="warn">CLI missing</Badge>;
   }
   if (live.auth.status !== "authenticated") {
-    return hasRecipe ? (
-      <Button size="sm" variant="outline" onClick={onSetup}>
-        Set up
-      </Button>
-    ) : (
-      <Badge tone="warn">Auth needed</Badge>
-    );
+    return <Badge tone="warn">Auth needed</Badge>;
   }
   if (live.status === "ready") {
     return <Badge tone="ok">Ready</Badge>;
