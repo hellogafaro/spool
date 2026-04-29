@@ -99,7 +99,7 @@ export function useProviderInstall(providerId: string): UseProviderInstallResult
       if (event.threadId !== threadId || event.terminalId !== terminalId) return;
       if (event.type === "started") {
         void api.terminal
-          .write({ threadId, terminalId, data: `${commands.install} && exit\n` })
+          .write({ threadId, terminalId, data: `${commands.install} && exit\r` })
           .catch((error: unknown) => {
             finish("error", error instanceof Error ? error.message : "Install write failed.");
           });
