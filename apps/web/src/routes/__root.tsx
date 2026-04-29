@@ -56,6 +56,7 @@ import {
   ensureEnvironmentConnectionBootstrapped,
   getPrimaryEnvironmentConnection,
   startEnvironmentConnectionService,
+  subscribeEnvironmentConnections,
 } from "../environments/runtime";
 import { configureClientTracing } from "../observability/clientTracing";
 import { isWorkOsConfigured } from "../auth/workos";
@@ -208,7 +209,37 @@ function errorDetails(error: unknown): string {
 }
 
 function ServerStateBootstrap() {
-  useEffect(() => startServerStateSync(getPrimaryEnvironmentConnection().client.server), []);
+  const activeEnvironmentId = useStore((state) => state.activeEnvironmentId);
+
+  useEffect(() => {
+    let cleanupServerStateSync: (() => void) | null = null;
+    let syncedEnvironmentId: string | null = null;
+
+    const startIfConnected = () => {
+      let connection;
+      try {
+        connection = getPrimaryEnvironmentConnection();
+      } catch {
+        return;
+      }
+
+      if (connection.environmentId === syncedEnvironmentId) {
+        return;
+      }
+
+      cleanupServerStateSync?.();
+      syncedEnvironmentId = connection.environmentId;
+      cleanupServerStateSync = startServerStateSync(connection.client.server);
+    };
+
+    startIfConnected();
+    const unsubscribe = subscribeEnvironmentConnections(startIfConnected);
+
+    return () => {
+      unsubscribe();
+      cleanupServerStateSync?.();
+    };
+  }, [activeEnvironmentId]);
 
   return null;
 }
