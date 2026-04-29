@@ -747,6 +747,15 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
             }),
             { "rpc.aggregate": "orchestration" },
           ),
+        [WS_METHODS.serverPing]: (_input) =>
+          observeRpcEffect(
+            WS_METHODS.serverPing,
+            Effect.sync(() => ({
+              ok: true as const,
+              serverTime: new Date().toISOString(),
+            })),
+            { "rpc.aggregate": "server" },
+          ),
         [WS_METHODS.serverGetConfig]: (_input) =>
           observeRpcEffect(WS_METHODS.serverGetConfig, loadServerConfig, {
             "rpc.aggregate": "server",

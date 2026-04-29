@@ -186,6 +186,53 @@ describe("WsTransport", () => {
     await transport.dispose();
   });
 
+  it("sends periodic heartbeat pings on idle sockets", async () => {
+    const transport = createTransport("ws://localhost:3020", undefined, {
+      heartbeatIntervalMs: 5,
+      heartbeatTimeoutMs: 100,
+    });
+
+    await waitFor(() => {
+      expect(sockets).toHaveLength(1);
+    });
+
+    const socket = getSocket();
+    socket.open();
+
+    await waitFor(() => {
+      const heartbeatRequest = socket.sent
+        .map((message) => JSON.parse(message) as { _tag?: string; id?: string; tag?: string })
+        .find((message) => message._tag === "Request" && message.tag === WS_METHODS.serverPing);
+      expect(heartbeatRequest).toBeDefined();
+    });
+
+    const heartbeatRequest = socket.sent
+      .map((message) => JSON.parse(message) as { _tag?: string; id?: string; tag?: string })
+      .find(
+        (message): message is { _tag: "Request"; id: string; tag: string } =>
+          message._tag === "Request" && message.tag === WS_METHODS.serverPing,
+      );
+    if (!heartbeatRequest) {
+      throw new Error("Expected a heartbeat request.");
+    }
+
+    socket.serverMessage(
+      JSON.stringify({
+        _tag: "Exit",
+        requestId: heartbeatRequest.id,
+        exit: {
+          _tag: "Success",
+          value: {
+            ok: true,
+            serverTime: "2026-04-29T00:00:00.000Z",
+          },
+        },
+      }),
+    );
+
+    await transport.dispose();
+  });
+
   it("supports async websocket url providers", async () => {
     const transport = createTransport(async () => "wss://remote.example.com/?wsToken=dynamic");
 

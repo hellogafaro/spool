@@ -1,3 +1,4 @@
+import { WS_METHODS } from "@t3tools/contracts";
 import {
   Cause,
   Duration,
@@ -22,9 +23,17 @@ import {
 } from "./protocol";
 import { isTransportConnectionErrorMessage } from "./transportError";
 
+export const WS_HEARTBEAT_INTERVAL_MS = 20_000;
+export const WS_HEARTBEAT_TIMEOUT_MS = 10_000;
+
 interface SubscribeOptions {
   readonly retryDelay?: Duration.Input;
   readonly onResubscribe?: () => void;
+}
+
+interface WsTransportOptions {
+  readonly heartbeatIntervalMs?: number;
+  readonly heartbeatTimeoutMs?: number;
 }
 
 interface RequestOptions {
@@ -38,6 +47,8 @@ interface TransportSession {
   readonly clientPromise: Promise<WsRpcProtocolClient>;
   readonly clientScope: Scope.Closeable;
   readonly runtime: ManagedRuntime.ManagedRuntime<RpcClient.Protocol, never>;
+  heartbeatInFlight: boolean;
+  heartbeatTimer: ReturnType<typeof setInterval> | null;
 }
 
 function formatErrorMessage(error: unknown): string {
@@ -54,13 +65,18 @@ export class WsTransport {
   private hasReportedTransportDisconnect = false;
   private reconnectChain: Promise<void> = Promise.resolve();
   private session: TransportSession;
+  private readonly heartbeatIntervalMs: number;
+  private readonly heartbeatTimeoutMs: number;
 
   constructor(
     url: WsRpcProtocolSocketUrlProvider,
     lifecycleHandlers?: WsProtocolLifecycleHandlers,
+    options?: WsTransportOptions,
   ) {
     this.url = url;
     this.lifecycleHandlers = lifecycleHandlers;
+    this.heartbeatIntervalMs = options?.heartbeatIntervalMs ?? WS_HEARTBEAT_INTERVAL_MS;
+    this.heartbeatTimeoutMs = options?.heartbeatTimeoutMs ?? WS_HEARTBEAT_TIMEOUT_MS;
     this.session = this.createSession();
   }
 
@@ -209,6 +225,10 @@ export class WsTransport {
   }
 
   private closeSession(session: TransportSession) {
+    if (session.heartbeatTimer !== null) {
+      clearInterval(session.heartbeatTimer);
+      session.heartbeatTimer = null;
+    }
     return session.runtime.runPromise(Scope.close(session.clientScope, Exit.void)).finally(() => {
       session.runtime.dispose();
     });
@@ -219,11 +239,46 @@ export class WsTransport {
       Layer.mergeAll(createWsRpcProtocolLayer(this.url, this.lifecycleHandlers), ClientTracingLive),
     );
     const clientScope = runtime.runSync(Scope.make());
-    return {
+    const session: TransportSession = {
       runtime,
       clientScope,
       clientPromise: runtime.runPromise(Scope.provide(clientScope)(makeWsRpcProtocolClient)),
+      heartbeatInFlight: false,
+      heartbeatTimer: null,
     };
+    session.heartbeatTimer = setInterval(() => {
+      void this.runHeartbeat(session);
+    }, this.heartbeatIntervalMs);
+    return session;
+  }
+
+  private async runHeartbeat(session: TransportSession): Promise<void> {
+    if (this.disposed || session !== this.session || session.heartbeatInFlight) {
+      return;
+    }
+
+    session.heartbeatInFlight = true;
+    try {
+      const client = await session.clientPromise;
+      if (this.disposed || session !== this.session) {
+        return;
+      }
+
+      await withTimeout(
+        session.runtime.runPromise(Effect.suspend(() => client[WS_METHODS.serverPing]({}))),
+        this.heartbeatTimeoutMs,
+      );
+    } catch (error) {
+      if (this.disposed || session !== this.session) {
+        return;
+      }
+      console.warn("WebSocket RPC heartbeat failed", {
+        error: formatErrorMessage(error),
+      });
+      await this.reconnect().catch(() => undefined);
+    } finally {
+      session.heartbeatInFlight = false;
+    }
   }
 
   private runStreamOnSession<TValue>(
@@ -284,4 +339,22 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_resolve, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(new Error("WebSocket heartbeat timed out."));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+    }
+  }
 }

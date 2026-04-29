@@ -121,6 +121,7 @@ export const WS_METHODS = {
   terminalClose: "terminal.close",
 
   // Server meta
+  serverPing: "server.ping",
   serverGetConfig: "server.getConfig",
   serverRefreshProviders: "server.refreshProviders",
   serverUpsertKeybinding: "server.upsertKeybinding",
@@ -139,6 +140,14 @@ export const WsServerUpsertKeybindingRpc = Rpc.make(WS_METHODS.serverUpsertKeybi
   payload: ServerUpsertKeybindingInput,
   success: ServerUpsertKeybindingResult,
   error: KeybindingsConfigError,
+});
+
+export const WsServerPingRpc = Rpc.make(WS_METHODS.serverPing, {
+  payload: Schema.Struct({}),
+  success: Schema.Struct({
+    ok: Schema.Literal(true),
+    serverTime: Schema.String,
+  }),
 });
 
 export const WsServerGetConfigRpc = Rpc.make(WS_METHODS.serverGetConfig, {
@@ -376,6 +385,7 @@ export const WsSubscribeAuthAccessRpc = Rpc.make(WS_METHODS.subscribeAuthAccess,
 });
 
 export const WsRpcGroup = RpcGroup.make(
+  WsServerPingRpc,
   WsServerGetConfigRpc,
   WsServerRefreshProvidersRpc,
   WsServerUpsertKeybindingRpc,
