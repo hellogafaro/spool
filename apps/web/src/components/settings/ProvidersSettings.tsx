@@ -14,7 +14,6 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Spinner } from "../ui/spinner";
 import { Switch } from "../ui/switch";
-import { ProviderInstallButton } from "./ProviderInstallButton";
 import { ProviderSetupDialog } from "./ProviderSetupDialog";
 import {
   getProviderEnvironmentState,
@@ -33,6 +32,7 @@ interface ProviderRecipe {
 const RECIPES: ReadonlyArray<ProviderRecipe> = [
   { id: "claudeAgent", fallbackLabel: "Claude Code", docs: "https://docs.claude.com/claude-code" },
   { id: "codex", fallbackLabel: "Codex", docs: "https://github.com/openai/codex" },
+  { id: "cursor", fallbackLabel: "Cursor", docs: "https://docs.cursor.com/cli" },
   { id: "opencode", fallbackLabel: "OpenCode", docs: "https://opencode.ai" },
 ];
 
@@ -185,7 +185,6 @@ export function ProvidersSettings() {
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <ProviderActions
-                        providerId={recipe.id}
                         live={live}
                         environmentState={environmentState}
                         hasRecipe={Boolean(PROVIDER_COMMANDS[recipe.id])}
@@ -313,13 +312,11 @@ export function ProvidersSettings() {
 }
 
 function ProviderActions({
-  providerId,
   live,
   environmentState,
   hasRecipe,
   onSetup,
 }: {
-  providerId: ProviderKind;
   live: ReturnType<typeof useServerProviders>[number] | undefined;
   environmentState: ProviderEnvironmentState;
   hasRecipe: boolean;
@@ -336,12 +333,16 @@ function ProviderActions({
   if (environmentState !== "connected") {
     return <Badge tone="muted">Unknown</Badge>;
   }
-  if (!live || !live.installed) {
-    return hasRecipe ? (
-      <ProviderInstallButton providerId={providerId} />
-    ) : (
-      <Badge tone="warn">Not installed</Badge>
+  if (!live) {
+    return (
+      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+        <Spinner className="size-3" />
+        Checking
+      </span>
     );
+  }
+  if (!live.installed) {
+    return <Badge tone="warn">CLI missing</Badge>;
   }
   if (live.auth.status !== "authenticated") {
     return hasRecipe ? (

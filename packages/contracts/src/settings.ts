@@ -80,7 +80,7 @@ const makeBinaryPathSetting = (fallback: string) =>
   );
 
 export const CodexSettings = Schema.Struct({
-  enabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  enabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   binaryPath: makeBinaryPathSetting("codex"),
   homePath: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   customModels: Schema.Array(Schema.String).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
@@ -88,7 +88,7 @@ export const CodexSettings = Schema.Struct({
 export type CodexSettings = typeof CodexSettings.Type;
 
 export const ClaudeSettings = Schema.Struct({
-  enabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  enabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   binaryPath: makeBinaryPathSetting("claude"),
   customModels: Schema.Array(Schema.String).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
   launchArgs: Schema.String.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
@@ -103,7 +103,7 @@ export const CursorSettings = Schema.Struct({
 });
 export type CursorSettings = typeof CursorSettings.Type;
 export const OpenCodeSettings = Schema.Struct({
-  enabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  enabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   binaryPath: makeBinaryPathSetting("opencode"),
   serverUrl: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   serverPassword: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),

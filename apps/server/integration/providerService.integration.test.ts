@@ -1,6 +1,5 @@
 import type { ProviderRuntimeEvent } from "@t3tools/contracts";
 import { ThreadId } from "@t3tools/contracts";
-import { DEFAULT_SERVER_SETTINGS } from "@t3tools/contracts/settings";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { it, assert } from "@effect/vitest";
 import { Effect, FileSystem, Layer, Path, Queue, Stream } from "effect";
@@ -62,7 +61,7 @@ const makeIntegrationFixture = Effect.gen(function* () {
   const shared = Layer.mergeAll(
     directoryLayer,
     Layer.succeed(ProviderAdapterRegistry, registry),
-    ServerSettingsService.layerTest(DEFAULT_SERVER_SETTINGS),
+    ServerSettingsService.layerTest({ providers: { codex: { enabled: true } } }),
     AnalyticsService.layerTest,
   ).pipe(Layer.provide(SqlitePersistenceMemory));
 

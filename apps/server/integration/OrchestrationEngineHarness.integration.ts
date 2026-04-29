@@ -226,6 +226,14 @@ export const makeOrchestrationIntegrationHarness = (
     const fileSystem = yield* FileSystem.FileSystem;
 
     const provider = options?.provider ?? "codex";
+    const serverSettingsOverrides = {
+      providers: {
+        codex: { enabled: provider === "codex" },
+        claudeAgent: { enabled: provider === "claudeAgent" },
+        cursor: { enabled: provider === "cursor" },
+        opencode: { enabled: provider === "opencode" },
+      },
+    };
     const useRealCodex = options?.realCodex === true;
     const adapterHarness = useRealCodex
       ? null
@@ -302,7 +310,7 @@ export const makeOrchestrationIntegrationHarness = (
       providerLayer,
       RuntimeReceiptBusTest,
     );
-    const serverSettingsLayer = ServerSettingsService.layerTest();
+    const serverSettingsLayer = ServerSettingsService.layerTest(serverSettingsOverrides);
     const runtimeIngestionLayer = ProviderRuntimeIngestionLive.pipe(
       Layer.provideMerge(runtimeServicesLayer),
       Layer.provideMerge(serverSettingsLayer),
@@ -364,7 +372,7 @@ export const makeOrchestrationIntegrationHarness = (
       Layer.provideMerge(orchestrationReactorLayer),
       Layer.provide(persistenceLayer),
       Layer.provideMerge(RepositoryIdentityResolverLive),
-      Layer.provideMerge(ServerSettingsService.layerTest()),
+      Layer.provideMerge(ServerSettingsService.layerTest(serverSettingsOverrides)),
       Layer.provideMerge(ServerConfig.layerTest(workspaceDir, rootDir)),
       Layer.provideMerge(NodeServices.layer),
     );

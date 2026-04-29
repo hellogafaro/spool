@@ -54,7 +54,7 @@ export function ProviderSetupDialog({ providerId, providerLabel, open, onOpenCha
   }
 
   // Timestamp the threadId per dialog open so each setup attempt gets a fresh
-  // PTY and history file. Same pattern as ProviderInstallButton.
+  // PTY and history file.
   const threadId = useMemo(
     () =>
       open

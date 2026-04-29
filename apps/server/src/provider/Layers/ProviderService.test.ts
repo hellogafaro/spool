@@ -45,7 +45,13 @@ import {
 import { ServerSettingsService } from "../../serverSettings.ts";
 import { AnalyticsService } from "../../telemetry/Services/AnalyticsService.ts";
 
-const defaultServerSettingsLayer = ServerSettingsService.layerTest();
+const defaultServerSettingsLayer = ServerSettingsService.layerTest({
+  providers: {
+    codex: { enabled: true },
+    claudeAgent: { enabled: true },
+    cursor: { enabled: true },
+  },
+});
 
 const asRequestId = (value: string): ApprovalRequestId => ApprovalRequestId.make(value);
 const asEventId = (value: string): EventId => EventId.make(value);

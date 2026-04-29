@@ -79,11 +79,24 @@ beforeEach(() => {
   runtimeMock.reset();
 });
 
+const withOpenCodeEnabled = (
+  settingsOverrides?: Parameters<typeof ServerSettingsService.layerTest>[0],
+) => ({
+  ...settingsOverrides,
+  providers: {
+    ...settingsOverrides?.providers,
+    opencode: {
+      enabled: true,
+      ...settingsOverrides?.providers?.opencode,
+    },
+  },
+});
+
 const makeTestLayer = (settingsOverrides?: Parameters<typeof ServerSettingsService.layerTest>[0]) =>
   OpenCodeProviderLive.pipe(
     Layer.provideMerge(Layer.succeed(OpenCodeRuntime, OpenCodeRuntimeTestDouble)),
     Layer.provideMerge(ServerConfig.layerTest(process.cwd(), process.cwd())),
-    Layer.provideMerge(ServerSettingsService.layerTest(settingsOverrides)),
+    Layer.provideMerge(ServerSettingsService.layerTest(withOpenCodeEnabled(settingsOverrides))),
     Layer.provideMerge(NodeServices.layer),
   );
 

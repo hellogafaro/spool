@@ -175,7 +175,14 @@ function makeMutableServerSettingsService(
   });
 }
 
-it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
+const testSettings = {
+  providers: {
+    codex: { enabled: true },
+    claudeAgent: { enabled: true },
+  },
+};
+
+it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest(testSettings)))(
   "ProviderRegistry",
   (it) => {
     describe("checkCodexProviderStatus", () => {
@@ -435,6 +442,8 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
               deepMerge(DEFAULT_SERVER_SETTINGS, {
                 providers: {
                   codex: { enabled: false },
+                  claudeAgent: { enabled: true },
+                  opencode: { enabled: false },
                   cursor: { enabled: false },
                 },
               }),
