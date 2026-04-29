@@ -28,24 +28,34 @@ Browser (app.trunk.codes)
 
 Trunk Worker is **not** on the data path. It hands the web a bearer once per session; the web talks to the env directly.
 
-## Vault schema
+## Saved env schema
 
-One entry per (user, env) pair.
+One user-metadata record per saved env. The metadata record points at the Vault object.
 
 ```
-name:    env-<userId>-<environmentId>
-value:   <T3 bearer session token>
+savedEnvs: [
+  {
+    environmentId: "378de92d-47dd-434d-917b-553d5be19ba3",
+    environmentUrl: "https://t3.example.com",
+    label: "Laptop",
+    vaultObjectId: "secret_..."
+  }
+]
+```
+
+Vault object:
+
+```
+name:  env-<opaque-random-id>
+value: <T3 bearer session token>
 key_context:
-  owner:           <workos-user-id>
-  environmentUrl:  https://t3.example.com
-  label:           Laptop
+  owner: <workos-user-id>
 ```
 
 Notes:
 
-- `name` carries the listing boundary (`name_prefix=env-<userId>-`). One Vault list call returns just that user's envs.
-- `environmentId` is parsed from the name; not duplicated in key_context.
-- `environmentUrl` stores the http base URL. Web derives `wss://` by scheme swap at use.
+- Vault names are opaque and do not include WorkOS user ids or environment ids.
+- `savedEnvs` lives on the WorkOS user metadata and is the listing source of truth.
 - `value` is the T3 bearer. Encrypted at rest by WorkOS. Never returned in list responses.
 
 ## Trunk Worker API
@@ -64,26 +74,27 @@ Steps:
 
 1. Verify JWT, extract `userId`.
 2. Validate `environmentUrl` is `https://` or `http://localhost`.
-3. `upsertVault(name=env-<userId>-<environmentId>, value=bearer, key_context={owner: userId, environmentUrl, label})`.
-4. Return `{ environmentId, label, environmentUrl }`.
+3. Create or update the Vault object for that metadata record with `key_context={owner: userId}`.
+4. Upsert `{ environmentId, environmentUrl, label, vaultObjectId }` in `savedEnvs`.
+5. Return `{ environmentId, label, environmentUrl }`.
 
 ### `GET /env`
 
 Returns `[{ environmentId, label, environmentUrl }]`. Bearer is **never** returned here.
 
-Implementation: `listVault(name_prefix=env-<userId>-)`, project `key_context` to public fields, parse `environmentId` from name.
+Implementation: read the user's `savedEnvs` metadata and project public fields.
 
 ### `GET /env/<environmentId>`
 
-Returns `{ environmentId, label, environmentUrl, bearer }`. Owner check (`key_context.owner === jwt.sub`). Web caches the bearer in memory only.
+Returns `{ environmentId, label, environmentUrl, bearer }`. Reads the Vault object by `vaultObjectId` and checks `metadata.context.owner === jwt.sub`. Web caches the bearer in memory only.
 
 ### `PATCH /env/<environmentId>`
 
-Body: `{ label: string }`. Updates `key_context.label`. Owner check. Optional — could be deferred; users could delete and re-pair to rename.
+Body: `{ label: string }`. Updates the user metadata record.
 
 ### `DELETE /env/<environmentId>`
 
-`deleteVault(name=env-<userId>-<environmentId>)`. Owner check.
+Delete the Vault object by `vaultObjectId`, then delete the user metadata record.
 
 ## Web changes
 

@@ -2,10 +2,8 @@
  * WorkOS helpers used by the saved-env Worker.
  *
  * Two stores per user:
- *   Vault:         encrypted T3 bearer per env. key_context.owner gates reads.
- *   User metadata: `savedEnvs` JSON array of {environmentId, environmentUrl, label}.
- *                  WorkOS metadata values reject URL characters in key_context, so
- *                  the public-ish env list lives here while bearers stay in Vault.
+ *   Vault:         encrypted T3 bearer per env. key context owner gates reads.
+ *   User metadata: `savedEnvs` JSON array of public env fields plus Vault object id.
  */
 
 const WORKOS_API = "https://api.workos.com";
@@ -23,42 +21,68 @@ export interface VaultEntry {
   readonly keyContext: VaultKeyContext;
 }
 
+interface VaultObjectMetadataResponse {
+  readonly id: string;
+  readonly context?: Record<string, string>;
+}
+
 interface VaultObjectResponse {
   readonly id: string;
   readonly name: string;
   readonly value: string;
-  readonly key_context?: Record<string, string>;
+  readonly metadata?: {
+    readonly context?: Record<string, string>;
+  };
 }
 
 function toVaultEntry(raw: VaultObjectResponse): VaultEntry | null {
-  const kc = raw.key_context ?? {};
+  const kc = raw.metadata?.context ?? {};
   if (typeof raw.value !== "string" || typeof kc.owner !== "string") return null;
   return { name: raw.name, value: raw.value, keyContext: { owner: kc.owner } };
 }
 
-export function getVaultName(userId: string, environmentId: string): string {
-  return `env-${userId}-${environmentId}`;
+function toVaultObjectId(raw: VaultObjectMetadataResponse): string {
+  return raw.id;
 }
 
-export async function upsertVault(
+export async function createVaultObject(
   apiKey: string,
-  name: string,
   value: string,
   keyContext: VaultKeyContext,
-): Promise<void> {
+): Promise<string> {
   const response = await fetch(WORKOS_VAULT_URL, {
     method: "POST",
     headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-    body: JSON.stringify({ name, value, key_context: keyContext }),
+    body: JSON.stringify({ name: `env-${crypto.randomUUID()}`, value, key_context: keyContext }),
   });
   if (!response.ok) {
     const text = await response.text().catch(() => "");
-    throw new Error(`Vault upsert failed: ${response.status} ${text}`.trim());
+    throw new Error(`Vault create failed: ${response.status} ${text}`.trim());
   }
+  const body = (await response.json()) as VaultObjectMetadataResponse;
+  return toVaultObjectId(body);
 }
 
-export async function getVaultByName(apiKey: string, name: string): Promise<VaultEntry | null> {
-  const url = `${WORKOS_VAULT_URL}/name/${encodeURIComponent(name)}`;
+export async function updateVaultObject(
+  apiKey: string,
+  objectId: string,
+  value: string,
+): Promise<boolean> {
+  const response = await fetch(`${WORKOS_VAULT_URL}/${encodeURIComponent(objectId)}`, {
+    method: "PUT",
+    headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+    body: JSON.stringify({ value }),
+  });
+  if (response.status === 404) return false;
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`Vault update failed: ${response.status} ${text}`.trim());
+  }
+  return true;
+}
+
+export async function getVaultObject(apiKey: string, objectId: string): Promise<VaultEntry | null> {
+  const url = `${WORKOS_VAULT_URL}/${encodeURIComponent(objectId)}`;
   const response = await fetch(url, { headers: { authorization: `Bearer ${apiKey}` } });
   if (response.status === 404) return null;
   if (!response.ok) {
@@ -69,17 +93,8 @@ export async function getVaultByName(apiKey: string, name: string): Promise<Vaul
   return toVaultEntry(body);
 }
 
-export async function deleteVaultByName(apiKey: string, name: string): Promise<void> {
-  const lookupUrl = `${WORKOS_VAULT_URL}/name/${encodeURIComponent(name)}`;
-  const lookup = await fetch(lookupUrl, { headers: { authorization: `Bearer ${apiKey}` } });
-  if (lookup.status === 404) return;
-  if (!lookup.ok) {
-    const text = await lookup.text().catch(() => "");
-    throw new Error(`Vault lookup failed: ${lookup.status} ${text}`.trim());
-  }
-  const meta = (await lookup.json()) as VaultObjectResponse;
-  const deleteUrl = `${WORKOS_VAULT_URL}/${encodeURIComponent(meta.id)}`;
-  const response = await fetch(deleteUrl, {
+export async function deleteVaultObject(apiKey: string, objectId: string): Promise<void> {
+  const response = await fetch(`${WORKOS_VAULT_URL}/${encodeURIComponent(objectId)}`, {
     method: "DELETE",
     headers: { authorization: `Bearer ${apiKey}` },
   });
@@ -93,6 +108,7 @@ export interface SavedEnvEntry {
   readonly environmentId: string;
   readonly environmentUrl: string;
   readonly label: string;
+  readonly vaultObjectId: string;
 }
 
 interface UserResponse {
@@ -147,7 +163,8 @@ function parseSavedEnvs(metadata: Record<string, unknown> | null): SavedEnvEntry
     if (
       typeof candidate.environmentId !== "string" ||
       typeof candidate.environmentUrl !== "string" ||
-      typeof candidate.label !== "string"
+      typeof candidate.label !== "string" ||
+      typeof candidate.vaultObjectId !== "string"
     ) {
       return [];
     }
@@ -156,6 +173,7 @@ function parseSavedEnvs(metadata: Record<string, unknown> | null): SavedEnvEntry
         environmentId: candidate.environmentId,
         environmentUrl: candidate.environmentUrl,
         label: candidate.label,
+        vaultObjectId: candidate.vaultObjectId,
       },
     ];
   });

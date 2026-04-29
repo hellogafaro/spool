@@ -6,13 +6,13 @@
 import type { ClientAuthVerifier } from "./auth.ts";
 import { withCors } from "./cors.ts";
 import {
+  createVaultObject,
   deleteSavedEnv,
-  deleteVaultByName,
   getSavedEnvs,
-  getVaultByName,
-  getVaultName,
+  deleteVaultObject,
+  getVaultObject,
+  updateVaultObject,
   upsertSavedEnv,
-  upsertVault,
   type SavedEnvEntry,
 } from "./workos.ts";
 
@@ -230,10 +230,34 @@ async function handleCreate(
     );
   }
 
+  let entries: ReadonlyArray<SavedEnvEntry>;
   try {
-    await upsertVault(options.workosApiKey, getVaultName(userId, body.environmentId), body.bearer, {
-      owner: userId,
-    });
+    entries = await getSavedEnvs(options.workosApiKey, userId);
+  } catch (error) {
+    return errorResponse(
+      request,
+      502,
+      ENV_ERROR_CODES.ENV_METADATA_UNAVAILABLE,
+      error instanceof Error ? error.message : "User metadata read failed.",
+    );
+  }
+
+  const existing = entries.find((entry) => entry.environmentId === body.environmentId);
+  let vaultObjectId = existing?.vaultObjectId ?? null;
+  let didCreateVaultObject = false;
+  try {
+    if (vaultObjectId) {
+      const didUpdate = await updateVaultObject(options.workosApiKey, vaultObjectId, body.bearer);
+      if (!didUpdate) {
+        vaultObjectId = null;
+      }
+    }
+    if (!vaultObjectId) {
+      vaultObjectId = await createVaultObject(options.workosApiKey, body.bearer, {
+        owner: userId,
+      });
+      didCreateVaultObject = true;
+    }
   } catch (error) {
     return errorResponse(
       request,
@@ -242,14 +266,26 @@ async function handleCreate(
       error instanceof Error ? error.message : "Vault write failed.",
     );
   }
+  if (!vaultObjectId) {
+    return errorResponse(
+      request,
+      502,
+      ENV_ERROR_CODES.ENV_VAULT_UNAVAILABLE,
+      "Vault write failed.",
+    );
+  }
 
   try {
     await upsertSavedEnv(options.workosApiKey, userId, {
       environmentId: body.environmentId,
       environmentUrl: body.environmentUrl,
       label: body.label,
+      vaultObjectId,
     });
   } catch (error) {
+    if (didCreateVaultObject && vaultObjectId) {
+      await deleteVaultObject(options.workosApiKey, vaultObjectId).catch(() => undefined);
+    }
     return errorResponse(
       request,
       502,
@@ -318,7 +354,7 @@ async function handleRead(
 
   let bearerEntry;
   try {
-    bearerEntry = await getVaultByName(options.workosApiKey, getVaultName(userId, environmentId));
+    bearerEntry = await getVaultObject(options.workosApiKey, entry.vaultObjectId);
   } catch (error) {
     return errorResponse(
       request,
@@ -422,25 +458,39 @@ async function handleDelete(
   userId: string,
   options: SavedEnvHandlerOptions,
 ): Promise<Response> {
+  let entries: ReadonlyArray<SavedEnvEntry>;
   try {
-    await deleteVaultByName(options.workosApiKey, getVaultName(userId, environmentId));
-  } catch (error) {
-    return errorResponse(
-      request,
-      502,
-      ENV_ERROR_CODES.ENV_VAULT_UNAVAILABLE,
-      error instanceof Error ? error.message : "Vault delete failed.",
-    );
-  }
-  try {
-    await deleteSavedEnv(options.workosApiKey, userId, environmentId);
+    entries = await getSavedEnvs(options.workosApiKey, userId);
   } catch (error) {
     return errorResponse(
       request,
       502,
       ENV_ERROR_CODES.ENV_METADATA_UNAVAILABLE,
-      error instanceof Error ? error.message : "User metadata write failed.",
+      error instanceof Error ? error.message : "User metadata read failed.",
     );
+  }
+  const existing = entries.find((entry) => entry.environmentId === environmentId);
+  if (existing) {
+    try {
+      await deleteVaultObject(options.workosApiKey, existing.vaultObjectId);
+    } catch (error) {
+      return errorResponse(
+        request,
+        502,
+        ENV_ERROR_CODES.ENV_VAULT_UNAVAILABLE,
+        error instanceof Error ? error.message : "Vault delete failed.",
+      );
+    }
+    try {
+      await deleteSavedEnv(options.workosApiKey, userId, environmentId);
+    } catch (error) {
+      return errorResponse(
+        request,
+        502,
+        ENV_ERROR_CODES.ENV_METADATA_UNAVAILABLE,
+        error instanceof Error ? error.message : "User metadata write failed.",
+      );
+    }
   }
   return withCors(request, new Response(null, { status: 204 }), ENV_ALLOWED_METHODS);
 }

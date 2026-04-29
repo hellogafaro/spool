@@ -7,7 +7,7 @@ export const CLAIMED_ENVIRONMENTS_QUERY_KEY = ["trunk", "savedEnvironments"] as 
 
 /**
  * Returns the env IDs the signed-in user has saved on the Worker. Backed
- * by GET /env on the Trunk Worker, which reads from WorkOS Vault.
+ * by GET /env on the Trunk Worker, which reads WorkOS user metadata.
  */
 export function useClaimedEnvironments(): UseQueryResult<ReadonlyArray<string>, Error> {
   const auth = useAuth();

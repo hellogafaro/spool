@@ -22,7 +22,9 @@ interface VaultStub {
   readonly id: string;
   name: string;
   value: string;
-  key_context: { owner: string };
+  metadata: {
+    context: { owner: string };
+  };
 }
 
 interface UserStub {
@@ -52,26 +54,32 @@ function makeStores(
 
     if (url.pathname.startsWith("/vault/v1/kv")) {
       if (request.method === "POST" && url.pathname === "/vault/v1/kv") {
-        const body = (await request.json()) as VaultStub;
-        const existing = vault.find((entry) => entry.name === body.name);
-        if (existing) {
-          existing.value = body.value;
-          existing.key_context = body.key_context;
-          return Response.json(existing);
-        }
+        const body = (await request.json()) as {
+          name: string;
+          value: string;
+          key_context: { owner: string };
+        };
         const created: VaultStub = {
           id: `vault_${nextId++}`,
           name: body.name,
           value: body.value,
-          key_context: body.key_context,
+          metadata: { context: body.key_context },
         };
         vault.push(created);
-        return Response.json(created);
+        return Response.json({ id: created.id, context: created.metadata.context });
       }
-      if (request.method === "GET" && url.pathname.startsWith("/vault/v1/kv/name/")) {
-        const name = decodeURIComponent(url.pathname.replace("/vault/v1/kv/name/", ""));
-        const found = vault.find((entry) => entry.name === name);
+      if (request.method === "GET" && url.pathname.startsWith("/vault/v1/kv/")) {
+        const id = decodeURIComponent(url.pathname.replace("/vault/v1/kv/", ""));
+        const found = vault.find((entry) => entry.id === id);
         return found ? Response.json(found) : new Response("not found", { status: 404 });
+      }
+      if (request.method === "PUT" && url.pathname.startsWith("/vault/v1/kv/")) {
+        const id = decodeURIComponent(url.pathname.replace("/vault/v1/kv/", ""));
+        const found = vault.find((entry) => entry.id === id);
+        if (!found) return new Response("not found", { status: 404 });
+        const body = (await request.json()) as { value: string };
+        found.value = body.value;
+        return Response.json(found);
       }
       if (request.method === "DELETE" && url.pathname.startsWith("/vault/v1/kv/")) {
         const id = decodeURIComponent(url.pathname.replace("/vault/v1/kv/", ""));
@@ -175,11 +183,54 @@ describe("handleSavedEnvRequest", () => {
         environmentUrl: ENV_URL,
       });
       expect(vault).toHaveLength(1);
-      expect(vault[0]?.name).toBe(`env-user_test-${ENV_ID}`);
+      expect(vault[0]?.name).toMatch(/^env-[0-9a-f-]+$/);
+      expect(vault[0]?.name).not.toContain("user_test");
+      expect(vault[0]?.name).not.toContain(ENV_ID);
       expect(vault[0]?.value).toBe(BEARER);
-      expect(vault[0]?.key_context).toEqual({ owner: "user_test" });
+      expect(vault[0]?.metadata.context).toEqual({ owner: "user_test" });
       expect(metadataSavedEnvs(users, "user_test")).toEqual([
-        { environmentId: ENV_ID, environmentUrl: ENV_URL, label: LABEL },
+        { environmentId: ENV_ID, environmentUrl: ENV_URL, label: LABEL, vaultObjectId: "vault_1" },
+      ]);
+    });
+
+    it("updates the existing vault object when the env is paired again", async () => {
+      const { vault, users, fetchSpy } = makeStores({
+        vault: [
+          {
+            id: "vault_1",
+            name: "env-vault_1",
+            value: "old-bearer",
+            metadata: { context: { owner: "user_test" } },
+          },
+        ],
+        users: {
+          user_test: {
+            metadata: {
+              savedEnvs: JSON.stringify([
+                {
+                  environmentId: ENV_ID,
+                  environmentUrl: ENV_URL,
+                  label: "Old",
+                  vaultObjectId: "vault_1",
+                },
+              ]),
+            },
+          },
+        },
+      });
+      globalThis.fetch = fetchSpy;
+      const { request, url } = makeRequest("POST", "/env", {
+        environmentUrl: ENV_URL,
+        environmentId: ENV_ID,
+        label: LABEL,
+        bearer: BEARER,
+      });
+      const response = await handleSavedEnvRequest(request, url, makeOptions());
+      expect(response.status).toBe(201);
+      expect(vault).toHaveLength(1);
+      expect(vault[0]?.value).toBe(BEARER);
+      expect(metadataSavedEnvs(users, "user_test")).toEqual([
+        { environmentId: ENV_ID, environmentUrl: ENV_URL, label: LABEL, vaultObjectId: "vault_1" },
       ]);
     });
 
@@ -233,7 +284,12 @@ describe("handleSavedEnvRequest", () => {
           user_test: {
             metadata: {
               savedEnvs: JSON.stringify([
-                { environmentId: ENV_ID, environmentUrl: ENV_URL, label: LABEL },
+                {
+                  environmentId: ENV_ID,
+                  environmentUrl: ENV_URL,
+                  label: LABEL,
+                  vaultObjectId: "vault_1",
+                },
               ]),
             },
           },
@@ -263,16 +319,21 @@ describe("handleSavedEnvRequest", () => {
         vault: [
           {
             id: "vault_1",
-            name: `env-user_test-${ENV_ID}`,
+            name: "env-vault_1",
             value: BEARER,
-            key_context: { owner: "user_test" },
+            metadata: { context: { owner: "user_test" } },
           },
         ],
         users: {
           user_test: {
             metadata: {
               savedEnvs: JSON.stringify([
-                { environmentId: ENV_ID, environmentUrl: ENV_URL, label: LABEL },
+                {
+                  environmentId: ENV_ID,
+                  environmentUrl: ENV_URL,
+                  label: LABEL,
+                  vaultObjectId: "vault_1",
+                },
               ]),
             },
           },
@@ -298,21 +359,26 @@ describe("handleSavedEnvRequest", () => {
       expect(response.status).toBe(404);
     });
 
-    it("403s when key_context.owner doesn't match the JWT subject", async () => {
+    it("403s when Vault owner context doesn't match the JWT subject", async () => {
       const { fetchSpy } = makeStores({
         vault: [
           {
             id: "vault_1",
-            name: `env-user_test-${ENV_ID}`,
+            name: "env-vault_1",
             value: BEARER,
-            key_context: { owner: "user_other" },
+            metadata: { context: { owner: "user_other" } },
           },
         ],
         users: {
           user_test: {
             metadata: {
               savedEnvs: JSON.stringify([
-                { environmentId: ENV_ID, environmentUrl: ENV_URL, label: LABEL },
+                {
+                  environmentId: ENV_ID,
+                  environmentUrl: ENV_URL,
+                  label: LABEL,
+                  vaultObjectId: "vault_1",
+                },
               ]),
             },
           },
@@ -332,7 +398,12 @@ describe("handleSavedEnvRequest", () => {
           user_test: {
             metadata: {
               savedEnvs: JSON.stringify([
-                { environmentId: ENV_ID, environmentUrl: ENV_URL, label: "Old" },
+                {
+                  environmentId: ENV_ID,
+                  environmentUrl: ENV_URL,
+                  label: "Old",
+                  vaultObjectId: "vault_1",
+                },
               ]),
             },
           },
@@ -348,7 +419,7 @@ describe("handleSavedEnvRequest", () => {
         environmentUrl: ENV_URL,
       });
       expect(metadataSavedEnvs(users, "user_test")).toEqual([
-        { environmentId: ENV_ID, environmentUrl: ENV_URL, label: "New" },
+        { environmentId: ENV_ID, environmentUrl: ENV_URL, label: "New", vaultObjectId: "vault_1" },
       ]);
     });
 
@@ -367,16 +438,21 @@ describe("handleSavedEnvRequest", () => {
         vault: [
           {
             id: "vault_1",
-            name: `env-user_test-${ENV_ID}`,
+            name: "env-vault_1",
             value: BEARER,
-            key_context: { owner: "user_test" },
+            metadata: { context: { owner: "user_test" } },
           },
         ],
         users: {
           user_test: {
             metadata: {
               savedEnvs: JSON.stringify([
-                { environmentId: ENV_ID, environmentUrl: ENV_URL, label: LABEL },
+                {
+                  environmentId: ENV_ID,
+                  environmentUrl: ENV_URL,
+                  label: LABEL,
+                  vaultObjectId: "vault_1",
+                },
               ]),
             },
           },
