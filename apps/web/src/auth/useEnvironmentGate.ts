@@ -10,6 +10,7 @@ import {
   getSavedEnvironmentRecord,
   persistSavedEnvironmentRecord,
   useSavedEnvironmentRegistryStore,
+  waitForSavedEnvironmentRegistryHydration,
   writeSavedEnvironmentBearerToken,
 } from "../environments/runtime/catalog";
 
@@ -45,26 +46,24 @@ export function useEnvironmentGate(): { isReady: boolean } {
     if (!environments.data) return;
     const ids = environments.data;
     if (ids.length === 0) return;
-    const missing = ids.filter(
-      (environmentId) =>
-        !hydratedRef.current.has(environmentId) &&
-        !getSavedEnvironmentRecord(environmentId as EnvironmentId),
-    );
-    if (missing.length === 0) return;
 
     let cancelled = false;
     void (async () => {
       const accessToken = await auth.getAccessToken();
       if (!accessToken) return;
-      for (const environmentId of missing) {
+      await waitForSavedEnvironmentRegistryHydration();
+      for (const environmentId of ids) {
         if (cancelled) return;
+        const typedEnvironmentId = environmentId as EnvironmentId;
+        if (
+          hydratedRef.current.has(environmentId) ||
+          getSavedEnvironmentRecord(typedEnvironmentId)
+        ) {
+          continue;
+        }
         try {
           const record = await getSavedEnv(environmentId, accessToken);
-          const persisted = await writeSavedEnvironmentBearerToken(
-            record.environmentId as EnvironmentId,
-            record.bearer,
-          );
-          if (!persisted) continue;
+          const recordEnvironmentId = record.environmentId as EnvironmentId;
           const httpBaseUrl = record.environmentUrl.endsWith("/")
             ? record.environmentUrl
             : `${record.environmentUrl}/`;
@@ -73,7 +72,7 @@ export function useEnvironmentGate(): { isReady: boolean } {
             .replace(/^https:\/\//i, "wss://");
           const now = new Date().toISOString();
           const next = {
-            environmentId: record.environmentId as EnvironmentId,
+            environmentId: recordEnvironmentId,
             label: record.label,
             httpBaseUrl,
             wsBaseUrl,
@@ -81,6 +80,14 @@ export function useEnvironmentGate(): { isReady: boolean } {
             lastConnectedAt: now,
           };
           await persistSavedEnvironmentRecord(next);
+          const persisted = await writeSavedEnvironmentBearerToken(
+            next.environmentId,
+            record.bearer,
+          );
+          if (!persisted) {
+            useSavedEnvironmentRegistryStore.getState().remove(next.environmentId);
+            continue;
+          }
           useSavedEnvironmentRegistryStore.getState().upsert(next);
           hydratedRef.current.add(environmentId);
         } catch {

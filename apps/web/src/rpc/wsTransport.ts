@@ -64,6 +64,8 @@ export class WsTransport {
   private disposed = false;
   private hasReportedTransportDisconnect = false;
   private reconnectChain: Promise<void> = Promise.resolve();
+  private nextSessionId = 0;
+  private activeSessionId = 0;
   private session: TransportSession;
   private readonly heartbeatIntervalMs: number;
   private readonly heartbeatTimeoutMs: number;
@@ -235,8 +237,17 @@ export class WsTransport {
   }
 
   private createSession(): TransportSession {
+    const sessionId = this.nextSessionId + 1;
+    this.nextSessionId = sessionId;
+    this.activeSessionId = sessionId;
     const runtime = ManagedRuntime.make(
-      Layer.mergeAll(createWsRpcProtocolLayer(this.url, this.lifecycleHandlers), ClientTracingLive),
+      Layer.mergeAll(
+        createWsRpcProtocolLayer(this.url, {
+          ...this.lifecycleHandlers,
+          isActive: () => !this.disposed && this.activeSessionId === sessionId,
+        }),
+        ClientTracingLive,
+      ),
     );
     const clientScope = runtime.runSync(Scope.make());
     const session: TransportSession = {
