@@ -20,14 +20,17 @@ describe("getProviderEnvironmentState", () => {
     ).toBe("offline");
   });
 
-  it("uses runtime connection state for saved environments", () => {
+  it("treats a server config snapshot as connected for saved environments", () => {
     expect(
       getProviderEnvironmentState({
         workOsConfigured: true,
         hasServerConfig: true,
         runtimeStates: [{ connectionState: "disconnected" }],
       }),
-    ).toBe("offline");
+    ).toBe("connected");
+  });
+
+  it("uses runtime connection state before saved environment config loads", () => {
     expect(
       getProviderEnvironmentState({
         workOsConfigured: true,

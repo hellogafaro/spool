@@ -9,7 +9,7 @@ export function getProviderEnvironmentState(input: {
   readonly hasServerConfig: boolean;
   readonly runtimeStates: ReadonlyArray<RuntimeStateLike>;
 }): ProviderEnvironmentState {
-  if (!input.workOsConfigured) {
+  if (!input.workOsConfigured || input.hasServerConfig) {
     return input.hasServerConfig ? "connected" : "offline";
   }
 
