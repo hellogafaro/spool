@@ -4,10 +4,11 @@ import { type ProviderKind } from "@t3tools/contracts";
 import { DEFAULT_UNIFIED_SETTINGS } from "@t3tools/contracts/settings";
 import { normalizeModelSlug } from "@t3tools/shared/model";
 
-import { useClaimedEnvironments } from "~/auth/useClaimedEnvironments";
+import { isWorkOsConfigured } from "~/auth/workos";
+import { useSavedEnvironmentRuntimeStore } from "~/environments/runtime";
 import { useSettings, useUpdateSettings } from "~/hooks/useSettings";
 import { MAX_CUSTOM_MODEL_LENGTH } from "~/modelSelection";
-import { useServerProviders } from "~/rpc/serverState";
+import { useServerConfig, useServerProviders } from "~/rpc/serverState";
 import { cn } from "~/lib/utils";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -15,6 +16,11 @@ import { Spinner } from "../ui/spinner";
 import { Switch } from "../ui/switch";
 import { ProviderInstallButton } from "./ProviderInstallButton";
 import { ProviderSetupDialog } from "./ProviderSetupDialog";
+import {
+  getProviderEnvironmentState,
+  getProviderEnvironmentUnavailableMessage,
+  type ProviderEnvironmentState,
+} from "./provider-environment-state";
 import { PROVIDER_COMMANDS } from "./providerCommands";
 import { SettingsPageContainer, SettingsSection } from "./settingsLayout";
 
@@ -31,10 +37,11 @@ const RECIPES: ReadonlyArray<ProviderRecipe> = [
 ];
 
 export function ProvidersSettings() {
-  const environments = useClaimedEnvironments();
+  const serverConfig = useServerConfig();
   const liveProviders = useServerProviders();
   const settings = useSettings();
   const { updateSettings } = useUpdateSettings();
+  const runtimeById = useSavedEnvironmentRuntimeStore((state) => state.byId);
   const [setupProviderId, setSetupProviderId] = useState<ProviderKind | null>(null);
   const [openDetails, setOpenDetails] = useState<Partial<Record<ProviderKind, boolean>>>({});
   const [customModelInput, setCustomModelInput] = useState<Partial<Record<ProviderKind, string>>>(
@@ -44,7 +51,16 @@ export function ProvidersSettings() {
     Partial<Record<ProviderKind, string | null>>
   >({});
 
-  const hasOnlineEnv = useMemo(() => (environments.data?.length ?? 0) > 0, [environments.data]);
+  const environmentState = useMemo(
+    () =>
+      getProviderEnvironmentState({
+        workOsConfigured: isWorkOsConfigured,
+        hasServerConfig: serverConfig !== null,
+        runtimeStates: Object.values(runtimeById),
+      }),
+    [runtimeById, serverConfig],
+  );
+  const hasOnlineEnv = environmentState === "connected";
 
   const known = useMemo(() => {
     return RECIPES.map((recipe) => {
@@ -140,7 +156,7 @@ export function ProvidersSettings() {
 
           {!hasOnlineEnv ? (
             <div className="rounded-lg border border-dashed border-border/70 bg-card/40 px-4 py-4 text-sm text-muted-foreground">
-              No online environment. Provider state shows up here once an environment is connected.
+              {getProviderEnvironmentUnavailableMessage(environmentState)}
             </div>
           ) : null}
 
@@ -171,7 +187,7 @@ export function ProvidersSettings() {
                       <ProviderActions
                         providerId={recipe.id}
                         live={live}
-                        hasOnlineEnv={hasOnlineEnv}
+                        environmentState={environmentState}
                         hasRecipe={Boolean(PROVIDER_COMMANDS[recipe.id])}
                         onSetup={() => setSetupProviderId(recipe.id)}
                       />
@@ -299,17 +315,25 @@ export function ProvidersSettings() {
 function ProviderActions({
   providerId,
   live,
-  hasOnlineEnv,
+  environmentState,
   hasRecipe,
   onSetup,
 }: {
   providerId: ProviderKind;
   live: ReturnType<typeof useServerProviders>[number] | undefined;
-  hasOnlineEnv: boolean;
+  environmentState: ProviderEnvironmentState;
   hasRecipe: boolean;
   onSetup: () => void;
 }) {
-  if (!hasOnlineEnv) {
+  if (environmentState === "connecting") {
+    return (
+      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+        <Spinner className="size-3" />
+        Connecting
+      </span>
+    );
+  }
+  if (environmentState !== "connected") {
     return <Badge tone="muted">Unknown</Badge>;
   }
   if (!live || !live.installed) {

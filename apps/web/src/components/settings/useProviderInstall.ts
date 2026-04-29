@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { createEnvironmentApi } from "~/environmentApi";
 import { getPrimaryEnvironmentConnection } from "~/environments/runtime";
-import { useServerConfig } from "~/rpc/serverState";
+import { applyProvidersUpdated, useServerConfig } from "~/rpc/serverState";
 
 import { getProviderCommands } from "./providerCommands";
 
@@ -108,6 +108,10 @@ export function useProviderInstall(providerId: string): UseProviderInstallResult
       if (event.type === "exited") {
         if (event.exitCode === 0) {
           finish("done", null);
+          void primary.client.server
+            .refreshProviders()
+            .then((payload) => applyProvidersUpdated(payload))
+            .catch(() => undefined);
         } else {
           finish("error", `Install exited with code ${event.exitCode ?? "?"}.`);
         }
