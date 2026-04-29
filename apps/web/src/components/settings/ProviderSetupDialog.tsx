@@ -1,6 +1,6 @@
 import { type EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { scopeThreadRef } from "@t3tools/client-runtime";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { createEnvironmentApi } from "~/environmentApi";
 import { getPrimaryEnvironmentConnection } from "~/environments/runtime";
@@ -33,14 +33,18 @@ const TERMINAL_ID = "default";
  * active environment.
  *
  * Reuses T3's TerminalViewport so we get xterm wiring, history rehydrate, and
- * input fan-out for free. We layer a small auto-feed: once the shell prints
- * its first prompt ("started" event) we write the setup command + Enter so
- * the user lands directly in OAuth without typing anything.
+ * input fan-out for free. The dialog opens a setup PTY, writes the provider
+ * command, then lets the viewport attach to the running session.
  */
 export function ProviderSetupDialog({ providerId, providerLabel, open, onOpenChange }: Props) {
   const serverConfig = useServerConfig();
+  const cwd = serverConfig?.cwd ?? null;
   const keybindings = useServerKeybindings();
   const commands = getProviderCommands(providerId);
+  const [terminalStatus, setTerminalStatus] = useState<{
+    readonly status: "idle" | "starting" | "ready" | "error";
+    readonly message: string | null;
+  }>({ status: "idle", message: null });
 
   let primaryEnvironmentId: EnvironmentId | null = null;
   try {
@@ -49,10 +53,8 @@ export function ProviderSetupDialog({ providerId, providerLabel, open, onOpenCha
     primaryEnvironmentId = null;
   }
 
-  // Timestamp the threadId per dialog open. Reusing a fixed threadId after a
-  // previous setup closed would not re-fire the "started" event (T3's terminal
-  // RPC keeps the closed PTY's record), and the dialog would render an empty
-  // black viewport. Same pattern as ProviderInstallButton.
+  // Timestamp the threadId per dialog open so each setup attempt gets a fresh
+  // PTY and history file. Same pattern as ProviderInstallButton.
   const threadId = useMemo(
     () =>
       open
@@ -64,42 +66,72 @@ export function ProviderSetupDialog({ providerId, providerLabel, open, onOpenCha
     () => (primaryEnvironmentId ? scopeThreadRef(primaryEnvironmentId, threadId) : null),
     [primaryEnvironmentId, threadId],
   );
-  const autoFedRef = useRef(false);
 
-  // Auto-feed the setup command once the shell session is up, and tear
-  // down the PTY when the dialog closes OR when the component unmounts
-  // while still open (e.g. parent navigates away). One effect covers both
-  // so we can never leak a shell that we set up.
+  // Open and feed the setup command before the viewport attaches. The viewport
+  // opens its PTY from a child effect, so waiting for its "started" event here
+  // is order-dependent and can miss the event.
   useEffect(() => {
     if (!open) {
-      autoFedRef.current = false;
+      setTerminalStatus({ status: "idle", message: null });
       return;
     }
     if (!commands) return;
+    if (!cwd) {
+      setTerminalStatus({ status: "error", message: "No active environment." });
+      return;
+    }
     let primary;
     try {
       primary = getPrimaryEnvironmentConnection();
     } catch {
+      setTerminalStatus({ status: "error", message: "No active environment." });
       return;
     }
     const api = createEnvironmentApi(primary.client);
+    let disposed = false;
 
-    const unsubscribe = api.terminal.onEvent((event) => {
-      if (event.threadId !== threadId || event.terminalId !== TERMINAL_ID) return;
-      if (event.type === "started" && !autoFedRef.current) {
-        autoFedRef.current = true;
-        void api.terminal
-          .write({ threadId, terminalId: TERMINAL_ID, data: `${commands.setup}\n` })
-          .catch(() => undefined);
+    const closeTerminal = () =>
+      api.terminal.close({ threadId, terminalId: TERMINAL_ID, deleteHistory: true });
+
+    const startTerminal = async () => {
+      setTerminalStatus({ status: "starting", message: null });
+      try {
+        await api.terminal.open({
+          threadId,
+          terminalId: TERMINAL_ID,
+          cwd,
+          cols: 120,
+          rows: 24,
+        });
+        if (disposed) {
+          await closeTerminal().catch(() => undefined);
+          return;
+        }
+        await api.terminal.write({
+          threadId,
+          terminalId: TERMINAL_ID,
+          data: `${commands.setup}\n`,
+        });
+        if (disposed) {
+          await closeTerminal().catch(() => undefined);
+          return;
+        }
+        setTerminalStatus({ status: "ready", message: null });
+      } catch (error) {
+        if (disposed) return;
+        setTerminalStatus({
+          status: "error",
+          message: error instanceof Error ? error.message : "Failed to start setup terminal.",
+        });
       }
-    });
-    return () => {
-      unsubscribe();
-      void api.terminal
-        .close({ threadId, terminalId: TERMINAL_ID, deleteHistory: true })
-        .catch(() => undefined);
     };
-  }, [commands, open, threadId]);
+
+    void startTerminal();
+    return () => {
+      disposed = true;
+      void closeTerminal().catch(() => undefined);
+    };
+  }, [commands, cwd, open, threadId]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -119,6 +151,14 @@ export function ProviderSetupDialog({ providerId, providerLabel, open, onOpenCha
           ) : !commands ? (
             <div className="rounded-md border border-dashed border-border/70 bg-card/40 px-4 py-6 text-center text-sm text-muted-foreground">
               No setup recipe for {providerLabel}.
+            </div>
+          ) : terminalStatus.status === "error" ? (
+            <div className="rounded-md border border-dashed border-border/70 bg-card/40 px-4 py-6 text-center text-sm text-muted-foreground">
+              {terminalStatus.message ?? "Failed to start setup terminal."}
+            </div>
+          ) : terminalStatus.status !== "ready" ? (
+            <div className="rounded-md border border-dashed border-border/70 bg-card/40 px-4 py-6 text-center text-sm text-muted-foreground">
+              Starting setup terminal...
             </div>
           ) : threadRef ? (
             <div className="thread-terminal-drawer h-[360px] overflow-hidden rounded-md border border-border/70 bg-background">
